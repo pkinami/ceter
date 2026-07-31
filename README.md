@@ -29,3 +29,40 @@ SUPABASE_SERVICE_ROLE_KEY=
 ```
 
 Run the migration files in `supabase/migrations/`, then load `supabase/seed.sql` for the initial Ceter product catalog. `SUPABASE_SERVICE_ROLE_KEY` is used only by server-side admin actions and must never be exposed to the browser. Vercel can read the same variables from Project Settings > Environment Variables.
+
+## Admin data layer
+
+The `/admin` panel uses Prisma with `DATABASE_URL` for direct server-side database access after the existing Supabase Auth admin-role check passes. Treat this connection as privileged service-role-equivalent access.
+
+Customer-facing routes and flows continue to use the Supabase client with RLS enforcement, including cart, checkout, auth, account pages, product browsing, and quote submission. Do not move those paths to Prisma unless the access model is deliberately redesigned.
+
+## Prisma 7 setup
+
+Prisma 7 reads the CLI datasource URL from `prisma.config.ts`, not from `prisma/schema.prisma`. The schema datasource should only declare:
+
+```prisma
+datasource db {
+  provider = "postgresql"
+}
+```
+
+Install dependencies and verify the setup:
+
+```bash
+npm install
+npx prisma version
+npx prisma validate
+npx prisma generate
+npx prisma db pull
+npm run build
+npm run dev
+```
+
+On Windows PowerShell, if `npm` or `npx` is blocked by the script execution policy, use `npm.cmd` and `npx.cmd` instead:
+
+```bash
+npm.cmd install
+npx.cmd prisma validate
+```
+
+`DATABASE_URL` must be set in `.env.local` or another loaded env file before running Prisma commands or opening `/admin`.

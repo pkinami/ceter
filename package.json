@@ -9,12 +9,15 @@
     "lint": "eslint ."
   },
   "dependencies": {
+    "@prisma/adapter-pg": "^7.9.1",
+    "@prisma/client": "^7.8.0",
     "@supabase/ssr": "file:vendor/supabase-ssr",
     "@supabase/supabase-js": "^2.111.0",
     "clsx": "^2.1.1",
     "framer-motion": "^11.11.17",
     "lucide-react": "^0.468.0",
     "next": "^15.0.3",
+    "pg": "^8.16.3",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "sonner": "^1.7.0",
@@ -28,7 +31,9 @@
     "eslint": "^9.15.0",
     "eslint-config-next": "^15.0.3",
     "postcss": "^8.4.49",
+    "prisma": "^7.8.0",
     "tailwindcss": "^3.4.15",
-    "typescript": "^5.6.3"
+    "typescript": "^5.6.3",
+    "vercel": "^58.1.0"
   }
 }

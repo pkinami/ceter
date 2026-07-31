@@ -1,31 +1,35 @@
 import { redirect } from "next/navigation";
-import { createAdminClient } from "@/lib/supabase/admin";
-import { createClient } from "@/lib/supabase/server";
+import type { Prisma, StockStatus } from "@prisma/client";
 import { deleteProductAction, updateOrderStatusAction, updateQuoteStatusAction, upsertProductAction } from "@/app/admin/actions";
+import { prisma } from "@/lib/prisma";
+import { createClient } from "@/lib/supabase/server";
 import { formatKes } from "@/lib/utils";
 
 export const metadata = { title: "Admin" };
 
-type AdminOrder = {
-  id: string;
-  status: string;
-  total_kes: number;
-  created_at: string;
-  user_id: string | null;
-  profiles?: { full_name: string | null }[] | { full_name: string | null } | null;
+type AdminSearchParams = {
+  edit?: string;
+  q?: string;
+  category?: string;
+  brand?: string;
+  stock?: string;
 };
 
-type AdminQuote = {
-  id: string;
-  name: string;
-  email: string;
-  phone: string;
-  service_needed: string;
-  status: string;
-};
+function asStringArray(value: Prisma.JsonValue | undefined) {
+  return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
+}
 
-export default async function AdminPage({ searchParams }: { searchParams: Promise<{ edit?: string }> }) {
+function formatSpecs(value: Prisma.JsonValue | undefined) {
+  if (!value || Array.isArray(value) || typeof value !== "object") return "";
+  return Object.entries(value).map(([key, entry]) => `${key}: ${String(entry)}`).join("\n");
+}
+
+export default async function AdminPage({ searchParams }: { searchParams: Promise<AdminSearchParams> }) {
   const params = await searchParams;
+  const query = params.q?.trim() ?? "";
+  const categoryFilter = params.category?.trim() ?? "";
+  const brandFilter = params.brand?.trim() ?? "";
+  const stockFilter = params.stock?.trim() ?? "";
   const supabase = await createClient();
   const { data: userData } = await supabase.auth.getUser();
   if (!userData.user) redirect("/login");
@@ -33,29 +37,59 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
   const { data: profile } = await supabase.from("profiles").select("role").eq("id", userData.user.id).maybeSingle();
   if (profile?.role !== "admin") redirect("/");
 
-  const admin = createAdminClient();
-  const [productCount, lowStock, newQuotes, recentOrders, categories, brands, products, quotes] = await Promise.all([
-    admin.from("products").select("id", { count: "exact", head: true }),
-    admin.from("products").select("id", { count: "exact", head: true }).or("stock_status.eq.backorder,stock_quantity.lt.5"),
-    admin.from("quote_requests").select("id", { count: "exact", head: true }).eq("status", "new"),
-    admin.from("orders").select("id,status,total_kes,created_at,user_id,profiles(full_name)").order("created_at", { ascending: false }).limit(10),
-    admin.from("categories").select("id,name").order("name"),
-    admin.from("brands").select("id,name").order("name"),
-    admin.from("products").select("id,name,slug,price_kes,stock_status,stock_quantity,condition,is_featured,categories(name),brands(name)").order("created_at", { ascending: false }),
-    admin.from("quote_requests").select("id,name,email,phone,service_needed,status,created_at").order("created_at", { ascending: false }).limit(20)
-  ]);
+  const productWhere: Prisma.ProductWhereInput = {
+    AND: [
+      query
+        ? {
+            OR: [
+              { name: { contains: query, mode: "insensitive" } },
+              { slug: { contains: query, mode: "insensitive" } },
+              { description: { contains: query, mode: "insensitive" } }
+            ]
+          }
+        : {},
+      categoryFilter ? { category_id: categoryFilter } : {},
+      brandFilter ? { brand_id: brandFilter } : {},
+      stockFilter ? { stock_status: stockFilter as StockStatus } : {}
+    ]
+  };
 
-  const editProduct = params.edit ? (await admin.from("products").select("*").eq("id", params.edit).maybeSingle()).data : null;
+  const [productCount, lowStock, newQuotes, recentOrders, categories, brands, products, quotes, editProduct] = await Promise.all([
+    prisma.product.count(),
+    prisma.product.count({ where: { OR: [{ stock_status: "backorder" }, { stock_quantity: { lt: 5 } }] } }),
+    prisma.quoteRequest.count({ where: { status: "new" } }),
+    prisma.order.findMany({
+      include: {
+        profile: { select: { full_name: true } },
+        order_items: { include: { product: { select: { name: true, slug: true } } } }
+      },
+      orderBy: { created_at: "desc" },
+      take: 10
+    }),
+    prisma.category.findMany({ select: { id: true, name: true }, orderBy: { name: "asc" } }),
+    prisma.brand.findMany({ select: { id: true, name: true }, orderBy: { name: "asc" } }),
+    prisma.product.findMany({
+      where: productWhere,
+      include: { category: { select: { name: true } }, brand: { select: { name: true } } },
+      orderBy: { created_at: "desc" }
+    }),
+    prisma.quoteRequest.findMany({
+      select: { id: true, name: true, email: true, phone: true, service_needed: true, status: true, created_at: true },
+      orderBy: { created_at: "desc" },
+      take: 20
+    }),
+    params.edit ? prisma.product.findUnique({ where: { id: params.edit } }) : null
+  ]);
 
   return (
     <div className="mx-auto max-w-7xl space-y-8 px-4 py-8">
       <section>
         <h1 className="text-2xl font-black text-ink">Admin dashboard</h1>
         <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          <Metric label="Total products" value={String(productCount.count ?? 0)} />
-          <Metric label="Low stock/backorder" value={String(lowStock.count ?? 0)} />
-          <Metric label="New quote requests" value={String(newQuotes.count ?? 0)} />
-          <Metric label="Recent orders" value={String((recentOrders.data ?? []).length)} />
+          <Metric label="Total products" value={String(productCount)} />
+          <Metric label="Low stock/backorder" value={String(lowStock)} />
+          <Metric label="New quote requests" value={String(newQuotes)} />
+          <Metric label="Recent orders" value={String(recentOrders.length)} />
         </div>
       </section>
 
@@ -72,14 +106,14 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
               Category
               <select name="category_id" defaultValue={editProduct?.category_id ?? ""} className="mt-2 h-11 w-full rounded-md border border-slate-300 px-3 text-sm">
                 <option value="">Select category</option>
-                {(categories.data ?? []).map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}
+                {categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}
               </select>
             </label>
             <label className="block text-sm font-bold text-slate-700">
               Brand
               <select name="brand_id" defaultValue={editProduct?.brand_id ?? ""} className="mt-2 h-11 w-full rounded-md border border-slate-300 px-3 text-sm">
                 <option value="">Select brand</option>
-                {(brands.data ?? []).map((brand) => <option key={brand.id} value={brand.id}>{brand.name}</option>)}
+                {brands.map((brand) => <option key={brand.id} value={brand.id}>{brand.name}</option>)}
               </select>
             </label>
             <label className="block text-sm font-bold text-slate-700">
@@ -103,11 +137,11 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
             </label>
             <label className="block text-sm font-bold text-slate-700">
               Images, one per line
-              <textarea name="images" defaultValue={(editProduct?.images as string[] | undefined)?.join("\n") ?? "/product-placeholder.svg"} className="mt-2 min-h-20 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" />
+              <textarea name="images" defaultValue={asStringArray(editProduct?.images).join("\n") || "/product-placeholder.svg"} className="mt-2 min-h-20 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" />
             </label>
             <label className="block text-sm font-bold text-slate-700">
               Specs, `Key: Value` per line
-              <textarea name="specs" defaultValue={editProduct?.specs ? Object.entries(editProduct.specs as Record<string, string>).map(([key, value]) => `${key}: ${value}`).join("\n") : ""} className="mt-2 min-h-28 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" />
+              <textarea name="specs" defaultValue={formatSpecs(editProduct?.specs)} className="mt-2 min-h-28 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" />
             </label>
             <label className="flex items-center gap-2 text-sm font-semibold text-slate-700">
               <input type="checkbox" name="is_featured" defaultChecked={Boolean(editProduct?.is_featured)} />
@@ -119,7 +153,27 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
 
         <div className="space-y-6">
           <section className="rounded-lg border border-slate-300 bg-white">
-            <div className="border-b border-line p-4"><h2 className="text-lg font-black text-ink">Products</h2></div>
+            <div className="border-b border-line p-4">
+              <h2 className="text-lg font-black text-ink">Products</h2>
+              <form className="mt-4 grid gap-3 md:grid-cols-[1fr_180px_180px_180px_auto]">
+                <input name="q" defaultValue={query} placeholder="Search products" className="h-10 rounded-md border border-slate-300 px-3 text-sm" />
+                <select name="category" defaultValue={categoryFilter} className="h-10 rounded-md border border-slate-300 px-3 text-sm">
+                  <option value="">All categories</option>
+                  {categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}
+                </select>
+                <select name="brand" defaultValue={brandFilter} className="h-10 rounded-md border border-slate-300 px-3 text-sm">
+                  <option value="">All brands</option>
+                  {brands.map((brand) => <option key={brand.id} value={brand.id}>{brand.name}</option>)}
+                </select>
+                <select name="stock" defaultValue={stockFilter} className="h-10 rounded-md border border-slate-300 px-3 text-sm">
+                  <option value="">All stock</option>
+                  <option value="in_stock">In stock</option>
+                  <option value="backorder">Backorder</option>
+                  <option value="out_of_stock">Out of stock</option>
+                </select>
+                <button className="h-10 rounded-md bg-ink px-4 text-sm font-bold text-white">Filter</button>
+              </form>
+            </div>
             <div className="overflow-auto">
               <table className="min-w-full text-sm">
                 <thead className="bg-mist text-left text-xs uppercase text-slate-500">
@@ -133,11 +187,11 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
                   </tr>
                 </thead>
                 <tbody>
-                  {(products.data ?? []).map((product) => (
+                  {products.map((product) => (
                     <tr key={product.id} className="border-t border-line">
                       <td className="px-4 py-3 font-semibold text-ink">{product.name}</td>
-                      <td className="px-4 py-3">{Array.isArray(product.categories) ? product.categories[0]?.name ?? "-" : (product.categories as { name: string } | null)?.name ?? "-"}</td>
-                      <td className="px-4 py-3">{Array.isArray(product.brands) ? product.brands[0]?.name ?? "-" : (product.brands as { name: string } | null)?.name ?? "-"}</td>
+                      <td className="px-4 py-3">{product.category?.name ?? "-"}</td>
+                      <td className="px-4 py-3">{product.brand?.name ?? "-"}</td>
                       <td className="px-4 py-3">{formatKes(product.price_kes)}</td>
                       <td className="px-4 py-3">{product.stock_status} / {product.stock_quantity}</td>
                       <td className="px-4 py-3">
@@ -159,11 +213,12 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
           <section className="rounded-lg border border-slate-300 bg-white">
             <div className="border-b border-line p-4"><h2 className="text-lg font-black text-ink">Recent orders</h2></div>
             <div className="divide-y divide-line">
-              {((recentOrders.data ?? []) as unknown as AdminOrder[]).map((order) => (
+              {recentOrders.map((order) => (
                 <form key={order.id} action={updateOrderStatusAction} className="grid gap-3 p-4 md:grid-cols-[1fr_auto_auto] md:items-center">
                   <div>
-                    <p className="font-semibold text-ink">{Array.isArray(order.profiles) ? order.profiles[0]?.full_name ?? order.user_id ?? "Guest" : order.profiles?.full_name ?? order.user_id ?? "Guest"}</p>
-                    <p className="text-xs text-slate-500">{new Date(order.created_at).toLocaleString("en-KE")} • {formatKes(order.total_kes)}</p>
+                    <p className="font-semibold text-ink">{order.profile?.full_name ?? order.user_id ?? "Guest"}</p>
+                    <p className="text-xs text-slate-500">{order.created_at.toLocaleString("en-KE")} | {formatKes(order.total_kes)}</p>
+                    <p className="text-xs text-slate-500">{order.order_items.map((item) => `${item.quantity}x ${item.product?.name ?? "Deleted product"}`).join(", ") || "No items"}</p>
                   </div>
                   <input type="hidden" name="id" value={order.id} />
                   <select name="status" defaultValue={order.status} className="h-10 rounded-md border border-slate-300 px-3 text-sm">
@@ -182,11 +237,11 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
           <section className="rounded-lg border border-slate-300 bg-white">
             <div className="border-b border-line p-4"><h2 className="text-lg font-black text-ink">Quote requests</h2></div>
             <div className="divide-y divide-line">
-              {(quotes.data as AdminQuote[] | null ?? []).map((quote) => (
+              {quotes.map((quote) => (
                 <form key={quote.id} action={updateQuoteStatusAction} className="grid gap-3 p-4 md:grid-cols-[1fr_auto_auto] md:items-center">
                   <div>
-                    <p className="font-semibold text-ink">{quote.name} • {quote.service_needed}</p>
-                    <p className="text-xs text-slate-500">{quote.email} • {quote.phone}</p>
+                    <p className="font-semibold text-ink">{quote.name} | {quote.service_needed}</p>
+                    <p className="text-xs text-slate-500">{quote.email} | {quote.phone}</p>
                   </div>
                   <input type="hidden" name="id" value={quote.id} />
                   <select name="status" defaultValue={quote.status} className="h-10 rounded-md border border-slate-300 px-3 text-sm">
