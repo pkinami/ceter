@@ -23,8 +23,8 @@ export default async function CategoryPage({ searchParams }: { searchParams: Pro
         <section className="min-w-0 flex-1">
           <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
             <div>
-              <h1 className="text-2xl font-black text-ink">Catalog listing</h1>
-              <p className="text-sm text-slate-500">Live product inventory from Supabase.</p>
+              <h1 className="text-2xl font-black text-ink">{params.category ? "Category listing" : "Catalog listing"}</h1>
+              <p className="text-sm text-slate-500">{products.length} products available for this selection.</p>
             </div>
             <select className="h-10 rounded-md border border-slate-300 bg-white px-3 text-sm">
               <option>Sort by featured</option>

@@ -3,6 +3,8 @@ export type ProductCondition = "new" | "refurbished";
 export type ProfileRole = "customer" | "admin";
 export type OrderStatus = "pending" | "processing" | "paid" | "fulfilled" | "cancelled";
 export type QuoteStatus = "new" | "contacted" | "closed";
+export type BannerPlacement = "top" | "middle" | "bottom";
+export type HomepageSectionType = "category_products" | "latest_products" | "services" | "brands";
 
 export type Category = {
   id: string;
@@ -16,6 +18,7 @@ export type Brand = {
   id: string;
   name: string;
   slug: string;
+  icon: string | null;
 };
 
 export type Product = {
@@ -26,6 +29,7 @@ export type Product = {
   brandId: string | null;
   category: string;
   categoryId: string | null;
+  categorySlug: string | null;
   description: string;
   price: number;
   inStock: boolean;
@@ -59,4 +63,35 @@ export type ProductRow = {
 export type CartLine = {
   product: Product;
   quantity: number;
+};
+
+export type Banner = {
+  id: string;
+  title: string;
+  kicker: string | null;
+  body: string;
+  ctaLabel: string | null;
+  ctaHref: string | null;
+  image: string | null;
+  placement: BannerPlacement;
+  sortOrder: number;
+};
+
+export type ServiceEntry = {
+  id: string;
+  title: string;
+  slug: string;
+  description: string;
+  image: string | null;
+  priceKes: number | null;
+  showRequestQuote: boolean;
+};
+
+export type HomepageSection = {
+  id: string;
+  title: string;
+  sectionType: HomepageSectionType;
+  sortOrder: number;
+  productLimit: number;
+  category?: Category | null;
 };

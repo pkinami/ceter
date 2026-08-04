@@ -29,7 +29,7 @@ export function HeaderClient({ categories, brands }: { categories: string[]; bra
         <label className="relative hidden sm:block">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
           <input
-            className="h-11 w-full rounded-md border border-slate-300 bg-panel pl-10 pr-4 text-sm outline-none focus:border-signal focus:ring-2 focus:ring-teal-100"
+            className="h-11 w-full rounded-md border border-slate-300 bg-white pl-10 pr-4 text-sm font-medium text-slate-950 placeholder:text-slate-500 outline-none focus:border-signal focus:ring-2 focus:ring-teal-100"
             placeholder="Search toners, models, parts..."
           />
         </label>
@@ -57,7 +57,7 @@ export function HeaderClient({ categories, brands }: { categories: string[]; bra
       <div className="border-t border-line px-4 pb-3 sm:hidden">
         <label className="relative block">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-          <input className="h-10 w-full rounded-md border border-slate-300 bg-panel pl-10 pr-4 text-sm" placeholder="Search toners, models, parts..." />
+          <input className="h-10 w-full rounded-md border border-slate-300 bg-white pl-10 pr-4 text-sm font-medium text-slate-950 placeholder:text-slate-500 outline-none focus:border-signal focus:ring-2 focus:ring-teal-100" placeholder="Search toners, models, parts..." />
         </label>
       </div>
       <Sidebar categories={categories} brands={brands} mobileOpen={open} onClose={() => setOpen(false)} drawerOnly />

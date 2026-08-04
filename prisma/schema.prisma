@@ -8,10 +8,12 @@ datasource db {
 }
 
 model Brand {
-  id       String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  name     String    @unique
-  slug     String    @unique
-  products Product[]
+  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name       String    @unique
+  slug       String    @unique
+  icon       String?
+  created_at DateTime  @default(now()) @db.Timestamptz(6)
+  products   Product[]
 
   @@map("brands")
   @@schema("public")
@@ -41,8 +43,46 @@ model Category {
   icon        String?
   created_at  DateTime  @default(now()) @db.Timestamptz(6)
   products    Product[]
+  sections    HomepageSection[]
 
   @@map("categories")
+  @@schema("public")
+}
+
+model Banner {
+  id          String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  title       String
+  kicker      String?
+  body        String
+  cta_label   String?
+  cta_href    String?
+  image       String?
+  placement   BannerPlacement @default(top)
+  sort_order  Int            @default(0)
+  is_enabled  Boolean        @default(true)
+  created_at  DateTime       @default(now()) @db.Timestamptz(6)
+  updated_at  DateTime       @default(now()) @updatedAt @db.Timestamptz(6)
+
+  @@index([placement, is_enabled, sort_order])
+  @@map("banners")
+  @@schema("public")
+}
+
+model HomepageSection {
+  id          String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  title       String
+  section_type HomepageSectionType @default(category_products)
+  category_id String?             @db.Uuid
+  sort_order  Int                 @default(0)
+  product_limit Int               @default(8)
+  is_enabled  Boolean             @default(true)
+  created_at  DateTime            @default(now()) @db.Timestamptz(6)
+  updated_at  DateTime            @default(now()) @updatedAt @db.Timestamptz(6)
+  category    Category?           @relation(fields: [category_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
+
+  @@index([section_type, is_enabled, sort_order])
+  @@index([category_id])
+  @@map("homepage_sections")
   @@schema("public")
 }
 
@@ -127,6 +167,43 @@ model QuoteRequest {
   created_at     DateTime    @default(now()) @db.Timestamptz(6)
 
   @@map("quote_requests")
+  @@schema("public")
+}
+
+model ServiceEntry {
+  id                  String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  title               String
+  slug                String   @unique
+  description         String
+  image               String?
+  price_kes           Int?
+  show_request_quote  Boolean  @default(true)
+  sort_order          Int      @default(0)
+  is_enabled          Boolean  @default(true)
+  created_at          DateTime @default(now()) @db.Timestamptz(6)
+  updated_at          DateTime @default(now()) @updatedAt @db.Timestamptz(6)
+
+  @@index([is_enabled, sort_order])
+  @@map("service_entries")
+  @@schema("public")
+}
+
+enum BannerPlacement {
+  top
+  middle
+  bottom
+
+  @@map("banner_placement")
+  @@schema("public")
+}
+
+enum HomepageSectionType {
+  category_products
+  latest_products
+  services
+  brands
+
+  @@map("homepage_section_type")
   @@schema("public")
 }
 

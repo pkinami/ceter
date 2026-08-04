@@ -10,7 +10,7 @@
     "prisma:validate": "prisma validate",
     "prisma:generate": "prisma generate",
     "db:migrate": "prisma migrate deploy",
-    "db:seed": "prisma db execute --file prisma/migrations/0001_init/seed.sql --schema prisma/schema.prisma",
+    "db:seed": "prisma db execute --file prisma/seed.sql --schema prisma/schema.prisma",
     "verify:db": "node scripts/verify-supabase.mjs",
     "setup:admin": "node scripts/setup-admin.mjs"
   },

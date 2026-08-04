@@ -10,7 +10,7 @@ export async function middleware(request: NextRequest) {
     process.env.SUPABASE_PUBLISHABLE_KEY;
 
   if (!url || !anonKey) {
-    throw new Error("Missing Supabase middleware environment variables.");
+    return response;
   }
 
   const supabase = createServerClient(
@@ -28,7 +28,12 @@ export async function middleware(request: NextRequest) {
     }
   );
 
-  await supabase.auth.getUser();
+  try {
+    await supabase.auth.getUser();
+  } catch {
+    return response;
+  }
+
   return response;
 }
 

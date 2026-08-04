@@ -1,6 +1,21 @@
 import { redirect } from "next/navigation";
 import type { Prisma, StockStatus } from "@prisma/client";
-import { deleteProductAction, updateOrderStatusAction, updateQuoteStatusAction, upsertProductAction } from "@/app/admin/actions";
+import {
+  deleteBannerAction,
+  deleteBrandAction,
+  deleteCategoryAction,
+  deleteHomepageSectionAction,
+  deleteProductAction,
+  deleteServiceAction,
+  updateOrderStatusAction,
+  updateQuoteStatusAction,
+  upsertBannerAction,
+  upsertBrandAction,
+  upsertCategoryAction,
+  upsertHomepageSectionAction,
+  upsertProductAction,
+  upsertServiceAction
+} from "@/app/admin/actions";
 import { prisma } from "@/lib/prisma";
 import { createClient } from "@/lib/supabase/server";
 import { formatKes } from "@/lib/utils";
@@ -54,7 +69,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
     ]
   };
 
-  const [productCount, lowStock, newQuotes, recentOrders, categories, brands, products, quotes, editProduct] = await Promise.all([
+  const [productCount, lowStock, newQuotes, recentOrders, categories, brands, products, quotes, editProduct, banners, services, homepageSections] = await Promise.all([
     prisma.product.count(),
     prisma.product.count({ where: { OR: [{ stock_status: "backorder" }, { stock_quantity: { lt: 5 } }] } }),
     prisma.quoteRequest.count({ where: { status: "new" } }),
@@ -66,8 +81,8 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
       orderBy: { created_at: "desc" },
       take: 10
     }),
-    prisma.category.findMany({ select: { id: true, name: true }, orderBy: { name: "asc" } }),
-    prisma.brand.findMany({ select: { id: true, name: true }, orderBy: { name: "asc" } }),
+    prisma.category.findMany({ select: { id: true, name: true, slug: true, description: true, icon: true }, orderBy: { name: "asc" } }),
+    prisma.brand.findMany({ select: { id: true, name: true, slug: true, icon: true }, orderBy: { name: "asc" } }),
     prisma.product.findMany({
       where: productWhere,
       include: { category: { select: { name: true } }, brand: { select: { name: true } } },
@@ -78,7 +93,10 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
       orderBy: { created_at: "desc" },
       take: 20
     }),
-    params.edit ? prisma.product.findUnique({ where: { id: params.edit } }) : null
+    params.edit ? prisma.product.findUnique({ where: { id: params.edit } }) : null,
+    prisma.banner.findMany({ orderBy: [{ placement: "asc" }, { sort_order: "asc" }] }),
+    prisma.serviceEntry.findMany({ orderBy: [{ sort_order: "asc" }, { title: "asc" }] }),
+    prisma.homepageSection.findMany({ include: { category: { select: { name: true } } }, orderBy: [{ sort_order: "asc" }, { title: "asc" }] })
   ]);
 
   return (
@@ -94,7 +112,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
       </section>
 
       <section className="grid gap-6 xl:grid-cols-[420px_1fr]">
-        <form action={upsertProductAction} className="rounded-lg border border-slate-300 bg-white p-5">
+        <form action={upsertProductAction} encType="multipart/form-data" className="rounded-lg border border-slate-300 bg-white p-5">
           <h2 className="text-lg font-black text-ink">{editProduct ? "Edit product" : "Add product"}</h2>
           <input type="hidden" name="id" defaultValue={editProduct?.id ?? ""} />
           <div className="mt-4 grid gap-3">
@@ -138,6 +156,10 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
             <label className="block text-sm font-bold text-slate-700">
               Images, one per line
               <textarea name="images" defaultValue={asStringArray(editProduct?.images).join("\n") || "/product-placeholder.svg"} className="mt-2 min-h-20 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" />
+            </label>
+            <label className="block text-sm font-bold text-slate-700">
+              Upload primary image
+              <input name="primary_image_file" type="file" accept="image/*" className="mt-2 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm" />
             </label>
             <label className="block text-sm font-bold text-slate-700">
               Specs, `Key: Value` per line
@@ -211,6 +233,105 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
           </section>
 
           <section className="rounded-lg border border-slate-300 bg-white">
+            <div className="border-b border-line p-4"><h2 className="text-lg font-black text-ink">Categories</h2></div>
+            <div className="grid gap-4 p-4 lg:grid-cols-2">
+              <form action={upsertCategoryAction} className="grid gap-3 rounded-md border border-slate-200 p-4">
+                <h3 className="text-sm font-black uppercase text-slate-600">Create category</h3>
+                <Input name="name" label="Name" />
+                <Input name="slug" label="Slug" />
+                <Input name="icon" label="Lucide icon name" defaultValue="Printer" />
+                <label className="block text-sm font-bold text-slate-700">
+                  Description
+                  <textarea name="description" className="mt-2 min-h-20 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" />
+                </label>
+                <button className="h-10 rounded-md bg-ink px-4 text-sm font-bold text-white">Create category</button>
+              </form>
+              <div className="space-y-3">
+                {categories.map((category) => (
+                  <form key={category.id} action={upsertCategoryAction} className="grid gap-2 rounded-md border border-slate-200 p-3">
+                    <input type="hidden" name="id" value={category.id} />
+                    <div className="grid gap-2 md:grid-cols-2">
+                      <input name="name" defaultValue={category.name} className="h-10 rounded-md border border-slate-300 px-3 text-sm" />
+                      <input name="slug" defaultValue={category.slug} className="h-10 rounded-md border border-slate-300 px-3 text-sm" />
+                    </div>
+                    <input name="icon" defaultValue={category.icon ?? ""} placeholder="Icon" className="h-10 rounded-md border border-slate-300 px-3 text-sm" />
+                    <textarea name="description" defaultValue={category.description ?? ""} className="min-h-16 rounded-md border border-slate-300 px-3 py-2 text-sm" />
+                    <div className="flex gap-2">
+                      <button className="rounded-md bg-ink px-3 py-2 text-sm font-bold text-white">Save</button>
+                      <DeleteButton action={deleteCategoryAction} id={category.id} />
+                    </div>
+                  </form>
+                ))}
+              </div>
+            </div>
+          </section>
+
+          <section className="rounded-lg border border-slate-300 bg-white">
+            <div className="border-b border-line p-4"><h2 className="text-lg font-black text-ink">Brands</h2></div>
+            <div className="grid gap-4 p-4 lg:grid-cols-2">
+              <form action={upsertBrandAction} encType="multipart/form-data" className="grid gap-3 rounded-md border border-slate-200 p-4">
+                <h3 className="text-sm font-black uppercase text-slate-600">Create brand</h3>
+                <Input name="name" label="Name" />
+                <Input name="slug" label="Slug" />
+                <Input name="icon" label="Icon/image URL" defaultValue="/product-placeholder.svg" />
+                <label className="block text-sm font-bold text-slate-700">
+                  Upload brand icon
+                  <input name="icon_file" type="file" accept="image/*" className="mt-2 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm" />
+                </label>
+                <button className="h-10 rounded-md bg-ink px-4 text-sm font-bold text-white">Create brand</button>
+              </form>
+              <div className="space-y-3">
+                {brands.map((brand) => (
+                  <form key={brand.id} action={upsertBrandAction} encType="multipart/form-data" className="grid gap-2 rounded-md border border-slate-200 p-3">
+                    <input type="hidden" name="id" value={brand.id} />
+                    <input type="hidden" name="existing_icon" value={brand.icon ?? ""} />
+                    <div className="grid gap-2 md:grid-cols-2">
+                      <input name="name" defaultValue={brand.name} className="h-10 rounded-md border border-slate-300 px-3 text-sm" />
+                      <input name="slug" defaultValue={brand.slug} className="h-10 rounded-md border border-slate-300 px-3 text-sm" />
+                    </div>
+                    <input name="icon" defaultValue={brand.icon ?? ""} className="h-10 rounded-md border border-slate-300 px-3 text-sm" />
+                    <input name="icon_file" type="file" accept="image/*" className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm" />
+                    <div className="flex gap-2">
+                      <button className="rounded-md bg-ink px-3 py-2 text-sm font-bold text-white">Save</button>
+                      <DeleteButton action={deleteBrandAction} id={brand.id} />
+                    </div>
+                  </form>
+                ))}
+              </div>
+            </div>
+          </section>
+
+          <section className="rounded-lg border border-slate-300 bg-white">
+            <div className="border-b border-line p-4"><h2 className="text-lg font-black text-ink">Homepage banners</h2></div>
+            <div className="grid gap-4 p-4 lg:grid-cols-2">
+              <BannerForm />
+              <div className="space-y-3">
+                {banners.map((banner) => <BannerForm key={banner.id} banner={banner} />)}
+              </div>
+            </div>
+          </section>
+
+          <section className="rounded-lg border border-slate-300 bg-white">
+            <div className="border-b border-line p-4"><h2 className="text-lg font-black text-ink">Ceter Services & Solutions</h2></div>
+            <div className="grid gap-4 p-4 lg:grid-cols-2">
+              <ServiceForm />
+              <div className="space-y-3">
+                {services.map((service) => <ServiceForm key={service.id} service={service} />)}
+              </div>
+            </div>
+          </section>
+
+          <section className="rounded-lg border border-slate-300 bg-white">
+            <div className="border-b border-line p-4"><h2 className="text-lg font-black text-ink">Homepage featured sections</h2></div>
+            <div className="grid gap-4 p-4 lg:grid-cols-2">
+              <HomepageSectionForm categories={categories} />
+              <div className="space-y-3">
+                {homepageSections.map((section) => <HomepageSectionForm key={section.id} section={section} categories={categories} />)}
+              </div>
+            </div>
+          </section>
+
+          <section className="rounded-lg border border-slate-300 bg-white">
             <div className="border-b border-line p-4"><h2 className="text-lg font-black text-ink">Recent orders</h2></div>
             <div className="divide-y divide-line">
               {recentOrders.map((order) => (
@@ -275,5 +396,117 @@ function Input({ name, label, type = "text", defaultValue }: { name: string; lab
       {label}
       <input name={name} type={type} defaultValue={defaultValue} className="mt-2 h-11 w-full rounded-md border border-slate-300 px-3 text-sm" />
     </label>
+  );
+}
+
+function DeleteButton({ action, id }: { action: (formData: FormData) => Promise<void>; id: string }) {
+  return (
+    <button formAction={action} name="id" value={id} className="rounded-md border border-red-200 px-3 py-2 text-sm font-bold text-red-700">
+      Delete
+    </button>
+  );
+}
+
+function BannerForm({ banner }: { banner?: { id: string; title: string; kicker: string | null; body: string; cta_label: string | null; cta_href: string | null; image: string | null; placement: string; sort_order: number; is_enabled: boolean } }) {
+  return (
+    <form action={upsertBannerAction} encType="multipart/form-data" className="grid gap-2 rounded-md border border-slate-200 p-3">
+      <input type="hidden" name="id" value={banner?.id ?? ""} />
+      <input type="hidden" name="existing_image" value={banner?.image ?? ""} />
+      <h3 className="text-sm font-black uppercase text-slate-600">{banner ? "Edit banner" : "Create banner"}</h3>
+      <input name="title" defaultValue={banner?.title ?? ""} placeholder="Title" className="h-10 rounded-md border border-slate-300 px-3 text-sm" />
+      <input name="kicker" defaultValue={banner?.kicker ?? ""} placeholder="Kicker" className="h-10 rounded-md border border-slate-300 px-3 text-sm" />
+      <textarea name="body" defaultValue={banner?.body ?? ""} placeholder="Body" className="min-h-20 rounded-md border border-slate-300 px-3 py-2 text-sm" />
+      <div className="grid gap-2 md:grid-cols-2">
+        <input name="cta_label" defaultValue={banner?.cta_label ?? ""} placeholder="CTA label" className="h-10 rounded-md border border-slate-300 px-3 text-sm" />
+        <input name="cta_href" defaultValue={banner?.cta_href ?? ""} placeholder="CTA href" className="h-10 rounded-md border border-slate-300 px-3 text-sm" />
+      </div>
+      <div className="grid gap-2 md:grid-cols-3">
+        <select name="placement" defaultValue={banner?.placement ?? "top"} className="h-10 rounded-md border border-slate-300 px-3 text-sm">
+          <option value="top">Top</option>
+          <option value="middle">Between sections</option>
+          <option value="bottom">Near bottom</option>
+        </select>
+        <input name="sort_order" type="number" defaultValue={banner?.sort_order ?? 0} className="h-10 rounded-md border border-slate-300 px-3 text-sm" />
+        <label className="flex items-center gap-2 text-sm font-semibold text-slate-700">
+          <input type="checkbox" name="is_enabled" defaultChecked={banner?.is_enabled ?? true} /> Enabled
+        </label>
+      </div>
+      <input name="image" defaultValue={banner?.image ?? ""} placeholder="Image URL" className="h-10 rounded-md border border-slate-300 px-3 text-sm" />
+      <input name="image_file" type="file" accept="image/*" className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm" />
+      <div className="flex gap-2">
+        <button className="rounded-md bg-ink px-3 py-2 text-sm font-bold text-white">{banner ? "Save" : "Create"}</button>
+        {banner ? <DeleteButton action={deleteBannerAction} id={banner.id} /> : null}
+      </div>
+    </form>
+  );
+}
+
+function ServiceForm({ service }: { service?: { id: string; title: string; slug: string; description: string; image: string | null; price_kes: number | null; show_request_quote: boolean; sort_order: number; is_enabled: boolean } }) {
+  return (
+    <form action={upsertServiceAction} encType="multipart/form-data" className="grid gap-2 rounded-md border border-slate-200 p-3">
+      <input type="hidden" name="id" value={service?.id ?? ""} />
+      <input type="hidden" name="existing_image" value={service?.image ?? ""} />
+      <h3 className="text-sm font-black uppercase text-slate-600">{service ? "Edit service" : "Create service"}</h3>
+      <div className="grid gap-2 md:grid-cols-2">
+        <input name="title" defaultValue={service?.title ?? ""} placeholder="Title" className="h-10 rounded-md border border-slate-300 px-3 text-sm" />
+        <input name="slug" defaultValue={service?.slug ?? ""} placeholder="Slug" className="h-10 rounded-md border border-slate-300 px-3 text-sm" />
+      </div>
+      <textarea name="description" defaultValue={service?.description ?? ""} placeholder="Description" className="min-h-20 rounded-md border border-slate-300 px-3 py-2 text-sm" />
+      <div className="grid gap-2 md:grid-cols-3">
+        <input name="price_kes" type="number" defaultValue={service?.price_kes ?? ""} placeholder="Optional price" className="h-10 rounded-md border border-slate-300 px-3 text-sm" />
+        <input name="sort_order" type="number" defaultValue={service?.sort_order ?? 0} className="h-10 rounded-md border border-slate-300 px-3 text-sm" />
+        <label className="flex items-center gap-2 text-sm font-semibold text-slate-700">
+          <input type="checkbox" name="is_enabled" defaultChecked={service?.is_enabled ?? true} /> Enabled
+        </label>
+      </div>
+      <label className="flex items-center gap-2 text-sm font-semibold text-slate-700">
+        <input type="checkbox" name="show_request_quote" defaultChecked={service?.show_request_quote ?? true} /> Show Request Quote button
+      </label>
+      <input name="image" defaultValue={service?.image ?? ""} placeholder="Image URL" className="h-10 rounded-md border border-slate-300 px-3 text-sm" />
+      <input name="image_file" type="file" accept="image/*" className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm" />
+      <div className="flex gap-2">
+        <button className="rounded-md bg-ink px-3 py-2 text-sm font-bold text-white">{service ? "Save" : "Create"}</button>
+        {service ? <DeleteButton action={deleteServiceAction} id={service.id} /> : null}
+      </div>
+    </form>
+  );
+}
+
+function HomepageSectionForm({
+  section,
+  categories
+}: {
+  section?: { id: string; title: string; section_type: string; category_id: string | null; sort_order: number; product_limit: number; is_enabled: boolean; category?: { name: string } | null };
+  categories: { id: string; name: string }[];
+}) {
+  return (
+    <form action={upsertHomepageSectionAction} className="grid gap-2 rounded-md border border-slate-200 p-3">
+      <input type="hidden" name="id" value={section?.id ?? ""} />
+      <h3 className="text-sm font-black uppercase text-slate-600">{section ? `Edit ${section.title}` : "Create homepage section"}</h3>
+      <input name="title" defaultValue={section?.title ?? ""} placeholder="Title" className="h-10 rounded-md border border-slate-300 px-3 text-sm" />
+      <div className="grid gap-2 md:grid-cols-2">
+        <select name="section_type" defaultValue={section?.section_type ?? "category_products"} className="h-10 rounded-md border border-slate-300 px-3 text-sm">
+          <option value="category_products">Category products</option>
+          <option value="latest_products">Latest products</option>
+          <option value="services">Services</option>
+          <option value="brands">Brands</option>
+        </select>
+        <select name="category_id" defaultValue={section?.category_id ?? ""} className="h-10 rounded-md border border-slate-300 px-3 text-sm">
+          <option value="">No category</option>
+          {categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}
+        </select>
+      </div>
+      <div className="grid gap-2 md:grid-cols-3">
+        <input name="sort_order" type="number" defaultValue={section?.sort_order ?? 0} className="h-10 rounded-md border border-slate-300 px-3 text-sm" />
+        <input name="product_limit" type="number" min="1" max="24" defaultValue={section?.product_limit ?? 8} className="h-10 rounded-md border border-slate-300 px-3 text-sm" />
+        <label className="flex items-center gap-2 text-sm font-semibold text-slate-700">
+          <input type="checkbox" name="is_enabled" defaultChecked={section?.is_enabled ?? true} /> Enabled
+        </label>
+      </div>
+      <div className="flex gap-2">
+        <button className="rounded-md bg-ink px-3 py-2 text-sm font-bold text-white">{section ? "Save" : "Create"}</button>
+        {section ? <DeleteButton action={deleteHomepageSectionAction} id={section.id} /> : null}
+      </div>
+    </form>
   );
 }

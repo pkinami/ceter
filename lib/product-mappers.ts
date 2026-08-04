@@ -20,6 +20,7 @@ export function mapProduct(row: ProductRow): Product {
     brandId: row.brand_id,
     category: row.categories?.name ?? "Uncategorized",
     categoryId: row.category_id,
+    categorySlug: row.categories?.slug ?? null,
     description: row.description,
     price: row.price_kes,
     inStock: row.stock_status === "in_stock" && row.stock_quantity > 0,
