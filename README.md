@@ -23,12 +23,13 @@ npm run dev
 Copy `.env.example` to `.env.local` and set:
 
 ```bash
+DATABASE_URL=
 NEXT_PUBLIC_SUPABASE_URL=
 NEXT_PUBLIC_SUPABASE_ANON_KEY=
 SUPABASE_SERVICE_ROLE_KEY=
 ```
 
-Run the migration files in `supabase/migrations/`, then load `supabase/seed.sql` for the initial Ceter product catalog. `SUPABASE_SERVICE_ROLE_KEY` is used only by server-side admin actions and must never be exposed to the browser. Vercel can read the same variables from Project Settings > Environment Variables.
+Use the Supabase project URL, anon key, service role key, and direct Postgres connection string from the new Supabase project. `SUPABASE_SERVICE_ROLE_KEY` is used only by server-side admin scripts and must never be exposed to the browser. Vercel can read the same variables from Project Settings > Environment Variables.
 
 ## Admin data layer
 
@@ -38,22 +39,25 @@ Customer-facing routes and flows continue to use the Supabase client with RLS en
 
 ## Prisma 7 setup
 
-Prisma 7 reads the CLI datasource URL from `prisma.config.ts`, not from `prisma/schema.prisma`. The schema datasource should only declare:
+Prisma 7 reads the CLI datasource URL from `prisma.config.ts`, not from `prisma/schema.prisma`. The schema datasource declares the provider and schemas:
 
 ```prisma
 datasource db {
   provider = "postgresql"
+  schemas  = ["auth", "public"]
 }
 ```
 
-Install dependencies and verify the setup:
+Deploy an empty Supabase database from the committed Prisma migration:
 
 ```bash
-npm install
+npm ci
 npx prisma version
 npx prisma validate
 npx prisma generate
-npx prisma db pull
+npx prisma migrate deploy
+npm run db:seed
+npm run verify:db
 npm run build
 npm run dev
 ```
@@ -65,4 +69,4 @@ npm.cmd install
 npx.cmd prisma validate
 ```
 
-`DATABASE_URL` must be set in `.env.local` or another loaded env file before running Prisma commands or opening `/admin`.
+`DATABASE_URL` must be set in `.env.local` or another loaded env file before running Prisma commands or opening `/admin`. `prisma db pull` is not required during normal development; use migrations as the source of truth and reserve `db pull` for deliberate introspection of an externally changed database.

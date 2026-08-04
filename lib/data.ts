@@ -3,10 +3,8 @@ import { mapProduct } from "@/lib/product-mappers";
 import type { Brand, Category, Product, ProductRow } from "@/lib/types";
 
 const productSelect = "*, categories(id,name,slug), brands(id,name,slug)";
-const hasConfig = Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
 
 export async function getCategories(): Promise<Category[]> {
-  if (!hasConfig) return [];
   const supabase = await createClient();
   const { data, error } = await supabase.from("categories").select("id,name,slug,description,icon").order("name");
   if (error) throw error;
@@ -14,7 +12,6 @@ export async function getCategories(): Promise<Category[]> {
 }
 
 export async function getBrands(): Promise<Brand[]> {
-  if (!hasConfig) return [];
   const supabase = await createClient();
   const { data, error } = await supabase.from("brands").select("id,name,slug").order("name");
   if (error) throw error;
@@ -22,7 +19,6 @@ export async function getBrands(): Promise<Brand[]> {
 }
 
 export async function getProducts(options?: { featured?: boolean; category?: string | null; brand?: string | null; limit?: number }): Promise<Product[]> {
-  if (!hasConfig) return [];
   const supabase = await createClient();
   let query = supabase.from("products").select(productSelect).order("is_featured", { ascending: false }).order("created_at", { ascending: false });
   if (options?.featured) query = query.eq("is_featured", true);
@@ -38,7 +34,6 @@ export async function getProducts(options?: { featured?: boolean; category?: str
 }
 
 export async function getProductBySlug(slug: string): Promise<Product | null> {
-  if (!hasConfig) return null;
   const supabase = await createClient();
   const { data, error } = await supabase.from("products").select(productSelect).eq("slug", slug).maybeSingle();
   if (error) throw error;

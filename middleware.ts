@@ -2,10 +2,20 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 
 export async function middleware(request: NextRequest) {
-  let response = NextResponse.next({ request });
+  const response = NextResponse.next({ request });
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const anonKey =
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ??
+    process.env.SUPABASE_ANON_KEY ??
+    process.env.SUPABASE_PUBLISHABLE_KEY;
+
+  if (!url || !anonKey) {
+    throw new Error("Missing Supabase middleware environment variables.");
+  }
+
   const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL || "https://example.supabase.co",
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "public-anon-key",
+    url,
+    anonKey,
     {
       cookies: {
         getAll() {
