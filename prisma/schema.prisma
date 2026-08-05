@@ -41,7 +41,9 @@ model Category {
   slug        String    @unique
   description String?
   icon        String?
+  image       String?
   created_at  DateTime  @default(now()) @db.Timestamptz(6)
+  banners     Banner[]
   products    Product[]
   sections    HomepageSection[]
 
@@ -57,13 +59,17 @@ model Banner {
   cta_label   String?
   cta_href    String?
   image       String?
-  placement   BannerPlacement @default(top)
+  mobile_image String?
+  placement   BannerPlacement @default(main)
+  category_id String?        @db.Uuid
   sort_order  Int            @default(0)
   is_enabled  Boolean        @default(true)
   created_at  DateTime       @default(now()) @db.Timestamptz(6)
   updated_at  DateTime       @default(now()) @updatedAt @db.Timestamptz(6)
+  category    Category?      @relation(fields: [category_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
 
   @@index([placement, is_enabled, sort_order])
+  @@index([category_id, placement, is_enabled, sort_order])
   @@map("banners")
   @@schema("public")
 }
@@ -189,6 +195,9 @@ model ServiceEntry {
 }
 
 enum BannerPlacement {
+  main
+  category
+  services
   top
   middle
   bottom

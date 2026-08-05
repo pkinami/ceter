@@ -1,7 +1,6 @@
 import { redirect } from "next/navigation";
 import type { Prisma, StockStatus } from "@prisma/client";
 import {
-  deleteBannerAction,
   deleteBrandAction,
   deleteCategoryAction,
   deleteHomepageSectionAction,
@@ -19,6 +18,8 @@ import {
 import { prisma } from "@/lib/prisma";
 import { createClient } from "@/lib/supabase/server";
 import { formatKes } from "@/lib/utils";
+import { BannerAdminForm } from "@/app/admin/BannerAdminForm";
+import { ExcelImportPanel } from "@/app/admin/ExcelImportPanel";
 
 export const metadata = { title: "Admin" };
 
@@ -81,7 +82,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
       orderBy: { created_at: "desc" },
       take: 10
     }),
-    prisma.category.findMany({ select: { id: true, name: true, slug: true, description: true, icon: true }, orderBy: { name: "asc" } }),
+    prisma.category.findMany({ select: { id: true, name: true, slug: true, description: true, icon: true, image: true }, orderBy: { name: "asc" } }),
     prisma.brand.findMany({ select: { id: true, name: true, slug: true, icon: true }, orderBy: { name: "asc" } }),
     prisma.product.findMany({
       where: productWhere,
@@ -94,10 +95,23 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
       take: 20
     }),
     params.edit ? prisma.product.findUnique({ where: { id: params.edit } }) : null,
-    prisma.banner.findMany({ orderBy: [{ placement: "asc" }, { sort_order: "asc" }] }),
+    prisma.banner.findMany({ include: { category: { select: { slug: true } } }, orderBy: [{ placement: "asc" }, { sort_order: "asc" }] }),
     prisma.serviceEntry.findMany({ orderBy: [{ sort_order: "asc" }, { title: "asc" }] }),
     prisma.homepageSection.findMany({ include: { category: { select: { name: true } } }, orderBy: [{ sort_order: "asc" }, { title: "asc" }] })
   ]);
+  const bannerAssetIndexes = new Map<string, number>();
+  let mainBannerIndex = 0;
+  let servicesBannerIndex = 0;
+  banners.forEach((banner) => {
+    if (banner.placement === "main" || banner.placement === "top") {
+      bannerAssetIndexes.set(banner.id, mainBannerIndex);
+      mainBannerIndex += 1;
+    }
+    if (banner.placement === "services" || banner.placement === "bottom") {
+      bannerAssetIndexes.set(banner.id, servicesBannerIndex);
+      servicesBannerIndex += 1;
+    }
+  });
 
   return (
     <div className="mx-auto max-w-7xl space-y-8 px-4 py-8">
@@ -232,6 +246,8 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
             </div>
           </section>
 
+          <ExcelImportPanel />
+
           <section className="rounded-lg border border-slate-300 bg-white">
             <div className="border-b border-line p-4"><h2 className="text-lg font-black text-ink">Categories</h2></div>
             <div className="grid gap-4 p-4 lg:grid-cols-2">
@@ -240,6 +256,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
                 <Input name="name" label="Name" />
                 <Input name="slug" label="Slug" />
                 <Input name="icon" label="Lucide icon name" defaultValue="Printer" />
+                <Input name="image" label="Category image URL" />
                 <label className="block text-sm font-bold text-slate-700">
                   Description
                   <textarea name="description" className="mt-2 min-h-20 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" />
@@ -255,6 +272,8 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
                       <input name="slug" defaultValue={category.slug} className="h-10 rounded-md border border-slate-300 px-3 text-sm" />
                     </div>
                     <input name="icon" defaultValue={category.icon ?? ""} placeholder="Icon" className="h-10 rounded-md border border-slate-300 px-3 text-sm" />
+                    <input type="hidden" name="existing_image" value={category.image ?? ""} />
+                    <input name="image" defaultValue={category.image ?? ""} placeholder="Category image URL" className="h-10 rounded-md border border-slate-300 px-3 text-sm" />
                     <textarea name="description" defaultValue={category.description ?? ""} className="min-h-16 rounded-md border border-slate-300 px-3 py-2 text-sm" />
                     <div className="flex gap-2">
                       <button className="rounded-md bg-ink px-3 py-2 text-sm font-bold text-white">Save</button>
@@ -302,11 +321,14 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
           </section>
 
           <section className="rounded-lg border border-slate-300 bg-white">
-            <div className="border-b border-line p-4"><h2 className="text-lg font-black text-ink">Homepage banners</h2></div>
+            <div className="border-b border-line p-4">
+              <h2 className="text-lg font-black text-ink">Banners</h2>
+              <p className="mt-1 text-sm text-slate-500">Banner images are managed from the project public folder. You can continue editing the banner content and display settings.</p>
+            </div>
             <div className="grid gap-4 p-4 lg:grid-cols-2">
-              <BannerForm />
+              <BannerAdminForm categories={categories} action={upsertBannerAction} />
               <div className="space-y-3">
-                {banners.map((banner) => <BannerForm key={banner.id} banner={banner} />)}
+                {banners.map((banner) => <BannerAdminForm key={banner.id} banner={banner} categories={categories} action={upsertBannerAction} assetIndex={bannerAssetIndexes.get(banner.id) ?? 0} />)}
               </div>
             </div>
           </section>
@@ -404,40 +426,6 @@ function DeleteButton({ action, id }: { action: (formData: FormData) => Promise<
     <button formAction={action} name="id" value={id} className="rounded-md border border-red-200 px-3 py-2 text-sm font-bold text-red-700">
       Delete
     </button>
-  );
-}
-
-function BannerForm({ banner }: { banner?: { id: string; title: string; kicker: string | null; body: string; cta_label: string | null; cta_href: string | null; image: string | null; placement: string; sort_order: number; is_enabled: boolean } }) {
-  return (
-    <form action={upsertBannerAction} encType="multipart/form-data" className="grid gap-2 rounded-md border border-slate-200 p-3">
-      <input type="hidden" name="id" value={banner?.id ?? ""} />
-      <input type="hidden" name="existing_image" value={banner?.image ?? ""} />
-      <h3 className="text-sm font-black uppercase text-slate-600">{banner ? "Edit banner" : "Create banner"}</h3>
-      <input name="title" defaultValue={banner?.title ?? ""} placeholder="Title" className="h-10 rounded-md border border-slate-300 px-3 text-sm" />
-      <input name="kicker" defaultValue={banner?.kicker ?? ""} placeholder="Kicker" className="h-10 rounded-md border border-slate-300 px-3 text-sm" />
-      <textarea name="body" defaultValue={banner?.body ?? ""} placeholder="Body" className="min-h-20 rounded-md border border-slate-300 px-3 py-2 text-sm" />
-      <div className="grid gap-2 md:grid-cols-2">
-        <input name="cta_label" defaultValue={banner?.cta_label ?? ""} placeholder="CTA label" className="h-10 rounded-md border border-slate-300 px-3 text-sm" />
-        <input name="cta_href" defaultValue={banner?.cta_href ?? ""} placeholder="CTA href" className="h-10 rounded-md border border-slate-300 px-3 text-sm" />
-      </div>
-      <div className="grid gap-2 md:grid-cols-3">
-        <select name="placement" defaultValue={banner?.placement ?? "top"} className="h-10 rounded-md border border-slate-300 px-3 text-sm">
-          <option value="top">Top</option>
-          <option value="middle">Between sections</option>
-          <option value="bottom">Near bottom</option>
-        </select>
-        <input name="sort_order" type="number" defaultValue={banner?.sort_order ?? 0} className="h-10 rounded-md border border-slate-300 px-3 text-sm" />
-        <label className="flex items-center gap-2 text-sm font-semibold text-slate-700">
-          <input type="checkbox" name="is_enabled" defaultChecked={banner?.is_enabled ?? true} /> Enabled
-        </label>
-      </div>
-      <input name="image" defaultValue={banner?.image ?? ""} placeholder="Image URL" className="h-10 rounded-md border border-slate-300 px-3 text-sm" />
-      <input name="image_file" type="file" accept="image/*" className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm" />
-      <div className="flex gap-2">
-        <button className="rounded-md bg-ink px-3 py-2 text-sm font-bold text-white">{banner ? "Save" : "Create"}</button>
-        {banner ? <DeleteButton action={deleteBannerAction} id={banner.id} /> : null}
-      </div>
-    </form>
   );
 }
 

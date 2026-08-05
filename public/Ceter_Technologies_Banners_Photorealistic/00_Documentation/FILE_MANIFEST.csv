@@ -1,0 +1,55 @@
+file,width_px,height_px,format,bytes,quality,colour_profile
+01_Homepage_Hero/ceter-hero-toners-and-consumables-desktop.jpg,1920,720,JPEG,168480,90,sRGB
+01_Homepage_Hero/ceter-hero-toners-and-consumables-desktop.webp,1920,720,WEBP,76290,86,sRGB
+01_Homepage_Hero/ceter-hero-toners-and-consumables-desktop.svg,1920,720,SVG,945,n/a,vector layers + sRGB raster
+01_Homepage_Hero/ceter-hero-toners-and-consumables-mobile.jpg,1080,1350,JPEG,160239,90,sRGB
+01_Homepage_Hero/ceter-hero-toners-and-consumables-mobile.webp,1080,1350,WEBP,70966,86,sRGB
+01_Homepage_Hero/ceter-hero-toners-and-consumables-mobile.svg,1080,1350,SVG,1166,n/a,vector layers + sRGB raster
+01_Homepage_Hero/ceter-hero-office-printer-desktop.jpg,1920,720,JPEG,107305,90,sRGB
+01_Homepage_Hero/ceter-hero-office-printer-desktop.webp,1920,720,WEBP,34316,86,sRGB
+01_Homepage_Hero/ceter-hero-office-printer-desktop.svg,1920,720,SVG,962,n/a,vector layers + sRGB raster
+01_Homepage_Hero/ceter-hero-office-printer-mobile.jpg,1080,1350,JPEG,112376,90,sRGB
+01_Homepage_Hero/ceter-hero-office-printer-mobile.webp,1080,1350,WEBP,35920,86,sRGB
+01_Homepage_Hero/ceter-hero-office-printer-mobile.svg,1080,1350,SVG,1180,n/a,vector layers + sRGB raster
+01_Homepage_Hero/ceter-hero-business-it-support-desktop.jpg,1920,720,JPEG,150002,90,sRGB
+01_Homepage_Hero/ceter-hero-business-it-support-desktop.webp,1920,720,WEBP,54792,86,sRGB
+01_Homepage_Hero/ceter-hero-business-it-support-desktop.svg,1920,720,SVG,965,n/a,vector layers + sRGB raster
+01_Homepage_Hero/ceter-hero-business-it-support-mobile.jpg,1080,1350,JPEG,162726,90,sRGB
+01_Homepage_Hero/ceter-hero-business-it-support-mobile.webp,1080,1350,WEBP,62890,86,sRGB
+01_Homepage_Hero/ceter-hero-business-it-support-mobile.svg,1080,1350,SVG,1186,n/a,vector layers + sRGB raster
+02_Minor_Category/ceter-category-printers-desktop.jpg,1600,450,JPEG,60814,90,sRGB
+02_Minor_Category/ceter-category-printers-desktop.webp,1600,450,WEBP,20920,86,sRGB
+02_Minor_Category/ceter-category-printers-desktop.svg,1600,450,SVG,962,n/a,vector layers + sRGB raster
+02_Minor_Category/ceter-category-printers-mobile.jpg,1080,600,JPEG,58166,90,sRGB
+02_Minor_Category/ceter-category-printers-mobile.webp,1080,600,WEBP,20616,86,sRGB
+02_Minor_Category/ceter-category-printers-mobile.svg,1080,600,SVG,958,n/a,vector layers + sRGB raster
+02_Minor_Category/ceter-category-photocopiers-desktop.jpg,1600,450,JPEG,90040,90,sRGB
+02_Minor_Category/ceter-category-photocopiers-desktop.webp,1600,450,WEBP,35854,86,sRGB
+02_Minor_Category/ceter-category-photocopiers-desktop.svg,1600,450,SVG,965,n/a,vector layers + sRGB raster
+02_Minor_Category/ceter-category-photocopiers-mobile.jpg,1080,600,JPEG,88651,90,sRGB
+02_Minor_Category/ceter-category-photocopiers-mobile.webp,1080,600,WEBP,38426,86,sRGB
+02_Minor_Category/ceter-category-photocopiers-mobile.svg,1080,600,SVG,961,n/a,vector layers + sRGB raster
+02_Minor_Category/ceter-category-toners-desktop.jpg,1600,450,JPEG,108254,90,sRGB
+02_Minor_Category/ceter-category-toners-desktop.webp,1600,450,WEBP,54890,86,sRGB
+02_Minor_Category/ceter-category-toners-desktop.svg,1600,450,SVG,945,n/a,vector layers + sRGB raster
+02_Minor_Category/ceter-category-toners-mobile.jpg,1080,600,JPEG,97894,90,sRGB
+02_Minor_Category/ceter-category-toners-mobile.webp,1080,600,WEBP,47896,86,sRGB
+02_Minor_Category/ceter-category-toners-mobile.svg,1080,600,SVG,945,n/a,vector layers + sRGB raster
+03_Services_Solutions/ceter-services-cctv-desktop.jpg,1600,500,JPEG,99399,90,sRGB
+03_Services_Solutions/ceter-services-cctv-desktop.webp,1600,500,WEBP,37238,86,sRGB
+03_Services_Solutions/ceter-services-cctv-desktop.svg,1600,500,SVG,959,n/a,vector layers + sRGB raster
+03_Services_Solutions/ceter-services-cctv-mobile.jpg,1080,650,JPEG,110057,90,sRGB
+03_Services_Solutions/ceter-services-cctv-mobile.webp,1080,650,WEBP,43528,86,sRGB
+03_Services_Solutions/ceter-services-cctv-mobile.svg,1080,650,SVG,955,n/a,vector layers + sRGB raster
+03_Services_Solutions/ceter-services-networking-desktop.jpg,1600,500,JPEG,98431,90,sRGB
+03_Services_Solutions/ceter-services-networking-desktop.webp,1600,500,WEBP,38986,86,sRGB
+03_Services_Solutions/ceter-services-networking-desktop.svg,1600,500,SVG,965,n/a,vector layers + sRGB raster
+03_Services_Solutions/ceter-services-networking-mobile.jpg,1080,650,JPEG,100106,90,sRGB
+03_Services_Solutions/ceter-services-networking-mobile.webp,1080,650,WEBP,43372,86,sRGB
+03_Services_Solutions/ceter-services-networking-mobile.svg,1080,650,SVG,961,n/a,vector layers + sRGB raster
+03_Services_Solutions/ceter-services-maintenance-support-desktop.jpg,1600,500,JPEG,98036,90,sRGB
+03_Services_Solutions/ceter-services-maintenance-support-desktop.webp,1600,500,WEBP,38272,86,sRGB
+03_Services_Solutions/ceter-services-maintenance-support-desktop.svg,1600,500,SVG,962,n/a,vector layers + sRGB raster
+03_Services_Solutions/ceter-services-maintenance-support-mobile.jpg,1080,650,JPEG,100106,90,sRGB
+03_Services_Solutions/ceter-services-maintenance-support-mobile.webp,1080,650,WEBP,43372,86,sRGB
+03_Services_Solutions/ceter-services-maintenance-support-mobile.svg,1080,650,SVG,958,n/a,vector layers + sRGB raster

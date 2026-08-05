@@ -60,14 +60,14 @@ on conflict (slug) do update set
   specs = excluded.specs,
   is_featured = excluded.is_featured;
 
-insert into public.banners (title, kicker, body, cta_label, cta_href, image, placement, sort_order, is_enabled)
-select banner.title, banner.kicker, banner.body, banner.cta_label, banner.cta_href, banner.image, banner.placement, banner.sort_order, banner.is_enabled
+insert into public.banners (title, kicker, body, cta_label, cta_href, image, mobile_image, placement, sort_order, is_enabled)
+select banner.title, banner.kicker, banner.body, banner.cta_label, banner.cta_href, banner.image, banner.mobile_image, banner.placement, banner.sort_order, banner.is_enabled
 from (
   values
-  ('Office technology supplied, installed and supported', 'Ceter Technologies Limited', 'Source printers, copiers, consumables, networking hardware and IT services from one Nairobi partner.', 'Shop catalog', '/category', '/product-placeholder.svg', 'top'::banner_placement, 10, true),
-  ('Printer fleets, toners and spares for active offices', 'Commercial supply', 'Keep operations moving with verified stock, setup support and quote-based procurement for larger needs.', 'Request quote', '/quote', '/product-placeholder.svg', 'middle'::banner_placement, 20, true),
-  ('Infrastructure services for growing teams', 'Services and solutions', 'Plan CCTV, cabling, networking, servers, cloud and security work with Ceter engineers.', 'Explore services', '/quote', '/product-placeholder.svg', 'bottom'::banner_placement, 30, true)
-) as banner(title, kicker, body, cta_label, cta_href, image, placement, sort_order, is_enabled)
+  ('Office technology supplied, installed and supported', 'Ceter Technologies Limited', 'Source printers, copiers, consumables, networking hardware and IT services from one Nairobi partner.', 'Shop catalog', '/category', '/product-placeholder.svg', '/product-placeholder.svg', 'main'::banner_placement, 10, true),
+  ('Printer fleets, toners and spares for active offices', 'Commercial supply', 'Keep operations moving with verified stock, setup support and quote-based procurement for larger needs.', 'Request quote', '/quote', '/product-placeholder.svg', '/product-placeholder.svg', 'category'::banner_placement, 20, true),
+  ('Infrastructure services for growing teams', 'Services and solutions', 'Plan CCTV, cabling, networking, servers, cloud and security work with Ceter engineers.', 'Explore services', '/quote', '/product-placeholder.svg', '/product-placeholder.svg', 'services'::banner_placement, 30, true)
+) as banner(title, kicker, body, cta_label, cta_href, image, mobile_image, placement, sort_order, is_enabled)
 where not exists (
   select 1 from public.banners existing
   where existing.title = banner.title and existing.placement = banner.placement

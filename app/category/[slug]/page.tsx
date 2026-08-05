@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import { BannerCarousel } from "@/components/BannerCarousel";
 import { CategoryFilterPanel } from "@/components/CategoryFilterPanel";
 import { ProductGrid } from "@/components/ProductGrid";
-import { getBrands, getCategories, getCategoryBySlug, getProducts } from "@/lib/data";
+import { getBrands, getCategories, getCategoryBanners, getCategoryBySlug, getProducts } from "@/lib/data";
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug } = await params;
@@ -18,17 +19,19 @@ export default async function CategorySlugPage({ params, searchParams }: { param
   const category = await getCategoryBySlug(slug);
   if (!category) notFound();
 
-  const [categories, brands, products] = await Promise.all([
+  const [categories, brands, products, banners] = await Promise.all([
     getCategories(),
     getBrands(),
-    getProducts({ category: category.slug, brand: query.brand })
+    getProducts({ category: category.slug, brand: query.brand }),
+    getCategoryBanners(category.id)
   ]);
 
   return (
     <div className="mx-auto max-w-[1500px] px-4 py-6">
       <div className="lg:flex lg:gap-5">
         <CategoryFilterPanel categories={categories.map((item) => item.name)} brands={brands.map((brand) => brand.name)} />
-        <section className="min-w-0 flex-1">
+        <section className="min-w-0 flex-1 space-y-5">
+          {banners.length ? <BannerCarousel banners={banners} variant="category" compact /> : null}
           <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
             <div>
               <h1 className="text-2xl font-black text-ink">{category.name}</h1>

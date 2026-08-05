@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="450" viewBox="0 0 1600 450">
+<defs>
+<linearGradient id="gradOverlay" x1="0%" y1="0%" x2="100%" y2="0%">
+<stop offset="0%" stop-color="#F7F8FA" stop-opacity="0.94"/>
+<stop offset="47%" stop-color="#F7F8FA" stop-opacity="0.10"/>
+<stop offset="68%" stop-color="#F7F8FA" stop-opacity="0"/>
+</linearGradient>
+<filter id="blurBg" x="-10%" y="-10%" width="120%" height="120%"><feGaussianBlur stdDeviation="22"/></filter>
+</defs>
+<g id="photographic-image">
+<image href="../00_Source_Assets/ceter-source-printer.jpg" x="0" y="0" width="1600" height="450" preserveAspectRatio="xMaxYMid slice"/>
+</g>
+<g id="text-safe-gradient">
+<rect x="0" y="0" width="1600" height="450" fill="url(#gradOverlay)"/>
+</g>
+<g id="brand-accents">
+<polygon points="1024,450 1600,450 1600,387 1184,450" fill="#14B8A6" opacity="0.42"/>
+<polygon points="1312,450 1600,450 1600,423 1392,450" fill="#D97706" opacity="0.24"/>
+</g>
+</svg>

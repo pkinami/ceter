@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="650" viewBox="0 0 1080 650">
+<defs>
+<linearGradient id="gradOverlay" x1="0%" y1="0%" x2="100%" y2="0%">
+<stop offset="0%" stop-color="#0B1E39" stop-opacity="0.94"/>
+<stop offset="47%" stop-color="#0B1E39" stop-opacity="0.10"/>
+<stop offset="68%" stop-color="#0B1E39" stop-opacity="0"/>
+</linearGradient>
+<filter id="blurBg" x="-10%" y="-10%" width="120%" height="120%"><feGaussianBlur stdDeviation="22"/></filter>
+</defs>
+<g id="photographic-image">
+<image href="../00_Source_Assets/ceter-source-networking.jpg" x="0" y="0" width="1080" height="650" preserveAspectRatio="xMaxYMid slice"/>
+</g>
+<g id="text-safe-gradient">
+<rect x="0" y="0" width="1080" height="650" fill="url(#gradOverlay)"/>
+</g>
+<g id="brand-accents">
+<polygon points="691,650 1080,650 1080,559 799,650" fill="#14B8A6" opacity="0.42"/>
+<polygon points="885,650 1080,650 1080,611 939,650" fill="#D97706" opacity="0.24"/>
+</g>
+</svg>

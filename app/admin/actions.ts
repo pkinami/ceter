@@ -82,11 +82,13 @@ export async function updateQuoteStatusAction(formData: FormData) {
 
 export async function upsertCategoryAction(formData: FormData) {
   const id = String(formData.get("id") ?? "");
+  const image = await imageValueFromForm(formData, "image", String(formData.get("existing_image") ?? "") || null);
   const payload = {
     name: String(formData.get("name") ?? "").trim(),
     slug: String(formData.get("slug") ?? "").trim(),
     description: nullableString(formData.get("description")),
-    icon: nullableString(formData.get("icon"))
+    icon: nullableString(formData.get("icon")),
+    image
   };
 
   if (id) {
@@ -128,15 +130,15 @@ export async function deleteBrandAction(formData: FormData) {
 
 export async function upsertBannerAction(formData: FormData) {
   const id = String(formData.get("id") ?? "");
-  const image = await imageValueFromForm(formData, "image", String(formData.get("existing_image") ?? "") || null);
+  const placement = String(formData.get("placement") ?? "main") as BannerPlacement;
   const payload = {
     title: String(formData.get("title") ?? "").trim(),
     kicker: nullableString(formData.get("kicker")),
     body: String(formData.get("body") ?? "").trim(),
     cta_label: nullableString(formData.get("cta_label")),
     cta_href: nullableString(formData.get("cta_href")),
-    image,
-    placement: String(formData.get("placement") ?? "top") as BannerPlacement,
+    placement,
+    category_id: placement === "category" ? String(formData.get("category_id") ?? "") || null : null,
     sort_order: Number(formData.get("sort_order") ?? 0),
     is_enabled: formData.get("is_enabled") === "on"
   };
@@ -146,12 +148,6 @@ export async function upsertBannerAction(formData: FormData) {
   } else {
     await prisma.banner.create({ data: payload });
   }
-  revalidateStorefront();
-}
-
-export async function deleteBannerAction(formData: FormData) {
-  const id = String(formData.get("id") ?? "");
-  await prisma.banner.delete({ where: { id } });
   revalidateStorefront();
 }
 
@@ -213,4 +209,5 @@ function revalidateStorefront() {
   revalidatePath("/");
   revalidatePath("/admin");
   revalidatePath("/category");
+  revalidatePath("/category/[slug]", "page");
 }

@@ -9,7 +9,7 @@ import { ProductGrid } from "@/components/ProductGrid";
 import { Sidebar } from "@/components/Sidebar";
 import { formatKes } from "@/lib/utils";
 import { getBrands, getCategories, getHomepageBanners, getHomepageSections, getProducts, getServices } from "@/lib/data";
-import type { Category, Product, ServiceEntry } from "@/lib/types";
+import type { Banner, Category, Product, ServiceEntry } from "@/lib/types";
 
 export const metadata: Metadata = {
   title: "Ceter Technologies Storefront",
@@ -77,7 +77,7 @@ export default async function HomePage() {
     <div className="mx-auto flex max-w-7xl gap-6 px-4 py-6">
       <Sidebar categories={categories.map((category) => category.name)} brands={brands.map((brand) => brand.name)} />
       <div className="min-w-0 flex-1 space-y-10">
-        <BannerCarousel banners={banners.top} />
+        <BannerCarousel banners={banners.main} variant="main" />
 
         <section>
           <div className="mb-4 flex items-center justify-between gap-3">
@@ -100,16 +100,16 @@ export default async function HomePage() {
           </div>
         </section>
 
-        {sectionsToRender.map((section, index) => (
-          <div key={section.id} className="space-y-10">
+        {sectionsToRender.map((section) => (
+          <div key={section.id} className="space-y-5">
+            {banners.category[section.category.id]?.length ? <BannerCarousel banners={banners.category[section.category.id]} variant="category" compact /> : null}
             <CategoryProductSection title={section.title} category={section.category} products={section.products} />
-            {index === 0 && banners.middle.length ? <BannerCarousel banners={banners.middle} compact /> : null}
           </div>
         ))}
 
-        {servicesSection || shouldShowDefaultCmsSections ? <ServicesSection title={servicesSection?.title ?? "Ceter Services & Solutions"} services={services.slice(0, servicesSection?.productLimit ?? 8)} /> : null}
-
-        {banners.bottom.length ? <BannerCarousel banners={banners.bottom} compact /> : null}
+        {servicesSection || shouldShowDefaultCmsSections ? (
+          <ServicesSection title={servicesSection?.title ?? "Ceter Services & Solutions"} services={services.slice(0, servicesSection?.productLimit ?? 8)} banners={banners.services} />
+        ) : null}
 
         {latestSection || shouldShowDefaultCmsSections ? <section>
           <div className="mb-4 flex items-center justify-between gap-3">
@@ -160,11 +160,12 @@ function CategoryProductSection({ title, category, products }: { title: string; 
   );
 }
 
-function ServicesSection({ title, services }: { title: string; services: ServiceEntry[] }) {
+function ServicesSection({ title, services, banners }: { title: string; services: ServiceEntry[]; banners: Banner[] }) {
   if (!services.length) return null;
 
   return (
-    <section>
+    <section className="space-y-5">
+      {banners.length ? <BannerCarousel banners={banners} variant="services" compact /> : null}
       <div className="mb-4 flex items-end justify-between gap-3">
         <div>
           <h2 className="text-xl font-black text-ink">{title}</h2>

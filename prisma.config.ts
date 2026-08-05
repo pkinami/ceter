@@ -1,6 +1,7 @@
 import { existsSync } from "node:fs";
 import { config } from "dotenv";
 import { defineConfig, env } from "prisma/config";
+import { normalizePostgresConnectionString } from "./lib/postgres-url";
 
 if (existsSync(".env.local")) {
   config({ path: ".env.local" });
@@ -11,6 +12,6 @@ if (existsSync(".env.local")) {
 export default defineConfig({
   schema: "prisma/schema.prisma",
   datasource: {
-    url: env("POSTGRES_URL_NON_POOLING")
+    url: normalizePostgresConnectionString(env("POSTGRES_URL_NON_POOLING"))
   }
 });

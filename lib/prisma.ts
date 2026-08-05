@@ -1,15 +1,18 @@
 import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
+import { normalizePostgresConnectionString } from "./postgres-url";
 
 const globalForPrisma = globalThis as unknown as {
   prisma?: PrismaClient;
 };
 
-const connectionString = process.env.POSTGRES_URL_NON_POOLING ?? process.env.DATABASE_URL;
+const rawConnectionString = process.env.POSTGRES_URL_NON_POOLING ?? process.env.DATABASE_URL;
 
-if (!connectionString) {
+if (!rawConnectionString) {
   throw new Error("POSTGRES_URL_NON_POOLING or DATABASE_URL is required to initialize Prisma.");
 }
+
+const connectionString = normalizePostgresConnectionString(rawConnectionString);
 
 process.env.DATABASE_URL = connectionString;
 

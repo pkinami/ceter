@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { getFixedBannerAsset } from "@/lib/banner-assets";
 import { prisma } from "@/lib/prisma";
 import { mapProduct } from "@/lib/product-mappers";
 import type { Banner, Brand, Category, HomepageSection, Product, ProductRow, ServiceEntry } from "@/lib/types";
@@ -59,19 +60,51 @@ export async function getCategoryBySlug(slug: string): Promise<Category | null> 
   return data ?? null;
 }
 
-export async function getHomepageBanners(): Promise<Record<"top" | "middle" | "bottom", Banner[]>> {
-  if (isProductionBuild()) return { top: [], middle: [], bottom: [] };
-  if (!(await hasPublicTable("banners"))) return { top: [], middle: [], bottom: [] };
+type HomepageBannerGroups = {
+  main: Banner[];
+  category: Record<string, Banner[]>;
+  services: Banner[];
+};
+
+export async function getHomepageBanners(): Promise<HomepageBannerGroups> {
+  if (isProductionBuild()) return { main: [], category: {}, services: [] };
+  if (!(await hasPublicTable("banners"))) return { main: [], category: {}, services: [] };
   const banners = await prisma.banner.findMany({
     where: { is_enabled: true },
+    include: { category: { select: { slug: true } } },
     orderBy: [{ placement: "asc" }, { sort_order: "asc" }]
   }).catch(() => []);
 
+  const category: Record<string, Banner[]> = {};
+  banners
+    .filter((banner) => isCategoryBannerPlacement(banner.placement) && banner.category_id)
+    .map((banner) => mapBanner(banner))
+    .forEach((banner) => {
+      if (!banner.categoryId) return;
+      category[banner.categoryId] = [...(category[banner.categoryId] ?? []), banner];
+    });
+
   return {
-    top: banners.filter((banner) => banner.placement === "top").map(mapBanner),
-    middle: banners.filter((banner) => banner.placement === "middle").map(mapBanner),
-    bottom: banners.filter((banner) => banner.placement === "bottom").map(mapBanner)
+    main: banners.filter((banner) => isMainBannerPlacement(banner.placement)).map((banner, index) => mapBanner(banner, index)),
+    category,
+    services: banners.filter((banner) => isServicesBannerPlacement(banner.placement)).map((banner, index) => mapBanner(banner, index))
   };
+}
+
+export async function getCategoryBanners(categoryId: string): Promise<Banner[]> {
+  if (isProductionBuild()) return [];
+  if (!(await hasPublicTable("banners"))) return [];
+  const banners = await prisma.banner.findMany({
+    where: {
+      is_enabled: true,
+      category_id: categoryId,
+      placement: { in: ["category", "middle"] }
+    },
+    include: { category: { select: { slug: true } } },
+    orderBy: [{ sort_order: "asc" }, { title: "asc" }]
+  }).catch(() => []);
+
+  return banners.map(mapBanner);
 }
 
 export async function getServices(limit?: number): Promise<ServiceEntry[]> {
@@ -121,7 +154,13 @@ export async function getHomepageSections(): Promise<HomepageSection[]> {
   }));
 }
 
-function mapBanner(banner: Awaited<ReturnType<typeof prisma.banner.findMany>>[number]): Banner {
+function mapBanner(banner: Awaited<ReturnType<typeof prisma.banner.findMany>>[number] & { category?: { slug: string } | null }, index = 0): Banner {
+  const fixedAsset = getFixedBannerAsset({
+    placement: banner.placement,
+    index,
+    categorySlug: banner.category?.slug
+  });
+
   return {
     id: banner.id,
     title: banner.title,
@@ -129,10 +168,24 @@ function mapBanner(banner: Awaited<ReturnType<typeof prisma.banner.findMany>>[nu
     body: banner.body,
     ctaLabel: banner.cta_label,
     ctaHref: banner.cta_href,
-    image: banner.image,
+    image: fixedAsset?.image ?? banner.image,
+    mobileImage: fixedAsset?.mobileImage ?? banner.mobile_image,
     placement: banner.placement,
+    categoryId: banner.category_id,
     sortOrder: banner.sort_order
   };
+}
+
+function isMainBannerPlacement(placement: string) {
+  return placement === "main" || placement === "top";
+}
+
+function isCategoryBannerPlacement(placement: string) {
+  return placement === "category" || placement === "middle";
+}
+
+function isServicesBannerPlacement(placement: string) {
+  return placement === "services" || placement === "bottom";
 }
 
 async function hasPublicTable(tableName: string) {

@@ -3,7 +3,7 @@ export type ProductCondition = "new" | "refurbished";
 export type ProfileRole = "customer" | "admin";
 export type OrderStatus = "pending" | "processing" | "paid" | "fulfilled" | "cancelled";
 export type QuoteStatus = "new" | "contacted" | "closed";
-export type BannerPlacement = "top" | "middle" | "bottom";
+export type BannerPlacement = "main" | "category" | "services" | "top" | "middle" | "bottom";
 export type HomepageSectionType = "category_products" | "latest_products" | "services" | "brands";
 
 export type Category = {
@@ -73,7 +73,9 @@ export type Banner = {
   ctaLabel: string | null;
   ctaHref: string | null;
   image: string | null;
+  mobileImage: string | null;
   placement: BannerPlacement;
+  categoryId: string | null;
   sortOrder: number;
 };
 
