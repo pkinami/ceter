@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { updateProfileAction } from "@/app/actions";
+import { FormSubmitButton } from "@/components/FormSubmitButton";
 import { createClient } from "@/lib/supabase/server";
 import { formatKes } from "@/lib/utils";
 
@@ -50,7 +51,7 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
             Phone
             <input name="phone" defaultValue={profile?.phone ?? ""} className="mt-2 h-11 w-full rounded-md border border-slate-300 px-3 text-sm focus:border-signal focus:outline-none" />
           </label>
-          <button className="h-11 rounded-md bg-signal px-5 text-sm font-bold text-white hover:bg-teal-700">Save profile</button>
+          <FormSubmitButton pendingText="Saving..." className="h-11 rounded-md bg-signal px-5 text-sm font-bold text-white hover:bg-teal-700">Save profile</FormSubmitButton>
         </form>
       </section>
       <section id="orders" className="rounded-lg border border-slate-300 bg-white">

@@ -1,154 +1,356 @@
 # Ceter Technologies Banner Design Brief
 
-## Project context
+## One-Page Production Summary
 
-Ceter Technologies needs a professional banner system for an office technology, equipment, consumables and IT services storefront. Designs should look corporate, practical and trustworthy, with clear space for website-rendered text and buttons.
+| Banner slot | Route where it appears | Folder | Slug | Shapes and widths | Text zone | Priority |
+|---|---|---|---|---|---|---|
+| Homepage hero slide 1 | `/` | `public/banners/hero/` | `office-printer` | `tall`: 720, 1080, 1440. `mid`: 1024, 1280, 1600. `wide`: 1280, 1920, 2560 | Left 40% calm overlay zone | High, preloaded |
+| Homepage hero slide 2 | `/` | `public/banners/hero/` | `toners-consumables` | `tall`: 720, 1080, 1440. `mid`: 1024, 1280, 1600. `wide`: 1280, 1920, 2560 | Left 40% calm overlay zone | High |
+| Homepage hero slide 3 | `/` | `public/banners/hero/` | `business-it-support` | `tall`: 720, 1080, 1440. `mid`: 1024, 1280, 1600. `wide`: 1280, 1920, 2560 | Left 40% calm overlay zone | High |
+| Category strip, printers | `/`, `/category/multifunction-printers` | `public/banners/category/` | `printers` | `tall`: 720, 1080. `mid`: 1024, 1280. `wide`: 1280, 1600, 2400 | Left 40% calm overlay zone | Lazy |
+| Category strip, photocopiers | `/`, `/category/photocopiers` | `public/banners/category/` | `photocopiers` | `tall`: 720, 1080. `mid`: 1024, 1280. `wide`: 1280, 1600, 2400 | Left 40% calm overlay zone | Lazy |
+| Category strip, toners | `/`, `/category/toners-and-ink` | `public/banners/category/` | `toners` | `tall`: 720, 1080. `mid`: 1024, 1280. `wide`: 1280, 1600, 2400 | Left 40% calm overlay zone | Lazy |
+| Services slide, CCTV | `/` | `public/banners/services/` | `cctv` | `tall`: 720, 1080. `mid`: 1024, 1280. `wide`: 1280, 1600, 2400 | Left 40% calm overlay zone | Lazy |
+| Services slide, networking | `/` | `public/banners/services/` | `networking` | `tall`: 720, 1080. `mid`: 1024, 1280. `wide`: 1280, 1600, 2400 | Left 40% calm overlay zone | Lazy |
+| Services slide, maintenance support | `/` | `public/banners/services/` | `maintenance-support` | `tall`: 720, 1080. `mid`: 1024, 1280. `wide`: 1280, 1600, 2400 | Left 40% calm overlay zone | Lazy |
 
-Do not bake website buttons into the image. The website will render headlines, supporting text and call-to-action buttons separately.
+Final filenames must be lowercase WebP files using this pattern:
 
-## Brand direction
+```text
+public/banners/<group>/<slug>-<shape>-<width>.webp
+```
 
-- Use Ceter Technologies branding consistently.
-- Use professional office technology imagery: printers, photocopiers, toners, barcode equipment, CCTV, networking, cabling, cloud and support scenes.
-- Use strong contrast and clean corporate typography.
-- Avoid overcrowding.
-- Maximum headline: 6-9 words.
-- Maximum supporting text: 15-20 words.
-- Leave safe space for website buttons.
-- Do not place important text close to image edges.
-- Use high-resolution licensed or original images.
-- Export WebP and high-quality JPG.
-- Target WebP file size below 500 KB.
-- Use sRGB colour mode.
-- Supply editable source files.
+Example:
 
-## Colour guidance
+```text
+public/banners/hero/office-printer-wide-1920.webp
+```
 
-Use a restrained technology palette anchored by navy, white, slate, teal and small amber highlights.
+## Company And Audience
 
-- Navy: `#0B1E39`
-- Teal accent: `#14B8A6`
-- White: `#FFFFFF`
-- Light background: `#F7F8FA`
-- Slate text/background support: `#334155`, `#0F172A`
-- Amber highlight, sparingly: `#D97706`
+Ceter Technologies Limited is a Nairobi supplier of office printing equipment, photocopiers, printers, toner cartridges, consumables, spare parts, and related IT services. The site is a storefront and quote channel, not a lifestyle campaign page, so the banners must feel practical, credible, and procurement-ready.
 
-Keep contrast high enough for white or navy website text over the image. If the image is busy, build in a darker gradient zone on the side reserved for text.
+The audience includes government offices, county teams, institutions, schools, corporate buyers, operations managers, procurement officers, and IT administrators. These buyers need to quickly understand that Ceter can supply dependable equipment, consumables, installation, maintenance, and support for real business environments.
 
-## MAIN HOMEPAGE HERO BANNERS
+## Current Website Architecture
 
-Desktop:
-- Canvas: 1920 x 720 px
-- Aspect ratio: 8:3
-- Important text and products must remain inside the central safe area of 1500 x 560 px
-- Keep the left or right side visually clean for website text and buttons
-- Minimum 3 different hero designs
+The website uses a typed banner manifest in `lib/banner-assets.ts`. Components do not look for random files in `public`; they generate exact URLs from each banner's `group`, `slug`, `shape`, and `width`.
 
-Mobile:
-- Canvas: 1080 x 1350 px
-- Aspect ratio: 4:5
-- Keep important content centered
-- Do not simply crop the desktop banner
-- Create a separate mobile composition
+The renderer is `components/BannerCarousel.tsx`. It emits a responsive `<picture>` with three shapes:
 
-Safe zones:
-- Desktop: keep product focus, faces, logos and visual anchors inside the center 1500 x 560 px.
-- Mobile: keep the main subject centered with top and bottom breathing room for text overlay.
-- Reserve either the left 40% or right 40% as a clean area for website copy.
+- `tall` for phones at `max-width: 767px`
+- `mid` for tablets at `min-width: 768px` and `max-width: 1023px`
+- `wide` for laptops and desktops at `min-width: 1024px`
 
-Suggested copy:
-- "Office Technology Supplied and Supported"
-- "Printers, Copiers and Toners Ready"
-- "Business IT Equipment From One Partner"
+Do not place new final artwork in the older folder:
 
-Visual concepts:
-- A modern office printer and copier fleet with clean teal/navy overlay space.
-- Toners, spares and packaging arranged neatly beside a business workstation.
-- A composite office technology scene showing printer, laptop, networking hardware and support technician.
+```text
+public/Ceter_Technologies_Banners_Photorealistic/
+```
 
-## MINOR CATEGORY BANNERS
+That older mixed-case folder can stay as reference material only. Final web assets must go under:
 
-Desktop:
-- Canvas: 1600 x 450 px
-- Aspect ratio: approximately 32:9
-- Shorter than the main hero banner
-- Designed to introduce a specific product category
-- Examples: Printers, Photocopiers, Toners, Barcode Equipment
+```text
+public/banners/
+```
 
-Mobile:
-- Canvas: 1080 x 600 px
-- Aspect ratio: 9:5
+Do not place banner images inside `app/`, `app/category/`, `app/product/`, or any other route folder. Route folders contain React pages and API handlers. Browser-served artwork belongs in `public/banners/`, because the website requests files as `/banners/<group>/<filename>.webp`.
 
-Safe zones:
-- Desktop: keep the featured product group inside the center 1250 x 330 px.
-- Mobile: keep one clear product or product family centered.
-- Leave one side visually calm for category title and short supporting copy.
+## Brand Palette
 
-Suggested copy:
-- Printers: "Reliable Printers for Every Office"
-- Photocopiers: "Commercial Copiers Built for Teams"
-- Toners: "Toners and Consumables in Stock"
-- Barcode Equipment: "Barcode Tools for Faster Operations"
+Use a restrained business technology palette:
 
-Visual concepts:
-- Printers: clean product angle with paper/output detail and office background.
-- Photocopiers: larger multifunction copier with a workplace context.
-- Toners: organized toner cartridges with subtle colour coding.
-- Barcode Equipment: scanner, label printer and barcode labels in a logistics or retail setting.
+| Role | Colour |
+|---|---|
+| Navy | `#0B1E39` |
+| Teal accent | `#14B8A6` |
+| White | `#FFFFFF` |
+| Light background | `#F7F8FA` |
+| Slate | `#334155` |
+| Deep slate | `#0F172A` |
+| Amber highlight, sparingly | `#D97706` |
 
-## SERVICES & SOLUTIONS BANNERS
+Use navy, slate, white, and teal as the main system. Amber should be a small accent only. Keep contrast high enough for white website-rendered text over a dark gradient overlay.
 
-Desktop:
-- Canvas: 1600 x 500 px
-- Aspect ratio: 16:5
-- Must visually represent professional IT services
-- Examples: CCTV, Networking, Structured Cabling, Cloud Services, Maintenance and Support
+## Visual Rules
 
-Mobile:
-- Canvas: 1080 x 650 px
+- Use licensed or original professional imagery.
+- Show real office technology contexts: printers, photocopiers, toners, barcode equipment, CCTV, networking, structured cabling, cloud systems, maintenance, and technical support.
+- Keep compositions corporate, clean, practical, and trustworthy.
+- Leave a calm text zone on the left side for all current banner slots.
+- Do not bake headlines, supporting copy, calls to action, phone numbers, website addresses, QR codes, or buttons into the image.
+- Do not include Ceter logos in the artwork. The site header already carries the brand.
+- Do not use stock watermarks, mock procurement stamps, fake government seals, or unlicensed supplier logos.
+- Do not crop a desktop composition to make the phone version. Create a separate phone composition.
+- Do not place important products, faces, hands, devices, labels, or visual anchors near the edges.
+- Avoid cluttered collages. One strong subject is better than many small objects.
 
-Safe zones:
-- Desktop: keep technicians, devices and service scenes inside the center 1250 x 380 px.
-- Mobile: center the primary service subject and avoid edge text.
-- Preserve calm overlay space for website-rendered copy and quote buttons.
+## Naming And Folder Structure
 
-Suggested copy:
-- CCTV: "CCTV Installation for Business Sites"
-- Networking: "Stable Networks for Growing Teams"
-- Structured Cabling: "Clean Cabling, Reliable Connectivity"
-- Cloud Services: "Cloud Services for Modern Work"
-- Maintenance and Support: "IT Support That Keeps Moving"
+Use this exact naming pattern:
 
-Visual concepts:
-- CCTV: technician positioning cameras in a commercial interior.
-- Networking: rack, switch and access points with clean cabling.
-- Structured Cabling: labelled patch panel and organized cable routes.
-- Cloud Services: office team using cloud systems with subtle data/network visual treatment.
-- Maintenance and Support: technician servicing office equipment or assisting a workstation user.
+```text
+public/banners/<group>/<slug>-<shape>-<width>.webp
+```
 
-## Image delivery checklist
+Rules:
 
-For each approved design, deliver:
+- Folder groups are only `hero`, `category`, and `services`.
+- Filenames must be lowercase.
+- Use hyphens only.
+- No underscores.
+- No spaces.
+- No uppercase letters.
+- No diacritics.
+- WebP only for website delivery.
+- Keep editable source files separately; do not place PSD, AI, or Figma exports in `public/banners/`.
 
-- Desktop WebP
-- Mobile WebP
-- High-quality desktop JPG
-- High-quality mobile JPG
-- Editable source file: PSD, AI, Figma or layered equivalent
-- Font names and licensing notes
-- Image licensing notes
+Worked examples:
 
-Use meaningful filenames such as:
+```text
+public/banners/hero/office-printer-wide-1920.webp
+public/banners/category/toners-mid-1280.webp
+public/banners/services/networking-tall-1080.webp
+```
 
-- `ceter-hero-printers-desktop.webp`
-- `ceter-category-toners-mobile.webp`
-- `ceter-services-networking-desktop.webp`
+## Responsive Sizes
 
-## Export notes
+These sizes match the active website breakpoints and `BannerCarousel` aspect ratios.
 
-- Use sRGB colour mode.
-- Export WebP below 500 KB where practical.
-- Keep JPG quality high enough for crisp product detail.
-- Avoid heavy compression artifacts around product edges and text areas.
-- Do not flatten source files without also providing the editable version.
-- Ensure images still read clearly with a subtle dark overlay applied by the website.
+### Homepage Hero
+
+The homepage hero is the first major visual on `/` and the likely LCP element.
+
+| Shape | Aspect ratio | Pixel dimensions to deliver | Used at |
+|---|---:|---|---|
+| `tall` | 4:5 | 720 x 900, 1080 x 1350, 1440 x 1800 | Phones, `<=767px` |
+| `mid` | 16:9 | 1024 x 576, 1280 x 720, 1600 x 900 | Tablets, `768-1023px` |
+| `wide` | 8:3 | 1280 x 480, 1920 x 720, 2560 x 960 | Laptops and desktops, `>=1024px` |
+
+### Category Strip
+
+Category strips introduce a product family and are shorter than the homepage hero.
+
+| Shape | Aspect ratio | Pixel dimensions to deliver | Used at |
+|---|---:|---|---|
+| `tall` | 9:5 | 720 x 400, 1080 x 600 | Phones, `<=767px` |
+| `mid` | 21:9 | 1024 x 439, 1280 x 549 | Tablets, `768-1023px` |
+| `wide` | 32:9 | 1280 x 360, 1600 x 450, 2400 x 675 | Laptops and desktops, `>=1024px` |
+
+### Services Banner
+
+Services banners support the services section and are slightly taller than category strips.
+
+| Shape | Aspect ratio | Pixel dimensions to deliver | Used at |
+|---|---:|---|---|
+| `tall` | 5:3 | 720 x 432, 1080 x 648 | Phones, `<=767px` |
+| `mid` | 2:1 | 1024 x 512, 1280 x 640 | Tablets, `768-1023px` |
+| `wide` | 16:5 | 1280 x 400, 1600 x 500, 2400 x 750 | Laptops and desktops, `>=1024px` |
+
+## File Size Limits
+
+Use sRGB WebP, quality 78-85 as a starting point. These limits are hard targets because the storefront will be used on mobile data connections.
+
+| Asset type | Maximum file size |
+|---|---:|
+| `tall` up to 1080 wide | 180 KB |
+| `tall` 1440 wide | 240 KB |
+| `mid` up to 1280 wide | 220 KB |
+| `mid` 1600 wide | 280 KB |
+| `wide` up to 1920 wide | 280 KB |
+| `wide` 2400-2560 wide | 400 KB |
+
+## Safe Areas And Text Zones
+
+All current banner slots render text on the left. Reserve the left 40% of the frame as a calm zone for the website overlay text and buttons.
+
+The website applies a dark left-to-right gradient over the image, so the artwork should still look good with the left side darkened. The main subject should generally live in the center-right area, not directly under the headline.
+
+Safe area requirements:
+
+| Shape | Keep critical detail inside | Reserved copy zone |
+|---|---|---|
+| `tall` | Central 78% width and central 78% height | Upper-left to mid-left area, with enough low-detail background behind copy |
+| `mid` | Central 78% width and central 78% height | Left 40%, avoid busy highlights behind text |
+| `wide` | Central 78% width and central 78% height | Left 40%, with subject weighted center-right |
+
+Do not put important visual detail behind the carousel arrows at the left and right vertical center, or behind the small pagination dots near the bottom center.
+
+## Placement Table
+
+| Route | Component | Slot | Banner slug | Shapes required | Loading priority | Headline | Supporting text | Primary CTA | CTA destination |
+|---|---|---|---|---|---|---|---|---|---|
+| `/` | `BannerCarousel` | Homepage hero carousel slide 1 | `office-printer` | `tall`, `mid`, `wide` | High, first slide preloaded | Office Technology Supplied and Supported | Reliable printers, copiers and office equipment supplied with dependable technical support. | Shop Office Equipment | `/category` |
+| `/` | `BannerCarousel` | Homepage hero carousel slide 2 | `toners-consumables` | `tall`, `mid`, `wide` | High | Printers, Copiers and Toners Ready | Find dependable printing equipment, toner cartridges, consumables and essential office supplies. | Browse Products | `/category` |
+| `/` | `BannerCarousel` | Homepage hero carousel slide 3 | `business-it-support` | `tall`, `mid`, `wide` | High | Business IT Equipment From One Partner | Networking, office technology and responsive technical support for growing organisations. | Explore Solutions | `/about` |
+| `/` | `BannerCarousel` | Category strip for printers section, if that homepage section is enabled | `printers` | `tall`, `mid`, `wide` | Lazy | Reliable Printers for Every Office | Explore dependable printers for home offices, businesses and professional workgroups. | Browse Products | `/category/multifunction-printers` |
+| `/` | `BannerCarousel` | Category strip for photocopiers section, if that homepage section is enabled | `photocopiers` | `tall`, `mid`, `wide` | Lazy | Commercial Copiers Built for Teams | Multifunction photocopiers designed for reliable, high-volume office document workflows. | Browse Products | `/category/photocopiers` |
+| `/` | `BannerCarousel` | Category strip for toners section, if that homepage section is enabled | `toners` | `tall`, `mid`, `wide` | Lazy | Toners and Consumables in Stock | Quality toner cartridges, drums and printing consumables for leading printer brands. | Browse Products | `/category/toners-and-ink` |
+| `/` | `BannerCarousel` | Services carousel slide 1 | `cctv` | `tall`, `mid`, `wide` | Lazy | CCTV Installation for Business Sites | Professional surveillance planning, camera installation, configuration and ongoing technical support. | Request CCTV Assessment | `/quote?service=CCTV%20Installation` |
+| `/` | `BannerCarousel` | Services carousel slide 2 | `networking` | `tall`, `mid`, `wide` | Lazy | Stable Networks for Growing Teams | Business networking, Wi-Fi, switching and structured connectivity designed for reliable performance. | Discuss Your Network | `/quote?service=Business%20Networking` |
+| `/` | `BannerCarousel` | Services carousel slide 3 | `maintenance-support` | `tall`, `mid`, `wide` | Lazy | IT Support That Keeps Moving | Responsive equipment maintenance and technical assistance that keeps teams productive. | Request Technical Support | `/quote?service=Technical%20Support` |
+| `/category` | `BannerCarousel` | Catalog listing header carousel | `office-printer`, `toners-consumables`, `business-it-support` | `tall`, `mid`, `wide` | Lazy | Same as homepage hero copy | Same as homepage hero copy | Same as homepage hero CTAs | Existing CTA destinations only |
+| `/category/multifunction-printers` | `BannerCarousel` | Category page header strip | `printers` | `tall`, `mid`, `wide` | Lazy | Reliable Printers for Every Office | Explore dependable printers for home offices, businesses and professional workgroups. | Browse Products | `/category/multifunction-printers` |
+| `/category/photocopiers` | `BannerCarousel` | Category page header strip | `photocopiers` | `tall`, `mid`, `wide` | Lazy | Commercial Copiers Built for Teams | Multifunction photocopiers designed for reliable, high-volume office document workflows. | Browse Products | `/category/photocopiers` |
+| `/category/toners-and-ink` | `BannerCarousel` | Category page header strip | `toners` | `tall`, `mid`, `wide` | Lazy | Toners and Consumables in Stock | Quality toner cartridges, drums and printing consumables for leading printer brands. | Browse Products | `/category/toners-and-ink` |
+
+## Routes Without Banner Artwork
+
+These routes exist, but they do not currently have a sensible banner slot in the UI:
+
+| Route | Reason |
+|---|---|
+| `/about` | Existing page uses a compact information and contact layout. A banner would duplicate the page heading. |
+| `/account` | Account workflow page. Decorative banners would distract from account tasks. |
+| `/admin` | Operational admin console. No marketing artwork should be added. |
+| `/cart` | Checkout/cart workflow. Keep focused on cart contents and actions. |
+| `/login` | Auth page with logo only. No banner slot. |
+| `/signup` | Auth page with logo only. No banner slot. |
+| `/product/[slug]` | Product image area is the primary visual. Category or service banners would compete with product detail. |
+| `/quote` | Form workflow. Keep page lightweight and task-focused. |
+| `/api/*` | API routes, no visual UI. |
+
+## Required Asset Inventory
+
+Deliver every listed WebP file. The app validates exact filenames.
+
+### Hero Assets
+
+```text
+public/banners/hero/office-printer-tall-720.webp
+public/banners/hero/office-printer-tall-1080.webp
+public/banners/hero/office-printer-tall-1440.webp
+public/banners/hero/office-printer-mid-1024.webp
+public/banners/hero/office-printer-mid-1280.webp
+public/banners/hero/office-printer-mid-1600.webp
+public/banners/hero/office-printer-wide-1280.webp
+public/banners/hero/office-printer-wide-1920.webp
+public/banners/hero/office-printer-wide-2560.webp
+public/banners/hero/toners-consumables-tall-720.webp
+public/banners/hero/toners-consumables-tall-1080.webp
+public/banners/hero/toners-consumables-tall-1440.webp
+public/banners/hero/toners-consumables-mid-1024.webp
+public/banners/hero/toners-consumables-mid-1280.webp
+public/banners/hero/toners-consumables-mid-1600.webp
+public/banners/hero/toners-consumables-wide-1280.webp
+public/banners/hero/toners-consumables-wide-1920.webp
+public/banners/hero/toners-consumables-wide-2560.webp
+public/banners/hero/business-it-support-tall-720.webp
+public/banners/hero/business-it-support-tall-1080.webp
+public/banners/hero/business-it-support-tall-1440.webp
+public/banners/hero/business-it-support-mid-1024.webp
+public/banners/hero/business-it-support-mid-1280.webp
+public/banners/hero/business-it-support-mid-1600.webp
+public/banners/hero/business-it-support-wide-1280.webp
+public/banners/hero/business-it-support-wide-1920.webp
+public/banners/hero/business-it-support-wide-2560.webp
+```
+
+### Category Assets
+
+```text
+public/banners/category/printers-tall-720.webp
+public/banners/category/printers-tall-1080.webp
+public/banners/category/printers-mid-1024.webp
+public/banners/category/printers-mid-1280.webp
+public/banners/category/printers-wide-1280.webp
+public/banners/category/printers-wide-1600.webp
+public/banners/category/printers-wide-2400.webp
+public/banners/category/photocopiers-tall-720.webp
+public/banners/category/photocopiers-tall-1080.webp
+public/banners/category/photocopiers-mid-1024.webp
+public/banners/category/photocopiers-mid-1280.webp
+public/banners/category/photocopiers-wide-1280.webp
+public/banners/category/photocopiers-wide-1600.webp
+public/banners/category/photocopiers-wide-2400.webp
+public/banners/category/toners-tall-720.webp
+public/banners/category/toners-tall-1080.webp
+public/banners/category/toners-mid-1024.webp
+public/banners/category/toners-mid-1280.webp
+public/banners/category/toners-wide-1280.webp
+public/banners/category/toners-wide-1600.webp
+public/banners/category/toners-wide-2400.webp
+```
+
+### Services Assets
+
+```text
+public/banners/services/cctv-tall-720.webp
+public/banners/services/cctv-tall-1080.webp
+public/banners/services/cctv-mid-1024.webp
+public/banners/services/cctv-mid-1280.webp
+public/banners/services/cctv-wide-1280.webp
+public/banners/services/cctv-wide-1600.webp
+public/banners/services/cctv-wide-2400.webp
+public/banners/services/networking-tall-720.webp
+public/banners/services/networking-tall-1080.webp
+public/banners/services/networking-mid-1024.webp
+public/banners/services/networking-mid-1280.webp
+public/banners/services/networking-wide-1280.webp
+public/banners/services/networking-wide-1600.webp
+public/banners/services/networking-wide-2400.webp
+public/banners/services/maintenance-support-tall-720.webp
+public/banners/services/maintenance-support-tall-1080.webp
+public/banners/services/maintenance-support-mid-1024.webp
+public/banners/services/maintenance-support-mid-1280.webp
+public/banners/services/maintenance-support-wide-1280.webp
+public/banners/services/maintenance-support-wide-1600.webp
+public/banners/services/maintenance-support-wide-2400.webp
+```
+
+## Creative Direction By Slot
+
+### Homepage Hero: `office-printer`
+
+Show modern office printers and photocopiers in a credible workplace or showroom context. The subject should sit center-right with a clean, darker left area for text.
+
+### Homepage Hero: `toners-consumables`
+
+Show toner cartridges, drums, ink, packaging, spare parts, and a printer context. Keep the composition organized and procurement-focused, not retail-cluttered.
+
+### Homepage Hero: `business-it-support`
+
+Show a business IT support environment: laptop, networking hardware, office device support, technician presence, or a service desk context. Avoid abstract cloud-only imagery.
+
+### Category: `printers`
+
+Feature printer products clearly. The image should work as a category introduction, not a generic office photo.
+
+### Category: `photocopiers`
+
+Feature a commercial multifunction copier with scale and workplace context. Keep small detail readable on mobile.
+
+### Category: `toners`
+
+Feature toner cartridges and consumables. Use clean organization and subtle colour coding, but avoid busy piles.
+
+### Services: `cctv`
+
+Show CCTV installation or camera planning in a business site. A technician may appear, but avoid faces dominating the frame.
+
+### Services: `networking`
+
+Show switches, racks, access points, patching, and structured connectivity. Cabling should look tidy and professionally labelled.
+
+### Services: `maintenance-support`
+
+Show technical support or equipment maintenance in an office setting. The image should communicate reliability and continuity.
+
+## Delivery Checklist
+
+For each approved banner design, deliver:
+
+- WebP files at every required size listed above.
+- Correct folder and filename for every WebP.
+- sRGB colour profile.
+- File sizes under the listed limits.
+- Editable source files: Figma, PSD, AI, or layered equivalent.
+- Font names and font licensing notes for any source-file-only typography.
+- Image source and licensing notes for every source image.
+- A small contact sheet or preview sheet showing all crops for review.
+
+## Licensing Requirements
+
+All images must be original, commissioned, company-owned, or licensed for commercial website use. Record the licence or source for every image. This site represents Ceter Technologies Limited in procurement and tender contexts, so image provenance must be clear and defensible.
+
+Do not use images pulled casually from Google Images, supplier websites, marketplaces, or manufacturer pages unless a commercial licence or written permission is provided.

@@ -1,6 +1,6 @@
 export type StockStatus = "in_stock" | "backorder" | "out_of_stock";
 export type ProductCondition = "new" | "refurbished";
-export type ProfileRole = "customer" | "admin";
+export type ProfileRole = "customer" | "admin" | "owner" | "manager" | "sales" | "store";
 export type OrderStatus = "pending" | "processing" | "paid" | "fulfilled" | "cancelled";
 export type QuoteStatus = "new" | "contacted" | "closed";
 export type BannerPlacement = "main" | "category" | "services" | "top" | "middle" | "bottom";
@@ -12,6 +12,10 @@ export type Category = {
   slug: string;
   description: string | null;
   icon: string | null;
+  parentId?: string | null;
+  sortOrder: number;
+  depth?: number;
+  children?: Category[];
 };
 
 export type Brand = {
@@ -32,6 +36,7 @@ export type Product = {
   categorySlug: string | null;
   description: string;
   price: number;
+  previousPrice: number | null;
   inStock: boolean;
   stockStatus: StockStatus;
   stockQuantity: number;
@@ -56,6 +61,7 @@ export type ProductRow = {
   images: unknown;
   specs: unknown;
   is_featured: boolean;
+  price_history?: Array<{ price_kes: number; effective_from: string; effective_to: string | null }>;
   categories?: { id: string; name: string; slug: string } | null;
   brands?: { id: string; name: string; slug: string } | null;
 };
@@ -70,8 +76,11 @@ export type Banner = {
   title: string;
   kicker: string | null;
   body: string;
+  alt: string;
   ctaLabel: string | null;
   ctaHref: string | null;
+  secondaryCtaLabel?: string | null;
+  secondaryCtaHref?: string | null;
   image: string | null;
   mobileImage: string | null;
   placement: BannerPlacement;

@@ -14,7 +14,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   };
 }
 
-export default async function CategorySlugPage({ params, searchParams }: { params: Promise<{ slug: string }>; searchParams: Promise<{ brand?: string }> }) {
+export default async function CategorySlugPage({ params, searchParams }: { params: Promise<{ slug: string }>; searchParams: Promise<{ brand?: string; condition?: string; stock?: string; maxPrice?: string }> }) {
   const [{ slug }, query] = await Promise.all([params, searchParams]);
   const category = await getCategoryBySlug(slug);
   if (!category) notFound();
@@ -23,19 +23,25 @@ export default async function CategorySlugPage({ params, searchParams }: { param
     getCategories(),
     getBrands(),
     getProducts({ category: category.slug, brand: query.brand }),
-    getCategoryBanners(category.id)
+    getCategoryBanners(category.slug)
   ]);
+  const filteredProducts = products.filter((product) => {
+    if (query.condition && product.condition !== query.condition) return false;
+    if (query.stock && product.stockStatus !== query.stock) return false;
+    if (query.maxPrice && product.price > Number(query.maxPrice)) return false;
+    return true;
+  });
 
   return (
     <div className="mx-auto max-w-[1500px] px-4 py-6">
       <div className="lg:flex lg:gap-5">
-        <CategoryFilterPanel categories={categories.map((item) => item.name)} brands={brands.map((brand) => brand.name)} />
+        <CategoryFilterPanel categories={categories} brands={brands.map((brand) => brand.name)} />
         <section className="min-w-0 flex-1 space-y-5">
           {banners.length ? <BannerCarousel banners={banners} variant="category" compact /> : null}
           <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
             <div>
               <h1 className="text-2xl font-black text-ink">{category.name}</h1>
-              <p className="text-sm text-slate-500">{category.description ?? `${products.length} products in this category.`}</p>
+              <p className="text-sm text-slate-500">{category.description ?? `${filteredProducts.length} products in this category.`}</p>
             </div>
             <select className="h-10 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-900">
               <option>Sort by featured</option>
@@ -44,7 +50,7 @@ export default async function CategorySlugPage({ params, searchParams }: { param
               <option>Newest first</option>
             </select>
           </div>
-          <ProductGrid products={products} />
+          <ProductGrid products={filteredProducts} />
         </section>
       </div>
     </div>

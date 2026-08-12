@@ -1,8 +1,15 @@
-﻿node_modules/
+node_modules/
 .next/
+.npm-cache/
+.tmp/
+.cache/
+.appdata/
+.localappdata/
+.prisma-engine-bin/
 .env
 .env.local
 *.log
+*.tsbuildinfo
 .vercel
 .env*
 !.env.example

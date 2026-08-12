@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+<defs></defs>
+<path d="M 335.81 406.1 L 239.07 425.16" fill="none" stroke="#0B1E39" stroke-width="15" stroke-linecap="round" stroke-linejoin="round" opacity="0.95"/>
+<path d="M 239.07 425.16 L 148.03 387.31" fill="none" stroke="#0B1E39" stroke-width="15" stroke-linecap="round" stroke-linejoin="round" opacity="0.95"/>
+<path d="M 148.03 387.31 L 93.3 305.3" fill="none" stroke="#0B1E39" stroke-width="15" stroke-linecap="round" stroke-linejoin="round" opacity="0.95"/>
+<path d="M 93.3 305.3 L 93.3 206.7" fill="none" stroke="#0B1E39" stroke-width="15" stroke-linecap="round" stroke-linejoin="round" opacity="0.95"/>
+<path d="M 93.3 206.7 L 148.03 124.69" fill="none" stroke="#0B1E39" stroke-width="15" stroke-linecap="round" stroke-linejoin="round" opacity="0.95"/>
+<path d="M 148.03 124.69 L 239.07 86.84" fill="none" stroke="#0B1E39" stroke-width="15" stroke-linecap="round" stroke-linejoin="round" opacity="0.95"/>
+<path d="M 239.07 86.84 L 335.81 105.9" fill="none" stroke="#0B1E39" stroke-width="15" stroke-linecap="round" stroke-linejoin="round" opacity="0.95"/>
+<ellipse cx="335.81016567360143" cy="406.1010907860176" rx="17.0" ry="17.0" fill="#0B1E39"/>
+<ellipse cx="239.07346607871114" cy="425.15523181211825" rx="19.142857142857142" ry="19.142857142857142" fill="#0B1E39"/>
+<ellipse cx="148.03031912682962" cy="387.3108830681819" rx="21.285714285714285" ry="21.285714285714285" fill="#0B1E39"/>
+<ellipse cx="93.3047706129299" cy="305.2976909671097" rx="23.428571428571427" ry="23.428571428571427" fill="#0B1E39"/>
+<ellipse cx="93.3047706129299" cy="206.70230903289035" rx="25.57142857142857" ry="25.57142857142857" fill="#0B1E39"/>
+<ellipse cx="148.03031912682962" cy="124.68911693181806" rx="27.714285714285715" ry="27.714285714285715" fill="#14B8A6"/>
+<ellipse cx="239.07346607871108" cy="86.84476818788178" rx="29.857142857142854" ry="29.857142857142854" fill="#14B8A6"/>
+<ellipse cx="335.8101656736014" cy="105.89890921398239" rx="32.0" ry="32.0" fill="#14B8A6"/>
+<ellipse cx="256" cy="256" rx="40" ry="40" fill="#14B8A6"/>
+</svg>

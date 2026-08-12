@@ -4,20 +4,22 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "npm run check:banners && next build",
     "start": "next start",
     "lint": "eslint .",
+    "check:banners": "node scripts/check-banners.mjs",
+    "catalog:clear": "node scripts/clear-catalog.mjs",
     "prisma:validate": "prisma validate",
     "prisma:generate": "prisma generate",
     "db:migrate": "prisma migrate deploy",
-    "db:seed": "prisma db execute --file prisma/seed.sql --schema prisma/schema.prisma",
+    "db:seed": "prisma db execute --file prisma/seed.sql",
     "verify:db": "node scripts/verify-supabase.mjs",
     "setup:admin": "node scripts/setup-admin.mjs"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.9.1",
     "@prisma/client": "^7.9.1",
-    "@supabase/ssr": "file:vendor/supabase-ssr",
+    "@supabase/ssr": "^0.12.4",
     "@supabase/supabase-js": "^2.111.0",
     "clsx": "^2.1.1",
     "framer-motion": "^11.11.17",
@@ -39,7 +41,12 @@
     "postcss": "^8.4.49",
     "prisma": "^7.9.1",
     "tailwindcss": "^3.4.15",
-    "typescript": "^5.6.3",
-    "vercel": "^58.1.0"
+    "typescript": "^5.6.3"
+  },
+  "allowScripts": {
+    "prisma@7.9.1": true,
+    "sharp@0.34.5": true,
+    "unrs-resolver@1.12.2": true,
+    "@prisma/engines@7.9.1": true
   }
 }

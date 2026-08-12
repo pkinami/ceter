@@ -1,4 +1,5 @@
 import type { Product, ProductRow } from "@/lib/types";
+import { findPreviousPrice } from "@/lib/pricing";
 
 function asStringArray(value: unknown): string[] {
   return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
@@ -23,6 +24,7 @@ export function mapProduct(row: ProductRow): Product {
     categorySlug: row.categories?.slug ?? null,
     description: row.description,
     price: row.price_kes,
+    previousPrice: findPreviousPrice(row.price_history ?? [], row.price_kes),
     inStock: row.stock_status === "in_stock" && row.stock_quantity > 0,
     stockStatus: row.stock_status,
     stockQuantity: row.stock_quantity,

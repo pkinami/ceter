@@ -32,10 +32,12 @@ export async function signInAction(formData: FormData) {
   const supabase = await createClient();
   const email = String(formData.get("email") ?? "");
   const password = String(formData.get("password") ?? "");
+  const next = String(formData.get("next") ?? "/account");
   const { error } = await supabase.auth.signInWithPassword({ email, password });
 
-  if (error) redirect(`/login?error=${encodeURIComponent(error.message)}`);
-  redirect("/account");
+  const safeNext = next.startsWith("/") && !next.startsWith("//") ? next : "/account";
+  if (error) redirect(`${safeNext.startsWith("/admin") ? "/admin/login" : "/login"}?error=${encodeURIComponent(error.message)}`);
+  redirect(safeNext);
 }
 
 export async function signOutAction() {

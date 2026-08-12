@@ -5,7 +5,7 @@ import { LogOut, UserRound } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 
-type Profile = { full_name: string | null; role: "customer" | "admin" };
+type Profile = { full_name: string | null; role: "customer" | "admin" | "owner" | "manager" | "sales" | "store" };
 
 function initials(name?: string | null, email?: string | null) {
   const source = name?.trim() || email?.trim() || "CT";
@@ -57,7 +57,7 @@ export function AuthMenu() {
           <p className="truncate px-3 py-2 text-xs font-bold text-slate-500">{email}</p>
           <Link href="/account" className="flex items-center gap-2 rounded px-3 py-2 font-semibold text-ink hover:bg-teal-50"><UserRound className="h-4 w-4 text-signal" /> Account</Link>
           <Link href="/account#orders" className="block rounded px-3 py-2 font-semibold text-ink hover:bg-teal-50">Order history</Link>
-          {profile?.role === "admin" ? <Link href="/admin" className="block rounded px-3 py-2 font-semibold text-ink hover:bg-teal-50">Admin panel</Link> : null}
+          {profile?.role && profile.role !== "customer" ? <Link href="/admin" className="block rounded px-3 py-2 font-semibold text-ink hover:bg-teal-50">Admin panel</Link> : null}
           <button onClick={logout} className="flex w-full items-center gap-2 rounded px-3 py-2 text-left font-semibold text-red-700 hover:bg-red-50"><LogOut className="h-4 w-4" /> Log out</button>
         </div>
       ) : null}

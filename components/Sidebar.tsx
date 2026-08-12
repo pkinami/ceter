@@ -1,10 +1,14 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
-import { CreditCard, Droplets, Package, Printer, ScanLine, Settings, Tags, X } from "lucide-react";
+import { ChevronDown, CreditCard, Droplets, Package, Printer, ScanLine, Settings, Tags, X } from "lucide-react";
 import { useState } from "react";
+import type { ReactNode } from "react";
 import { Tooltip } from "@/components/Tooltip";
+import { buildCategoryTree } from "@/lib/category-tree";
+import type { Category } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 const categoryIcons = [Printer, ScanLine, Droplets, Settings, Tags, CreditCard];
@@ -19,36 +23,45 @@ export function Sidebar({
   mobileOpen?: boolean;
   onClose?: () => void;
   drawerOnly?: boolean;
-  categories: string[];
+  categories: Category[];
   brands: string[];
 }) {
-  const [selectedBrands, setSelectedBrands] = useState<string[]>(["Kyocera"]);
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const [expandedCategoryPath, setExpandedCategoryPath] = useState<string[]>([]);
+  const categoryTree = buildCategoryTree(categories);
+  const selectedBrand = searchParams.get("brand") ?? "";
 
   function toggleBrand(brand: string) {
-    setSelectedBrands((current) => current.includes(brand) ? current.filter((item) => item !== brand) : [...current, brand]);
+    const params = new URLSearchParams(searchParams.toString());
+    if (selectedBrand === brand) params.delete("brand");
+    else params.set("brand", brand);
+    router.push(`/category${params.toString() ? `?${params}` : ""}`);
+    onClose?.();
   }
 
   const content = (
     <nav className="space-y-2">
-      {categories.map((category, index) => {
+      {categoryTree.map((category, index) => {
         const Icon = categoryIcons[index] ?? Package;
         return (
-        <Tooltip key={category} label={`Browse ${category}`}>
-          <Link href={`/category?category=${encodeURIComponent(category)}`} className="flex w-full items-center gap-2 rounded-md border-l-2 border-transparent px-3 py-2.5 text-sm font-semibold text-slate-700 hover:border-signal hover:bg-teal-50 hover:text-ink">
-            <Icon className="h-4 w-4 text-signal" />
-            <span>{category}</span>
-          </Link>
-        </Tooltip>
+        <CategoryBranch
+          key={category.id}
+          category={category}
+          expandedPath={expandedCategoryPath}
+          icon={<Icon className="h-4 w-4 text-signal" />}
+          onToggle={setExpandedCategoryPath}
+        />
       );})}
       <div className="mt-4 border-t border-line pt-4">
         <p className="px-3 text-xs font-bold uppercase text-slate-500">Printer brands</p>
         <div className="mt-2 grid grid-cols-1 gap-1">
           {brands.map((brand) => (
             <Tooltip key={brand} label={`Filter printers by ${brand}`}>
-              <label className={cn("flex cursor-pointer items-center gap-2 rounded px-3 py-2 text-xs font-medium text-slate-600 hover:bg-teal-50 hover:text-signal", selectedBrands.includes(brand) && "bg-teal-50 text-signal")}>
+              <label className={cn("flex cursor-pointer items-center gap-2 rounded px-3 py-2 text-xs font-medium text-slate-600 hover:bg-teal-50 hover:text-signal", selectedBrand === brand && "bg-teal-50 text-signal")}>
                 <input
                   type="checkbox"
-                  checked={selectedBrands.includes(brand)}
+                  checked={selectedBrand === brand}
                   onChange={() => toggleBrand(brand)}
                   className="h-4 w-4 accent-teal-600"
                 />
@@ -87,5 +100,79 @@ export function Sidebar({
         ) : null}
       </AnimatePresence>
     </>
+  );
+}
+
+function CategoryBranch({
+  category,
+  expandedPath,
+  icon,
+  onToggle
+}: {
+  category: Category;
+  expandedPath: string[];
+  icon?: ReactNode;
+  onToggle: (path: string[]) => void;
+}) {
+  const depth = category.depth ?? 0;
+  const children = category.children ?? [];
+  const canExpand = children.length > 0 && depth < 2;
+  const isExpanded = canExpand && expandedPath[depth] === category.id;
+
+  function toggle() {
+    if (!canExpand) return;
+    if (isExpanded) onToggle(expandedPath.slice(0, depth));
+    else onToggle([...expandedPath.slice(0, depth), category.id].slice(0, 2));
+  }
+
+  return (
+    <div>
+      <div className="grid grid-cols-[minmax(0,1fr)_2rem] items-center gap-1">
+        <Tooltip label={`Browse ${category.name}`}>
+          <Link
+            href={`/category/${category.slug}`}
+            className={cn(
+              "flex min-w-0 flex-1 items-center gap-2 rounded-md border-l-2 border-transparent px-3 py-2.5 text-sm font-semibold text-slate-700 hover:border-signal hover:bg-teal-50 hover:text-ink",
+              depth === 1 && "py-1.5 pl-7 text-xs",
+              depth === 2 && "py-1 pl-10 text-xs font-medium"
+            )}
+          >
+            {icon}
+            <span className="truncate">{category.name}</span>
+          </Link>
+        </Tooltip>
+        {canExpand ? (
+          <button
+            type="button"
+            onClick={toggle}
+            aria-expanded={isExpanded}
+            aria-label={`${isExpanded ? "Collapse" : "Expand"} ${category.name}`}
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-slate-500 hover:bg-teal-50 hover:text-signal"
+          >
+            <ChevronDown className={cn("h-4 w-4 transition-transform", isExpanded && "rotate-180")} />
+          </button>
+        ) : <span aria-hidden="true" className="h-8 w-8" />}
+      </div>
+      <AnimatePresence initial={false}>
+        {isExpanded ? (
+          <motion.div
+            className="mt-1 space-y-0.5 border-l border-line pl-1"
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.18 }}
+          >
+            {children.map((child) => (
+              <CategoryBranch
+                key={child.id}
+                category={{ ...child, depth: depth + 1 }}
+                expandedPath={expandedPath}
+                onToggle={onToggle}
+              />
+            ))}
+          </motion.div>
+        ) : null}
+      </AnimatePresence>
+    </div>
   );
 }

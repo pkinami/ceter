@@ -22,7 +22,6 @@ export function AsyncButton({ children, successMessage, errorMessage, className,
     setState("loading");
     try {
       if (onAction) await onAction();
-      else await new Promise((resolve) => setTimeout(resolve, 650));
     } catch {
       setState("idle");
       toast.error(errorMessage ?? "Action failed", { action: { label: "Retry", onClick: runAction } });

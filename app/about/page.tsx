@@ -25,7 +25,7 @@ export default function AboutPage() {
             ].map((item) => (
               <div key={item.label} className="rounded-md border border-slate-300 bg-panel p-4">
                 <item.icon className="h-5 w-5 text-signal" />
-                <p className="mt-3 text-sm font-black text-ink">{item.label}</p>
+                <p className="mt-3 text-sm font-black text-white">{item.label}</p>
               </div>
             ))}
           </div>

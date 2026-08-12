@@ -6,11 +6,11 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 export function formatKes(price: number) {
-  return new Intl.NumberFormat("en-KE", {
-    style: "currency",
-    currency: "KES",
-    maximumFractionDigits: 0
-  }).format(price);
+  return `KSh ${new Intl.NumberFormat("en-KE", { maximumFractionDigits: 0 }).format(price)}`;
+}
+
+export function formatNumber(value: number) {
+  return new Intl.NumberFormat("en-KE", { maximumFractionDigits: 0 }).format(value);
 }
 
 export function formatCompactKes(price: number) {

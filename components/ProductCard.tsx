@@ -11,6 +11,9 @@ import { WhatsAppOrderButton } from "@/components/WhatsAppOrderButton";
 import { formatKes } from "@/lib/utils";
 
 export function ProductCard({ product }: { product: Product }) {
+  const hasImage = Boolean(product.image && product.image !== "/product-placeholder.svg");
+  const placeholderLabel = (product.name || product.category || "Ceter").trim().charAt(0).toUpperCase();
+
   return (
     <motion.article
       className="group relative rounded-lg border border-slate-300 bg-white p-3 shadow-sm hover:-translate-y-1 hover:shadow-industrial"
@@ -19,7 +22,13 @@ export function ProductCard({ product }: { product: Product }) {
     >
       <Link href={`/product/${product.slug}`} className="block">
         <div className="relative aspect-[4/3] overflow-hidden rounded-md bg-panel">
-          <Image src={product.image} alt={product.name} fill className="object-contain p-5" sizes="(max-width: 768px) 100vw, 25vw" />
+          {hasImage ? (
+            <Image src={product.image} alt={product.name} fill className="object-contain p-5" sizes="(max-width: 768px) 100vw, 25vw" />
+          ) : (
+            <div className="flex h-full w-full items-center justify-center bg-navy text-white">
+              <span className="grid h-16 w-16 place-items-center rounded-md border border-white/20 bg-white/10 text-3xl font-black">{placeholderLabel}</span>
+            </div>
+          )}
           <span className="absolute left-2 top-2 rounded-full bg-ink px-2.5 py-1 text-xs font-bold text-white shadow">New</span>
           <span className="absolute right-2 top-2 rounded-full bg-white/95 px-2.5 py-1 text-xs font-bold text-slate-700 shadow">{product.condition}</span>
         </div>
@@ -27,6 +36,7 @@ export function ProductCard({ product }: { product: Product }) {
           <p className="text-xs font-bold uppercase text-signal">{product.brand}</p>
           <h3 className="mt-1 min-h-10 text-sm font-bold leading-5 text-ink">{product.name}</h3>
           <p className="mt-2 text-lg font-black text-signal">{formatKes(product.price)}</p>
+          {product.previousPrice ? <p className="text-xs text-slate-500"><span className="line-through">{formatKes(product.previousPrice)}</span> previous price</p> : null}
           <p className={product.stockStatus === "in_stock" ? "inline-flex items-center gap-1.5 text-xs font-semibold text-green-700" : product.stockStatus === "backorder" ? "inline-flex items-center gap-1.5 text-xs font-semibold text-amber-700" : "inline-flex items-center gap-1.5 text-xs font-semibold text-red-700"}>
             <span className={product.stockStatus === "in_stock" ? "h-2 w-2 rounded-full bg-green-500" : product.stockStatus === "backorder" ? "h-2 w-2 rounded-full bg-amber-500" : "h-2 w-2 rounded-full bg-red-500"} />
             {product.stockStatus === "in_stock" ? "In stock" : product.stockStatus === "backorder" ? "Backorder" : "Out of stock"}

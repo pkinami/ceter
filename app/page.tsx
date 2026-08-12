@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import Image from "next/image";
 import Link from "next/link";
 import { ArrowRight, BadgeCheck, Cloud, CreditCard, DatabaseBackup, Network, Printer, ScanLine, Server, Settings, ShieldCheck, Tags, Wrench } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
@@ -7,7 +6,9 @@ import { BannerCarousel } from "@/components/BannerCarousel";
 import { CategoryTile } from "@/components/CategoryTile";
 import { ProductGrid } from "@/components/ProductGrid";
 import { Sidebar } from "@/components/Sidebar";
+import { getHeroPreloadImages } from "@/lib/banner-assets";
 import { formatKes } from "@/lib/utils";
+import { buildCategoryTree, categoryAndDescendantKeys } from "@/lib/category-tree";
 import { getBrands, getCategories, getHomepageBanners, getHomepageSections, getProducts, getServices } from "@/lib/data";
 import type { Banner, Category, Product, ServiceEntry } from "@/lib/types";
 
@@ -37,6 +38,7 @@ const serviceIconMap: Record<string, LucideIcon> = {
 };
 
 export default async function HomePage() {
+  const heroPreloads = getHeroPreloadImages();
   const [categories, brands, products, banners, services, homepageSections] = await Promise.all([
     getCategories(),
     getBrands(),
@@ -45,6 +47,7 @@ export default async function HomePage() {
     getServices(8),
     getHomepageSections()
   ]);
+  const rootCategories = buildCategoryTree(categories);
 
   const categorySections = homepageSections
     .filter((section) => section.sectionType === "category_products" && section.category)
@@ -52,30 +55,29 @@ export default async function HomePage() {
       id: section.id,
       title: section.title,
       category: section.category as Category,
-      products: products
-        .filter((product) => product.categoryId === section.category?.id)
-        .sort((a, b) => Number(b.isFeatured) - Number(a.isFeatured))
-        .slice(0, Math.min(Math.max(section.productLimit, 6), 8))
+      products: section.category ? productsForCategory(products, section.category, categories).slice(0, Math.min(Math.max(section.productLimit, 6), 8)) : []
     }))
     .filter((section) => section.products.length);
 
-  const fallbackCategorySections = categories.map((category) => ({
+  const fallbackCategorySections = rootCategories.map((category) => ({
     id: category.id,
     title: category.name,
     category,
-    products: products.filter((product) => product.categoryId === category.id).slice(0, 8)
+    products: productsForCategory(products, category, categories).slice(0, 8)
   })).filter((section) => section.products.length);
 
   const sectionsToRender = categorySections.length ? categorySections : fallbackCategorySections;
   const servicesSection = homepageSections.find((section) => section.sectionType === "services");
   const latestSection = homepageSections.find((section) => section.sectionType === "latest_products");
-  const brandsSection = homepageSections.find((section) => section.sectionType === "brands");
   const shouldShowDefaultCmsSections = homepageSections.length === 0;
   const latestProducts = [...products].sort((a, b) => b.name.localeCompare(a.name)).slice(0, latestSection?.productLimit ?? 8);
 
   return (
     <div className="mx-auto flex max-w-7xl gap-6 px-4 py-6">
-      <Sidebar categories={categories.map((category) => category.name)} brands={brands.map((brand) => brand.name)} />
+      {heroPreloads.map((preload) => (
+        <link key={preload.href} rel="preload" as="image" href={preload.href} imageSrcSet={preload.imageSrcSet} imageSizes={preload.imageSizes} fetchPriority="high" />
+      ))}
+      <Sidebar categories={categories} brands={brands.map((brand) => brand.name)} />
       <div className="min-w-0 flex-1 space-y-10">
         <BannerCarousel banners={banners.main} variant="main" />
 
@@ -85,7 +87,7 @@ export default async function HomePage() {
             <Link href="/category" className="inline-flex items-center gap-1 text-sm font-bold text-signal">All categories <ArrowRight className="h-4 w-4" /></Link>
           </div>
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-            {categories.slice(0, 6).map((category) => {
+            {rootCategories.map((category) => {
               const Icon = categoryIconMap[category.icon ?? ""] ?? Printer;
               return (
                 <CategoryTile
@@ -102,7 +104,7 @@ export default async function HomePage() {
 
         {sectionsToRender.map((section) => (
           <div key={section.id} className="space-y-5">
-            {banners.category[section.category.id]?.length ? <BannerCarousel banners={banners.category[section.category.id]} variant="category" compact /> : null}
+            {banners.category[section.category.slug]?.length ? <BannerCarousel banners={banners.category[section.category.slug]} variant="category" compact /> : null}
             <CategoryProductSection title={section.title} category={section.category} products={section.products} />
           </div>
         ))}
@@ -121,26 +123,16 @@ export default async function HomePage() {
           </div>
           <ProductGrid products={latestProducts} />
         </section> : null}
-
-        {brandsSection || shouldShowDefaultCmsSections ? <section>
-          <div className="mb-4">
-            <h2 className="text-xl font-black text-ink">{brandsSection?.title ?? "Featured Brands"}</h2>
-            <p className="text-sm text-slate-500">Commercial printer, copier, labeling and card-printing brands supplied by Ceter.</p>
-          </div>
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-            {brands.slice(0, brandsSection?.productLimit ?? 10).map((brand) => (
-              <Link key={brand.id} href={`/category?brand=${encodeURIComponent(brand.name)}`} className="flex h-28 flex-col items-center justify-center gap-3 rounded-lg border border-slate-300 bg-white p-4 text-center shadow-sm hover:border-signal hover:shadow-industrial">
-                <div className="relative h-10 w-20">
-                  <Image src={brand.icon || "/product-placeholder.svg"} alt={`${brand.name} icon`} fill className="object-contain" sizes="80px" />
-                </div>
-                <span className="text-sm font-black text-ink">{brand.name}</span>
-              </Link>
-            ))}
-          </div>
-        </section> : null}
       </div>
     </div>
   );
+}
+
+function productsForCategory(products: Product[], category: Category, categories: Category[]) {
+  const keys = categoryAndDescendantKeys(category, categories);
+  return products
+    .filter((product) => keys.has(product.category.toLowerCase()) || Boolean(product.categorySlug && keys.has(product.categorySlug)) || Boolean(product.categoryId && keys.has(product.categoryId)))
+    .sort((a, b) => Number(b.isFeatured) - Number(a.isFeatured));
 }
 
 function CategoryProductSection({ title, category, products }: { title: string; category: Category; products: Product[] }) {

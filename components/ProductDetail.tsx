@@ -32,6 +32,7 @@ export function ProductDetail({ product, related }: { product: Product; related:
           <p className="text-sm font-black uppercase text-signal">{product.brand}</p>
           <h1 className="mt-2 text-3xl font-black text-ink">{product.name}</h1>
           <p className="mt-3 text-3xl font-black text-slate-950">{formatKes(product.price)}</p>
+          {product.previousPrice ? <p className="mt-1 text-sm text-slate-500"><span className="line-through">{formatKes(product.previousPrice)}</span> previous price</p> : null}
           <p className={product.stockStatus === "in_stock" ? "mt-2 text-sm font-bold text-teal-700" : "mt-2 text-sm font-bold text-red-600"}>
             {product.stockStatus === "in_stock" ? `Available in stock (${product.stockQuantity})` : product.stockStatus === "backorder" ? "Available on backorder" : "Out of stock"}
           </p>

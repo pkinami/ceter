@@ -1,15 +1,21 @@
 "use client";
 
 import Link from "next/link";
-import { Menu, Search, ShoppingCart, MessageCircle } from "lucide-react";
+import Image from "next/image";
+import { Menu, Search, ShoppingCart } from "lucide-react";
 import { useState } from "react";
 import { TopBar } from "@/components/TopBar";
 import { Tooltip } from "@/components/Tooltip";
 import { Sidebar } from "@/components/Sidebar";
 import { AuthMenu } from "@/components/AuthMenu";
+import { BrandIcon } from "@/components/BrandIcon";
+import { useCart } from "@/components/CartProvider";
+import type { Category } from "@/lib/types";
 
-export function HeaderClient({ categories, brands }: { categories: string[]; brands: string[] }) {
+export function HeaderClient({ categories, brands }: { categories: Category[]; brands: string[] }) {
   const [open, setOpen] = useState(false);
+  const { items } = useCart();
+  const cartQuantity = items.reduce((sum, item) => sum + item.quantity, 0);
 
   return (
     <header className="sticky top-0 z-40 border-b border-line bg-white/95 backdrop-blur">
@@ -21,9 +27,15 @@ export function HeaderClient({ categories, brands }: { categories: string[]; bra
               <Menu className="h-5 w-5" />
             </button>
           </Tooltip>
-          <Link href="/" className="leading-tight">
-            <span className="block text-lg font-black tracking-normal text-ink">Ceter Technologies</span>
-            <span className="hidden text-xs font-semibold uppercase text-slate-500 sm:block">Limited</span>
+          <Link href="/" className="inline-flex items-center leading-tight" aria-label="Ceter Technologies Limited home">
+            <Image
+              src="/ceter-logo-pack/lockup/ceter-logo-horizontal.svg"
+              alt="Ceter Technologies Limited"
+              width={210}
+              height={50}
+              priority
+              className="h-10 w-auto"
+            />
           </Link>
         </div>
         <label className="relative hidden sm:block">
@@ -42,12 +54,17 @@ export function HeaderClient({ categories, brands }: { categories: string[]; bra
           <div className="flex items-center gap-2">
             <Tooltip label="WhatsApp Ceter Technologies">
               <a href="https://wa.me/254707143322" className="hidden h-11 items-center gap-2 rounded-md bg-green-600 px-4 text-sm font-bold text-white hover:bg-green-700 md:inline-flex">
-                <MessageCircle className="h-4 w-4" /> WhatsApp
+                <BrandIcon name="whatsapp" label="WhatsApp" size={18} className="h-4 w-4" /> WhatsApp
               </a>
             </Tooltip>
             <Tooltip label="View cart">
-              <Link href="/cart" className="rounded-md border border-slate-300 p-2.5 hover:bg-slate-50" aria-label="Cart">
+              <Link href="/cart" className="relative rounded-md border border-slate-300 p-2.5 hover:bg-slate-50" aria-label={`Cart${cartQuantity ? ` with ${cartQuantity} items` : ""}`}>
                 <ShoppingCart className="h-5 w-5" />
+                {cartQuantity > 0 ? (
+                  <span className="absolute -right-2 -top-2 grid min-h-5 min-w-5 place-items-center rounded-full bg-signal px-1.5 text-[11px] font-black leading-none text-white shadow">
+                    {cartQuantity > 99 ? "99+" : cartQuantity}
+                  </span>
+                ) : null}
               </Link>
             </Tooltip>
             <AuthMenu />

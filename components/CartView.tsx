@@ -1,52 +1,17 @@
 "use client";
 
 import Image from "next/image";
+import Link from "next/link";
 import { Minus, Plus, Trash2 } from "lucide-react";
-import { AsyncButton } from "@/components/AsyncButton";
 import { useCart } from "@/components/CartProvider";
-import { createClient } from "@/lib/supabase/client";
 import { formatKes } from "@/lib/utils";
 
 export function CartView() {
-  const { items, loading, updateItem, removeItem, clearCart } = useCart();
+  const { items, loading, updateItem, removeItem } = useCart();
   const subtotal = items.reduce((sum, item) => sum + item.product.price * item.quantity, 0);
 
   async function update(id: string, currentQuantity: number, direction: number) {
     await updateItem(id, Math.max(1, currentQuantity + direction));
-  }
-
-  async function checkout() {
-    const supabase = createClient();
-    const { data: userData } = await supabase.auth.getUser();
-    const user = userData.user;
-    if (!user) {
-      throw new Error("Sign in to create an order");
-    }
-    if (!items.length) {
-      throw new Error("Your cart is empty");
-    }
-
-    const totalKes = Math.round(subtotal * 1.16);
-    const { data: order, error } = await supabase.from("orders").insert({
-      user_id: user.id,
-      status: "pending",
-      payment_method: null,
-      total_kes: totalKes
-    }).select("id").single();
-
-    if (error || !order) throw new Error("Could not create order");
-
-    const { error: itemError } = await supabase.from("order_items").insert(items.map((item) => ({
-      order_id: order.id,
-      product_id: item.product.id,
-      quantity: item.quantity,
-      price_at_purchase_kes: item.product.price
-    })));
-
-    if (itemError) throw new Error("Order item creation failed");
-
-    await clearCart();
-    window.location.href = "/account#orders";
   }
 
   return (
@@ -54,11 +19,16 @@ export function CartView() {
       <section className="rounded-lg border border-slate-300 bg-white">
         <div className="border-b border-line p-4">
           <h1 className="text-2xl font-black text-ink">Cart</h1>
-          <p className="text-sm text-slate-500">Review saved cart items before creating a pending order.</p>
+          <p className="text-sm text-slate-500">Review saved cart items before secure checkout.</p>
         </div>
         <div className="divide-y divide-line">
           {loading ? <p className="p-4 text-sm font-semibold text-slate-500">Loading cart...</p> : null}
-          {!loading && !items.length ? <p className="p-4 text-sm font-semibold text-slate-500">Your cart is empty.</p> : null}
+          {!loading && !items.length ? (
+            <div className="p-5">
+              <p className="text-sm font-semibold text-slate-600">Your cart is empty.</p>
+              <Link href="/category" className="mt-3 inline-flex rounded-md bg-signal px-4 py-2 text-sm font-bold text-white">Browse products</Link>
+            </div>
+          ) : null}
           {items.map(({ product, quantity }) => (
             <div key={product.id} className="grid gap-4 p-4 sm:grid-cols-[96px_1fr_auto]">
               <div className="relative h-24 rounded-md bg-panel">
@@ -93,9 +63,9 @@ export function CartView() {
           </div>
           <p className="mt-2 text-xs text-slate-500">Step 1 of 3: Review cart</p>
         </div>
-        <AsyncButton className="mt-5 w-full" successMessage="Pending order created" errorMessage="Checkout could not start. Please retry." onAction={checkout}>
+        <Link href="/checkout" className={items.length ? "mt-5 flex h-11 w-full items-center justify-center rounded-md bg-signal px-5 text-sm font-bold text-white hover:bg-teal-700" : "mt-5 flex h-11 w-full cursor-not-allowed items-center justify-center rounded-md bg-slate-300 px-5 text-sm font-bold text-white"}>
           Proceed to checkout
-        </AsyncButton>
+        </Link>
       </aside>
     </div>
   );

@@ -1,7 +1,7 @@
 "use client";
 
-import { MessageCircle } from "lucide-react";
 import type { Product } from "@/lib/types";
+import { BrandIcon } from "@/components/BrandIcon";
 import { formatKes } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 
@@ -24,7 +24,7 @@ export function WhatsAppOrderButton({ product, className }: WhatsAppOrderButtonP
         className
       )}
     >
-      <MessageCircle className="h-4 w-4 text-signal" />
+      <BrandIcon name="whatsapp" label="WhatsApp" size={18} className="h-4 w-4" />
       Order via WhatsApp
     </a>
   );

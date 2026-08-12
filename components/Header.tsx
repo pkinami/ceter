@@ -4,5 +4,5 @@ import { getBrands, getCategories } from "@/lib/data";
 export async function Header() {
   const [categories, brands] = await Promise.all([getCategories(), getBrands()]);
 
-  return <HeaderClient categories={categories.map((category) => category.name)} brands={brands.map((brand) => brand.name)} />;
+  return <HeaderClient categories={categories} brands={brands.map((brand) => brand.name)} />;
 }

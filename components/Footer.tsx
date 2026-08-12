@@ -1,12 +1,22 @@
 import Link from "next/link";
-import { Facebook, Instagram, Mail, MapPin, Music2, Phone } from "lucide-react";
+import Image from "next/image";
+import { MapPin } from "lucide-react";
+import { BrandIcon, type BrandIconName } from "@/components/BrandIcon";
 
 const socials = [
-  { label: "Instagram @cetertechnologies", icon: Instagram, href: "#" },
-  { label: "TikTok @cetertechnologies", icon: Music2, href: "#" },
-  { label: "X @cetertechnologies", icon: null, href: "#" },
-  { label: "Facebook @cetertechnologies", icon: Facebook, href: "#" }
-];
+  { label: "WhatsApp +254 707 143322", icon: "whatsapp", href: "https://wa.me/254707143322" },
+  { label: "Instagram @cetertechnologies", icon: "instagram", href: "#" },
+  { label: "X @cetertechnologies", icon: "x", href: "#" },
+  { label: "Facebook @cetertechnologies", icon: "facebook", href: "#" },
+  { label: "Email info@cetertechnologies.com", icon: "email", href: "mailto:info@cetertechnologies.com" }
+] satisfies Array<{ label: string; icon: BrandIconName; href: string }>;
+
+const payments = [
+  { label: "M-Pesa", icon: "mpesa" },
+  { label: "Visa", icon: "visa" },
+  { label: "Mastercard", icon: "mastercard" },
+  { label: "Debit and credit card", icon: "card" }
+] satisfies Array<{ label: string; icon: BrandIconName }>;
 
 const quickLinks = [
   { label: "Shop", href: "/category" },
@@ -17,12 +27,11 @@ const quickLinks = [
 ];
 
 const footerCategories = [
-  "Photocopiers",
-  "Printers",
-  "Toners & Inkjets",
-  "Copy Printers",
-  "Printer Spare Parts",
-  "Printer & Office Services/Solutions"
+  { label: "Printers & Photocopiers", href: "/category/printers-and-photocopiers" },
+  { label: "Toner, Ink & Consumables", href: "/category/toner-ink-and-consumables" },
+  { label: "Printer Parts & Accessories", href: "/category/printer-parts-and-accessories" },
+  { label: "Barcode, POS & ID Solutions", href: "/category/barcode-pos-and-id-solutions" },
+  { label: "Office Equipment & Services", href: "/category/office-equipment-and-services" }
 ];
 
 export function Footer() {
@@ -45,17 +54,29 @@ export function Footer() {
       <section>
         <div className="mx-auto grid max-w-7xl gap-8 px-4 py-10 md:grid-cols-2 lg:grid-cols-[1.35fr_0.75fr_1fr_1fr]">
           <div>
-            <p className="text-lg font-black uppercase tracking-normal text-white">CETER TECHNOLOGIES LIMITED</p>
+            <Link href="/" className="inline-flex" aria-label="Ceter Technologies Limited home">
+              <Image
+                src="/ceter-logo-pack/lockup/ceter-logo-horizontal-reversed.svg"
+                alt="Ceter Technologies Limited"
+                width={240}
+                height={58}
+                className="h-12 w-auto"
+              />
+            </Link>
             <p className="mt-3 max-w-sm text-sm leading-6 text-slate-300">Photocopiers, printers, toners and inkjets, spare parts, and office print solutions in Nairobi.</p>
-            <div className="mt-5 flex gap-2">
-            {socials.map((social) => {
-              const Icon = social.icon;
-              return (
-                <a key={social.label} href={social.href} className="inline-flex h-9 w-9 items-center justify-center rounded-md bg-white/10 text-sm text-slate-200 hover:bg-signal hover:text-white" aria-label={social.label} title={social.label}>
-                  {Icon ? <Icon className="h-4 w-4" /> : "X"}
+            <div className="mt-5 flex flex-wrap items-center gap-3" aria-label="Social links">
+              {socials.map((social) => (
+                <a key={social.label} href={social.href} className="inline-flex h-9 w-9 items-center justify-center rounded-md text-slate-200 transition hover:-translate-y-0.5 hover:text-white" aria-label={social.label} title={social.label}>
+                  <BrandIcon name={social.icon} label={social.label} size={24} className="h-6 w-6" />
                 </a>
-              );
-            })}
+              ))}
+            </div>
+            <div className="mt-5 flex flex-wrap items-center gap-x-5 gap-y-3 border-t border-white/10 pt-5" aria-label="Accepted payment methods">
+              {payments.map((payment) => (
+                <span key={payment.label} className="inline-flex h-8 items-center" title={payment.label}>
+                  <BrandIcon name={payment.icon} label={payment.label} size={64} className="max-h-7 w-auto" />
+                </span>
+              ))}
             </div>
           </div>
           <div>
@@ -68,15 +89,15 @@ export function Footer() {
             <h3 className="text-sm font-black uppercase text-white">Shop by category</h3>
             <div className="mt-4 grid gap-2 text-sm">
               {footerCategories.map((category) => (
-                <Link key={category} href={`/category?category=${encodeURIComponent(category)}`} className="text-slate-300 hover:text-signal">{category}</Link>
+                <Link key={category.href} href={category.href} className="text-slate-300 hover:text-signal">{category.label}</Link>
               ))}
             </div>
           </div>
           <div>
             <h3 className="text-sm font-black uppercase text-white">Contact details</h3>
             <div className="mt-4 space-y-3 text-sm text-slate-300">
-              <a href="https://wa.me/254707143322" className="flex items-center gap-2 hover:text-signal"><Phone className="h-4 w-4 text-signal" /> +254 707 143322</a>
-              <a href="mailto:info@cetertechnologies.com" className="flex items-center gap-2 hover:text-signal"><Mail className="h-4 w-4 text-signal" /> info@cetertechnologies.com</a>
+              <a href="https://wa.me/254707143322" className="flex items-center gap-2 hover:text-signal"><BrandIcon name="whatsapp" label="WhatsApp" size={18} className="h-4 w-4" /> +254 707 143322</a>
+              <a href="mailto:info@cetertechnologies.com" className="flex items-center gap-2 hover:text-signal"><BrandIcon name="email" label="Email" size={18} className="h-4 w-4" /> info@cetertechnologies.com</a>
               <p className="flex items-center gap-2"><MapPin className="h-4 w-4 text-signal" /> Nairobi, Kenya</p>
             </div>
           </div>
@@ -88,7 +109,7 @@ export function Footer() {
             <Link href="#" className="hover:text-signal">Privacy Policy</Link>
             <Link href="#" className="hover:text-signal">Terms and Conditions</Link>
           </div>
-          <p>© 2026 Ceter Technologies Limited. All rights reserved.</p>
+          <p>&copy; 2026 Ceter Technologies Limited. All rights reserved.</p>
         </div>
       </div>
     </footer>

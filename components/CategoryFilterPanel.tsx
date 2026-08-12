@@ -1,37 +1,37 @@
 "use client";
 
 import { useState } from "react";
+import type { ReactNode } from "react";
 import Link from "next/link";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
-import { CreditCard, Droplets, Package, Printer, ScanLine, Settings, SlidersHorizontal, Tags, X } from "lucide-react";
-import { toast } from "sonner";
-import { LoadingSpinner } from "@/components/LoadingSpinner";
-import { cn } from "@/lib/utils";
+import { ChevronDown, CreditCard, Droplets, Package, Printer, ScanLine, Settings, SlidersHorizontal, Tags, X } from "lucide-react";
+import { buildCategoryTree } from "@/lib/category-tree";
+import type { Category } from "@/lib/types";
+import { cn, formatKes } from "@/lib/utils";
 
 const categoryIcons = [Printer, ScanLine, Droplets, Settings, Tags, CreditCard];
 
-export function CategoryFilterPanel({ categories, brands }: { categories: string[]; brands: string[] }) {
-  const [loading, setLoading] = useState(false);
+export function CategoryFilterPanel({ categories, brands }: { categories: Category[]; brands: string[] }) {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const [selectedBrands, setSelectedBrands] = useState<string[]>(["Kyocera"]);
-  const [conditionFilters, setConditionFilters] = useState<string[]>([]);
-  const [price, setPrice] = useState(200000);
+  const [expandedCategoryPath, setExpandedCategoryPath] = useState<string[]>([]);
+  const selectedBrand = searchParams.get("brand") ?? "";
+  const selectedCategory = searchParams.get("category") ?? "";
+  const selectedCondition = searchParams.get("condition") ?? "";
+  const selectedStock = searchParams.get("stock") ?? "";
+  const price = Number(searchParams.get("maxPrice") ?? 450000);
 
-  const activeFilterCount = selectedBrands.length + conditionFilters.length + (price !== 200000 ? 1 : 0);
+  const activeFilterCount = Number(Boolean(selectedBrand)) + Number(Boolean(selectedCategory)) + Number(Boolean(selectedCondition)) + Number(Boolean(selectedStock)) + Number(price !== 450000);
+  const categoryTree = buildCategoryTree(categories);
 
-  function toggleBrand(brand: string) {
-    setSelectedBrands((current) => current.includes(brand) ? current.filter((item) => item !== brand) : [...current, brand]);
-  }
-
-  function toggleCondition(condition: string) {
-    setConditionFilters((current) => current.includes(condition) ? current.filter((item) => item !== condition) : [...current, condition]);
-  }
-
-  async function applyFilters() {
-    setLoading(true);
-    await new Promise((resolve) => setTimeout(resolve, 550));
-    setLoading(false);
-    toast.success("Filters applied");
+  function updateFilter(key: string, value: string | null) {
+    const params = new URLSearchParams(searchParams.toString());
+    if (value) params.set(key, value);
+    else params.delete(key);
+    router.push(`${pathname}${params.toString() ? `?${params}` : ""}`);
   }
 
   const content = (
@@ -41,17 +41,16 @@ export function CategoryFilterPanel({ categories, brands }: { categories: string
           <Package className="h-4 w-4 text-signal" /> Categories
         </div>
         <nav className="mt-3 space-y-1">
-          {categories.map((category, index) => {
+          {categoryTree.map((category, index) => {
             const Icon = categoryIcons[index] ?? Package;
             return (
-              <Link
-                key={category}
-                href={`/category?category=${encodeURIComponent(category)}`}
-                className="flex items-center gap-2 rounded-md border-l-2 border-transparent px-2.5 py-2 text-sm font-semibold text-slate-700 hover:border-signal hover:bg-teal-50 hover:text-ink"
-              >
-                <Icon className="h-4 w-4 text-signal" />
-                <span>{category}</span>
-              </Link>
+              <CategoryBranch
+                key={category.id}
+                category={category}
+                expandedPath={expandedCategoryPath}
+                icon={<Icon className="h-4 w-4 text-signal" />}
+                onToggle={setExpandedCategoryPath}
+              />
             );
           })}
         </nav>
@@ -62,35 +61,38 @@ export function CategoryFilterPanel({ categories, brands }: { categories: string
         </div>
         <label className="block text-sm font-bold text-slate-700">
           Category
-          <select className="mt-2 h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm">
-            <option>All categories</option>
-            {categories.map((category) => <option key={category}>{category}</option>)}
+          <select value={selectedCategory} onChange={(event) => updateFilter("category", event.target.value || null)} className="mt-2 h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm">
+            <option value="">All categories</option>
+            {flattenOptions(categoryTree).map((category) => <option key={category.id} value={category.slug}>{`${"  ".repeat(category.depth ?? 0)}${category.name}`}</option>)}
           </select>
         </label>
         <fieldset>
           <legend className="text-sm font-bold text-slate-700">Brand</legend>
           <div className="mt-2 grid grid-cols-1 gap-1">
             {brands.map((brand) => (
-              <label key={brand} className={cn("flex cursor-pointer items-center gap-2 rounded px-2.5 py-1.5 text-sm text-slate-600 hover:bg-teal-50 hover:text-signal", selectedBrands.includes(brand) && "bg-teal-50 text-signal")}>
-                <input type="checkbox" checked={selectedBrands.includes(brand)} onChange={() => toggleBrand(brand)} className="h-4 w-4 accent-teal-700" /> {brand}
+              <label key={brand} className={cn("flex cursor-pointer items-center gap-2 rounded px-2.5 py-1.5 text-sm text-slate-600 hover:bg-teal-50 hover:text-signal", selectedBrand === brand && "bg-teal-50 text-signal")}>
+                <input type="checkbox" checked={selectedBrand === brand} onChange={() => updateFilter("brand", selectedBrand === brand ? null : brand)} className="h-4 w-4 accent-teal-700" /> {brand}
               </label>
             ))}
           </div>
         </fieldset>
         <label className="block text-sm font-bold text-slate-700">
           Price range
-          <input type="range" min="10000" max="450000" value={price} onChange={(event) => setPrice(Number(event.target.value))} className="mt-3 w-full accent-teal-700" />
-          <span className="mt-1 block text-xs font-semibold text-slate-500">Up to Ksh {price.toLocaleString("en-KE")}</span>
+          <input type="range" min="10000" max="450000" step="5000" value={price} onChange={(event) => updateFilter("maxPrice", event.target.value === "450000" ? null : event.target.value)} className="mt-3 w-full accent-teal-700" />
+          <span className="mt-1 block text-xs font-semibold text-slate-500">Up to {formatKes(price)}</span>
         </label>
         <div className="grid grid-cols-2 gap-2">
-          {["New", "Refurbished", "In stock"].map((item) => (
+          {["new", "refurbished"].map((item) => (
             <label key={item} className="flex items-center gap-2 text-sm">
-              <input type="checkbox" checked={conditionFilters.includes(item)} onChange={() => toggleCondition(item)} className="accent-teal-700" /> {item}
+              <input type="checkbox" checked={selectedCondition === item} onChange={() => updateFilter("condition", selectedCondition === item ? null : item)} className="accent-teal-700" /> <span className="capitalize">{item}</span>
             </label>
           ))}
+          <label className="flex items-center gap-2 text-sm">
+            <input type="checkbox" checked={selectedStock === "in_stock"} onChange={() => updateFilter("stock", selectedStock === "in_stock" ? null : "in_stock")} className="accent-teal-700" /> In stock
+          </label>
         </div>
-        <button onClick={applyFilters} disabled={loading} className="flex h-10 w-full items-center justify-center rounded-md bg-ink text-sm font-bold text-white hover:bg-slate-800 disabled:opacity-70">
-          {loading ? <LoadingSpinner /> : "Apply filters"}
+        <button type="button" onClick={() => router.push(pathname)} className="flex h-10 w-full items-center justify-center rounded-md border border-slate-300 bg-white text-sm font-bold text-ink hover:bg-slate-50">
+          Clear filters
         </button>
       </div>
     </div>
@@ -134,4 +136,84 @@ export function CategoryFilterPanel({ categories, brands }: { categories: string
       </AnimatePresence>
     </>
   );
+}
+
+function CategoryBranch({
+  category,
+  expandedPath,
+  icon,
+  onToggle
+}: {
+  category: Category;
+  expandedPath: string[];
+  icon?: ReactNode;
+  onToggle: (path: string[]) => void;
+}) {
+  const depth = category.depth ?? 0;
+  const children = category.children ?? [];
+  const canExpand = children.length > 0 && depth < 2;
+  const childPath = expandedPath.slice(0, depth + 1);
+  const isExpanded = canExpand && childPath[depth] === category.id;
+
+  function toggle() {
+    if (!canExpand) return;
+    if (isExpanded) onToggle(expandedPath.slice(0, depth));
+    else onToggle([...expandedPath.slice(0, depth), category.id].slice(0, 2));
+  }
+
+  return (
+    <div>
+      <div className="grid grid-cols-[minmax(0,1fr)_2rem] items-center gap-1">
+        <Link
+          href={`/category/${category.slug}`}
+          className={cn(
+            "flex min-w-0 flex-1 items-center gap-2 rounded-md border-l-2 border-transparent px-2.5 py-2 text-sm font-semibold text-slate-700 hover:border-signal hover:bg-teal-50 hover:text-ink",
+            depth === 1 && "py-1.5 pl-6 text-xs",
+            depth === 2 && "py-1 pl-9 text-xs font-medium"
+          )}
+        >
+          {icon}
+          <span className="truncate">{category.name}</span>
+        </Link>
+        {canExpand ? (
+          <button
+            type="button"
+            onClick={toggle}
+            aria-expanded={isExpanded}
+            aria-label={`${isExpanded ? "Collapse" : "Expand"} ${category.name}`}
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-slate-500 hover:bg-teal-50 hover:text-signal"
+          >
+            <ChevronDown className={cn("h-4 w-4 transition-transform", isExpanded && "rotate-180")} />
+          </button>
+        ) : <span aria-hidden="true" className="h-8 w-8" />}
+      </div>
+      <AnimatePresence initial={false}>
+        {isExpanded ? (
+          <motion.div
+            className="mt-1 space-y-0.5 border-l border-line pl-1"
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.18 }}
+          >
+            {children.map((child) => (
+              <CategoryBranch
+                key={child.id}
+                category={{ ...child, depth: depth + 1 }}
+                expandedPath={expandedPath}
+                onToggle={onToggle}
+              />
+            ))}
+          </motion.div>
+        ) : null}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+function flattenOptions(categories: Category[], depth = 0): Category[] {
+  return categories.flatMap((category) => {
+    const current = { ...category, depth };
+    return [current, ...flattenOptions(category.children ?? [], depth + 1)];
+  });
 }

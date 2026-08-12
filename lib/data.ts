@@ -1,64 +1,123 @@
+import { cache } from "react";
 import { createClient } from "@/lib/supabase/server";
-import { getFixedBannerAsset } from "@/lib/banner-assets";
+import { getStaticCategoryBanners, getStaticHomepageBanners } from "@/lib/banner-assets";
+import { categoryAndDescendantKeys, flattenCategoryTree } from "@/lib/category-tree";
 import { prisma } from "@/lib/prisma";
 import { mapProduct } from "@/lib/product-mappers";
 import type { Banner, Brand, Category, HomepageSection, Product, ProductRow, ServiceEntry } from "@/lib/types";
 
-const productSelect = "*, categories(id,name,slug), brands(id,name,slug)";
+const productSelect = [
+  "id",
+  "slug",
+  "name",
+  "description",
+  "category_id",
+  "brand_id",
+  "price_kes",
+  "condition",
+  "stock_status",
+  "stock_quantity",
+  "images",
+  "specs",
+  "is_featured",
+  "categories(id,name,slug)",
+  "brands(id,name,slug)",
+  "price_history(price_kes,effective_from,effective_to)"
+].join(",");
 
-export async function getCategories(): Promise<Category[]> {
+export const getCategories = cache(async function getCategories(): Promise<Category[]> {
   const supabase = await createClient();
-  const { data, error } = await supabase.from("categories").select("id,name,slug,description,icon").order("name");
-  if (error) throw error;
-  return data ?? [];
-}
+  try {
+    const { data, error } = await supabase.from("categories").select("id,name,slug,description,icon,parent_id,sort_order").order("sort_order").order("name");
+    if (error) throw error;
+    return (data ?? []).map((category) => ({
+      id: category.id,
+      name: category.name,
+      slug: category.slug,
+      description: category.description,
+      icon: category.icon,
+      parentId: category.parent_id,
+      sortOrder: category.sort_order ?? 0
+    }));
+  } catch {
+    return fallbackCategories;
+  }
+});
 
-export async function getBrands(): Promise<Brand[]> {
+export const getBrands = cache(async function getBrands(): Promise<Brand[]> {
   const supabase = await createClient();
-  const { data, error } = await supabase.from("brands").select("id,name,slug,icon").order("name");
-  if (error) throw error;
-  return data ?? [];
-}
+  try {
+    const { data, error } = await supabase.from("brands").select("id,name,slug,icon").order("name");
+    if (error) throw error;
+    return data ?? [];
+  } catch {
+    return [];
+  }
+});
 
-export async function getProducts(options?: { featured?: boolean; category?: string | null; brand?: string | null; limit?: number }): Promise<Product[]> {
+export const getProducts = cache(async function getProducts(options?: { featured?: boolean; category?: string | null; brand?: string | null; limit?: number }): Promise<Product[]> {
   const supabase = await createClient();
-  let query = supabase.from("products").select(productSelect).order("is_featured", { ascending: false }).order("created_at", { ascending: false });
+  let query = supabase.from("products").select(productSelect).eq("is_published", true).order("is_featured", { ascending: false }).order("created_at", { ascending: false });
   if (options?.featured) query = query.eq("is_featured", true);
   if (options?.limit) query = query.limit(options.limit);
 
-  const { data, error } = await query;
-  if (error) throw error;
+  let data: unknown[] | null;
+  try {
+    const result = await query;
+    if (result.error) throw result.error;
+    data = result.data;
+  } catch {
+    return [];
+  }
 
-  let products = ((data ?? []) as ProductRow[]).map(mapProduct);
+  let products = ((data ?? []) as unknown as ProductRow[]).map(mapProduct);
   if (options?.category) {
-    const category = options.category.toLowerCase();
-    products = products.filter((product) => product.category.toLowerCase() === category || product.categorySlug === options.category || product.categoryId === options.category);
+    const categories = await getCategories();
+    products = filterProductsByCategory(products, categories, options.category);
   }
   if (options?.brand) {
     const brand = options.brand.toLowerCase();
     products = products.filter((product) => product.brand.toLowerCase() === brand || product.brandId === options.brand);
   }
   return products;
-}
+});
 
-export async function getProductBySlug(slug: string): Promise<Product | null> {
+export const getProductBySlug = cache(async function getProductBySlug(slug: string): Promise<Product | null> {
   const supabase = await createClient();
-  const { data, error } = await supabase.from("products").select(productSelect).eq("slug", slug).maybeSingle();
-  if (error) throw error;
-  return data ? mapProduct(data as ProductRow) : null;
-}
+  try {
+    const { data, error } = await supabase.from("products").select(productSelect).eq("slug", slug).eq("is_published", true).maybeSingle();
+    if (error) throw error;
+    return data ? mapProduct(data as unknown as ProductRow) : null;
+  } catch {
+    return null;
+  }
+});
 
 export async function getRelatedProducts(product: Product): Promise<Product[]> {
   const products = await getProducts({ category: product.categoryId, limit: 8 });
   return products.filter((item) => item.id !== product.id).slice(0, 4);
 }
 
-export async function getCategoryBySlug(slug: string): Promise<Category | null> {
+export const getCategoryBySlug = cache(async function getCategoryBySlug(slug: string): Promise<Category | null> {
   const supabase = await createClient();
-  const { data, error } = await supabase.from("categories").select("id,name,slug,description,icon").eq("slug", slug).maybeSingle();
-  if (error) throw error;
-  return data ?? null;
-}
+  try {
+    const { data, error } = await supabase.from("categories").select("id,name,slug,description,icon,parent_id,sort_order").eq("slug", slug).maybeSingle();
+    if (error) throw error;
+    return data
+      ? {
+          id: data.id,
+          name: data.name,
+          slug: data.slug,
+          description: data.description,
+          icon: data.icon,
+          parentId: data.parent_id,
+          sortOrder: data.sort_order ?? 0
+        }
+      : null;
+  } catch {
+    return fallbackCategories.find((category) => category.slug === slug) ?? null;
+  }
+});
 
 type HomepageBannerGroups = {
   main: Banner[];
@@ -67,49 +126,16 @@ type HomepageBannerGroups = {
 };
 
 export async function getHomepageBanners(): Promise<HomepageBannerGroups> {
-  if (isProductionBuild()) return { main: [], category: {}, services: [] };
-  if (!(await hasPublicTable("banners"))) return { main: [], category: {}, services: [] };
-  const banners = await prisma.banner.findMany({
-    where: { is_enabled: true },
-    include: { category: { select: { slug: true } } },
-    orderBy: [{ placement: "asc" }, { sort_order: "asc" }]
-  }).catch(() => []);
-
-  const category: Record<string, Banner[]> = {};
-  banners
-    .filter((banner) => isCategoryBannerPlacement(banner.placement) && banner.category_id)
-    .map((banner) => mapBanner(banner))
-    .forEach((banner) => {
-      if (!banner.categoryId) return;
-      category[banner.categoryId] = [...(category[banner.categoryId] ?? []), banner];
-    });
-
-  return {
-    main: banners.filter((banner) => isMainBannerPlacement(banner.placement)).map((banner, index) => mapBanner(banner, index)),
-    category,
-    services: banners.filter((banner) => isServicesBannerPlacement(banner.placement)).map((banner, index) => mapBanner(banner, index))
-  };
+  return getStaticHomepageBanners();
 }
 
-export async function getCategoryBanners(categoryId: string): Promise<Banner[]> {
-  if (isProductionBuild()) return [];
-  if (!(await hasPublicTable("banners"))) return [];
-  const banners = await prisma.banner.findMany({
-    where: {
-      is_enabled: true,
-      category_id: categoryId,
-      placement: { in: ["category", "middle"] }
-    },
-    include: { category: { select: { slug: true } } },
-    orderBy: [{ sort_order: "asc" }, { title: "asc" }]
-  }).catch(() => []);
-
-  return banners.map(mapBanner);
+export async function getCategoryBanners(categorySlug: string): Promise<Banner[]> {
+  return getStaticCategoryBanners(categorySlug);
 }
 
 export async function getServices(limit?: number): Promise<ServiceEntry[]> {
   if (isProductionBuild()) return [];
-  if (!(await hasPublicTable("service_entries"))) return [];
+  if (!(await hasPublicTable("service_entries"))) return fallbackServices.slice(0, limit);
   const services = await prisma.serviceEntry.findMany({
     where: { is_enabled: true },
     orderBy: [{ sort_order: "asc" }, { title: "asc" }],
@@ -148,44 +174,20 @@ export async function getHomepageSections(): Promise<HomepageSection[]> {
           name: section.category.name,
           slug: section.category.slug,
           description: section.category.description,
-          icon: section.category.icon
+          icon: section.category.icon,
+          parentId: categoryParentId(section.category as Record<string, unknown>),
+          sortOrder: categorySortOrder(section.category as Record<string, unknown>)
         }
       : null
   }));
 }
 
-function mapBanner(banner: Awaited<ReturnType<typeof prisma.banner.findMany>>[number] & { category?: { slug: string } | null }, index = 0): Banner {
-  const fixedAsset = getFixedBannerAsset({
-    placement: banner.placement,
-    index,
-    categorySlug: banner.category?.slug
-  });
-
-  return {
-    id: banner.id,
-    title: banner.title,
-    kicker: banner.kicker,
-    body: banner.body,
-    ctaLabel: banner.cta_label,
-    ctaHref: banner.cta_href,
-    image: fixedAsset?.image ?? banner.image,
-    mobileImage: fixedAsset?.mobileImage ?? banner.mobile_image,
-    placement: banner.placement,
-    categoryId: banner.category_id,
-    sortOrder: banner.sort_order
-  };
+function categoryParentId(category: Record<string, unknown>) {
+  return typeof category.parent_id === "string" ? category.parent_id : null;
 }
 
-function isMainBannerPlacement(placement: string) {
-  return placement === "main" || placement === "top";
-}
-
-function isCategoryBannerPlacement(placement: string) {
-  return placement === "category" || placement === "middle";
-}
-
-function isServicesBannerPlacement(placement: string) {
-  return placement === "services" || placement === "bottom";
+function categorySortOrder(category: Record<string, unknown>) {
+  return typeof category.sort_order === "number" ? category.sort_order : 0;
 }
 
 async function hasPublicTable(tableName: string) {
@@ -195,4 +197,47 @@ async function hasPublicTable(tableName: string) {
 
 function isProductionBuild() {
   return process.env.NEXT_PHASE === "phase-production-build" || process.env.npm_lifecycle_event === "build";
+}
+
+const fallbackCategories: Category[] = flattenCategoryTree();
+
+const fallbackServices: ServiceEntry[] = [
+  {
+    id: "cctv-installation",
+    title: "CCTV Installation",
+    slug: "cctv-installation",
+    description: "Camera planning, installation and support for business premises.",
+    image: null,
+    priceKes: null,
+    showRequestQuote: true
+  },
+  {
+    id: "networking",
+    title: "Business Networking",
+    slug: "networking",
+    description: "Wi-Fi, switching and structured connectivity for growing teams.",
+    image: null,
+    priceKes: null,
+    showRequestQuote: true
+  },
+  {
+    id: "managed-it-services",
+    title: "Managed IT Services",
+    slug: "managed-it-services",
+    description: "Responsive maintenance and support for office technology.",
+    image: null,
+    priceKes: null,
+    showRequestQuote: true
+  }
+];
+
+export function filterProductsByCategory(products: Product[], categories: Category[], categoryValue: string | null | undefined) {
+  if (!categoryValue) return products;
+  const normalized = categoryValue.toLowerCase();
+  const selected = categories.find((category) => category.slug === categoryValue || category.id === categoryValue || category.name.toLowerCase() === normalized);
+  if (!selected) {
+    return products.filter((product) => product.category.toLowerCase() === normalized || product.categorySlug === categoryValue || product.categoryId === categoryValue);
+  }
+  const keys = categoryAndDescendantKeys(selected, categories);
+  return products.filter((product) => keys.has(product.category.toLowerCase()) || Boolean(product.categorySlug && keys.has(product.categorySlug)) || Boolean(product.categoryId && keys.has(product.categoryId)));
 }
