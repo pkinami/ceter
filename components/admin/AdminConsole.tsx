@@ -3,11 +3,11 @@
 import Link from "next/link";
 import Image from "next/image";
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
-import { Archive, BarChart3, Boxes, Check, FileText, LogOut, Menu, PackageSearch, Search, Settings, ShoppingBag, Store, Trash2, UserCircle, X } from "lucide-react";
+import { Archive, BarChart3, Boxes, Check, FileText, LogOut, Menu, PackageSearch, Pencil, Search, Settings, ShoppingBag, Store, Trash2, UserCircle, X } from "lucide-react";
 import { toast } from "sonner";
 import { signOutAction } from "@/app/actions";
 import { ExcelImportPanel } from "@/app/admin/ExcelImportPanel";
-import { bulkProductAction, deleteCompatibilityAction, saveInventoryMatrixAction, updateQuoteStatusAction, upsertCompatibilityAction, upsertProductAction, type InventoryMatrixEdit } from "@/app/admin/actions";
+import { bulkProductAction, saveInventoryMatrixAction, updateQuoteStatusAction, upsertProductAction, type InventoryMatrixEdit } from "@/app/admin/actions";
 import { AdminProgress, ProgressButton, type AdminProgressState } from "@/components/admin/AdminProgress";
 import { FormSubmitButton } from "@/components/FormSubmitButton";
 import { formatKes, formatNumber } from "@/lib/utils";
@@ -16,33 +16,27 @@ type ProductRow = {
   id: string;
   name: string;
   slug: string;
+  description: string;
   mpn: string | null;
   sku: string | null;
+  brand_id: string | null;
   brand: string;
+  category_id: string | null;
   category: string;
   price_kes: number;
   cost_price_kes: number | null;
   stock_quantity: number;
   stock_status: string;
+  condition: string;
   reorder_level: number;
   reorder_quantity: number;
   supplier_name: string | null;
   images: string[];
+  specs: string;
+  is_featured: boolean;
   is_published: boolean;
   archived_at: string | null;
   updated_at: string;
-  enriched_at: string | null;
-  latestEnrichmentJob: { status: string; error: string | null } | null;
-  compatibleCount: number;
-  consumableCount: number;
-  compatibilities: CompatibilityRow[];
-};
-
-type CompatibilityRow = {
-  id: string;
-  relationType: "TONER" | "DRUM" | "INKJET" | "SPARE_PART" | "ACCESSORY";
-  direction: "printer" | "consumable";
-  product: { id: string; name: string; slug: string; mpn: string | null; sku: string | null; brand: string; category: string; stock_quantity: number };
 };
 
 type QuoteRow = {
@@ -85,7 +79,6 @@ type Props = {
   orders: OrderRow[];
   movements: MovementRow[];
   vatRate: number;
-  icecatEnabled: boolean;
   categories: Array<{ id: string; name: string; slug: string }>;
   brands: Array<{ id: string; name: string; slug: string }>;
 };
@@ -109,7 +102,7 @@ const viewCopy: Record<View, string> = {
   orders: "Fulfilment"
 };
 
-export function AdminConsole({ session, products, quotes, orders, movements, vatRate, icecatEnabled, categories, brands }: Props) {
+export function AdminConsole({ session, products, quotes, orders, movements, vatRate, categories, brands }: Props) {
   const [view, setView] = useState<View>("dashboard");
   const [drawer, setDrawer] = useState(false);
   const [sidebarExpanded, setSidebarExpanded] = useState(false);
@@ -133,9 +126,9 @@ export function AdminConsole({ session, products, quotes, orders, movements, vat
   const lowStock = rows.filter((row) => row.reorder_level > 0 && row.stock_quantity <= row.reorder_level);
   const quotesWaiting = quotes.filter((quote) => quote.status === "new" || quote.status === "contacted");
   const fulfilOrders = orders.filter((order) => order.status === "paid" || order.status === "processing");
-  const gaps = rows.filter((row) => row.images.length === 0 || row.cost_price_kes == null || row.compatibleCount === 0);
+  const gaps = rows.filter((row) => row.images.length === 0 || row.cost_price_kes == null || !row.mpn);
   const filteredRows = useMemo(() => {
-    const scoped = filter === "low" ? lowStock : filter === "out" ? rows.filter((row) => row.stock_quantity === 0) : filter === "zero-cost" ? rows.filter((row) => row.cost_price_kes == null || row.cost_price_kes === 0) : filter === "missing-images" ? rows.filter((row) => row.images.length === 0) : filter === "missing-mpn" ? rows.filter((row) => !row.mpn) : filter === "unmapped" ? rows.filter((row) => row.compatibleCount === 0) : filter === "archived" ? rows.filter((row) => row.archived_at) : rows.filter((row) => !row.archived_at);
+    const scoped = filter === "low" ? lowStock : filter === "out" ? rows.filter((row) => row.stock_quantity === 0) : filter === "zero-cost" ? rows.filter((row) => row.cost_price_kes == null || row.cost_price_kes === 0) : filter === "missing-images" ? rows.filter((row) => row.images.length === 0) : filter === "missing-mpn" ? rows.filter((row) => !row.mpn) : filter === "archived" ? rows.filter((row) => row.archived_at) : rows.filter((row) => !row.archived_at);
     return query.trim() ? scoped.filter((row) => [row.name, row.brand, row.category, row.mpn, row.sku, row.slug].some((value) => String(value ?? "").toLowerCase().includes(query.trim().toLowerCase()))) : scoped;
   }, [filter, lowStock, query, rows]);
 
@@ -299,7 +292,7 @@ export function AdminConsole({ session, products, quotes, orders, movements, vat
         <div className="min-w-0 flex-1">
           <main className="w-full max-w-[1500px] px-3 py-4 pb-24 lg:px-5">
             {view === "dashboard" ? <Dashboard rows={rows} quotes={quotes} orders={orders} movements={movements} go={go} setSelected={setSelected} /> : null}
-            {view === "catalogue" ? <Catalogue rows={filteredRows} allRows={rows} selected={selectedProduct} setSelected={setSelected} icecatEnabled={icecatEnabled} categories={categories} brands={brands} query={query} setQuery={setQuery} selectedRows={catalogueSelectedRows} setSelectedRows={setCatalogueSelectedRows} selectAllMatching={catalogueSelectAllMatching} setSelectAllMatching={setCatalogueSelectAllMatching} lastSelectedId={catalogueLastSelectedId} setLastSelectedId={setCatalogueLastSelectedId} /> : null}
+            {view === "catalogue" ? <Catalogue rows={filteredRows} allRows={rows} selected={selectedProduct} setSelected={setSelected} categories={categories} brands={brands} query={query} setQuery={setQuery} selectedRows={catalogueSelectedRows} setSelectedRows={setCatalogueSelectedRows} selectAllMatching={catalogueSelectAllMatching} setSelectAllMatching={setCatalogueSelectAllMatching} lastSelectedId={catalogueLastSelectedId} setLastSelectedId={setCatalogueLastSelectedId} /> : null}
             {view === "inventory" ? <Inventory rows={filteredRows} filter={filter} setFilter={setFilter} dirty={dirty} status={status} updateCell={updateCell} selectedRows={inventorySelectedRows} setSelectedRows={setInventorySelectedRows} selectAllMatching={inventorySelectAllMatching} setSelectAllMatching={setInventorySelectAllMatching} lastSelectedId={inventoryLastSelectedId} setLastSelectedId={setInventoryLastSelectedId} /> : null}
             {view === "quotes" ? <Quotes quotes={quotes} products={rows} vatRate={vatRate} /> : null}
             {view === "orders" ? <Orders orders={orders} /> : null}
@@ -324,7 +317,7 @@ function Dashboard({ rows, quotes, orders, movements, go, setSelected }: { rows:
   const restock = rows.filter((row) => row.reorder_level > 0 && row.stock_quantity <= row.reorder_level).sort((a, b) => (a.supplier_name ?? "Unassigned").localeCompare(b.supplier_name ?? "Unassigned"));
   const quoteQueue = quotes.filter((q) => q.status !== "closed");
   const fulfilQueue = orders.filter((order) => order.status === "paid" || order.status === "processing");
-  const gaps = rows.filter((row) => row.images.length === 0 || row.cost_price_kes == null || row.compatibleCount === 0 || row.reorder_level <= 0 || !row.supplier_name || !row.mpn);
+  const gaps = rows.filter((row) => row.images.length === 0 || row.cost_price_kes == null || row.reorder_level <= 0 || !row.supplier_name || !row.mpn);
   return <><ViewHead title="Dashboard" copy="Operations first: restock, quotes, fulfilment, catalogue gaps, then sales." />
     <div className="grid gap-3">
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
@@ -356,132 +349,13 @@ function Dashboard({ rows, quotes, orders, movements, go, setSelected }: { rows:
   </>;
 }
 
-type LookupResult = {
-  result: { lookupKey: string; title?: string; description?: string; brand?: string; mpn?: string; gtin?: string; category?: string; images: string[]; specs: Record<string, string> };
-  duplicate: { id: string; name: string; slug: string } | null;
-  categorySuggestion: { id: string; name: string; slug: string } | null;
-  cached: boolean;
-};
-
-function Catalogue({ rows, allRows, selected, setSelected, icecatEnabled, categories, brands, query, setQuery, selectedRows, setSelectedRows, selectAllMatching, setSelectAllMatching, lastSelectedId, setLastSelectedId }: { rows: ProductRow[]; allRows: ProductRow[]; selected: ProductRow | null; setSelected: (id: string) => void; icecatEnabled: boolean; categories: Array<{ id: string; name: string; slug: string }>; brands: Array<{ id: string; name: string; slug: string }>; query: string; setQuery: (value: string) => void; selectedRows: string[]; setSelectedRows: React.Dispatch<React.SetStateAction<string[]>>; selectAllMatching: boolean; setSelectAllMatching: (value: boolean) => void; lastSelectedId: string | null; setLastSelectedId: (value: string | null) => void }) {
-  const [lookup, setLookup] = useState({ brand: selected?.brand === "Unbranded" ? "" : selected?.brand ?? "", mpn: selected?.mpn ?? selected?.sku ?? "", gtin: "" });
-  const [lookupResult, setLookupResult] = useState<LookupResult | null>(null);
-  const [lookupMessage, setLookupMessage] = useState("");
-  const [commercial, setCommercial] = useState({ priceKes: "", costPriceKes: "", stockQuantity: "", supplierName: "", categoryId: "" });
+function Catalogue({ rows, allRows, selected, setSelected, categories, brands, query, setQuery, selectedRows, setSelectedRows, selectAllMatching, setSelectAllMatching, lastSelectedId, setLastSelectedId }: { rows: ProductRow[]; allRows: ProductRow[]; selected: ProductRow | null; setSelected: (id: string) => void; categories: Array<{ id: string; name: string; slug: string }>; brands: Array<{ id: string; name: string; slug: string }>; query: string; setQuery: (value: string) => void; selectedRows: string[]; setSelectedRows: React.Dispatch<React.SetStateAction<string[]>>; selectAllMatching: boolean; setSelectAllMatching: (value: boolean) => void; lastSelectedId: string | null; setLastSelectedId: (value: string | null) => void }) {
   const [showImport, setShowImport] = useState(false);
   const [showAdd, setShowAdd] = useState(false);
+  const [editing, setEditing] = useState<ProductRow | null>(null);
   const [operationProgress, setOperationProgress] = useState<AdminProgressState | null>(null);
-  const [finding, startFinding] = useTransition();
-  const busy = finding || operationProgress?.status === "running";
+  const busy = operationProgress?.status === "running";
   const visibleRows = rows;
-
-  function findProduct() {
-    if (busy) return;
-    setLookupMessage("");
-    setLookupResult(null);
-    setOperationProgress({ label: "Finding...", stage: "Searching catalogue data", status: "running" });
-    startFinding(async () => {
-      try {
-        const response = await fetch("/api/admin/enrichment/lookup", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(lookup) });
-        const data = await response.json();
-        if (!response.ok) {
-          const text = data.error ?? "Icecat lookup failed.";
-          setLookupMessage(text);
-          setOperationProgress({ label: "Lookup failed", stage: text, status: "error" });
-          return;
-        }
-        setLookupResult(data);
-        setCommercial((current) => ({ ...current, categoryId: data.categorySuggestion?.id ?? current.categoryId }));
-        setOperationProgress({ label: "Lookup complete", stage: "Complete", percent: 100, status: "success" });
-      } catch (error) {
-        const text = error instanceof Error ? error.message : "Icecat lookup failed.";
-        setLookupMessage(text);
-        setOperationProgress({ label: "Lookup failed", stage: text, status: "error" });
-      }
-    });
-  }
-
-  function createListing() {
-    if (!lookupResult || busy) return;
-    setOperationProgress({ label: "Publishing...", stage: "Creating product listing", status: "running" });
-    startFinding(async () => {
-      try {
-        const response = await fetch("/api/admin/enrichment/create-product", {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({
-            lookup,
-            priceKes: Number(commercial.priceKes),
-            costPriceKes: Number(commercial.costPriceKes),
-            stockQuantity: Number(commercial.stockQuantity),
-            supplierName: commercial.supplierName,
-            categoryId: commercial.categoryId
-          })
-        });
-        const data = await response.json();
-        if (!response.ok) {
-          const text = data.message ?? data.error ?? "Could not create product.";
-          setLookupMessage(text);
-          setOperationProgress({ label: "Publishing failed", stage: text, status: "error" });
-          return;
-        }
-        setOperationProgress({ label: "Published", stage: "Complete", percent: 100, status: "success" });
-        toast.success("Product listing created", { description: data.product?.name });
-        window.location.reload();
-      } catch (error) {
-        const text = error instanceof Error ? error.message : "Could not create product.";
-        setLookupMessage(text);
-        setOperationProgress({ label: "Publishing failed", stage: text, status: "error" });
-      }
-    });
-  }
-
-  function queueEnrichment(ids: string[]) {
-    if (busy) return;
-    setOperationProgress({ label: "Processing...", stage: "Queueing enrichment", status: "running" });
-    startFinding(async () => {
-      try {
-        const response = await fetch("/api/admin/enrichment/enrich-existing", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ productIds: ids }) });
-        const data = await response.json();
-        if (!response.ok) {
-          const text = data.error ?? "Could not queue enrichment.";
-          setOperationProgress({ label: "Queue failed", stage: text, status: "error" });
-          toast.error(text);
-        } else {
-          toast.success(`Queued ${data.queued} enrichment job${data.queued === 1 ? "" : "s"}`);
-          await processEnrichmentQueue(data.queued ?? ids.length);
-        }
-      } catch (error) {
-        const text = error instanceof Error ? error.message : "Could not queue enrichment.";
-        setOperationProgress({ label: "Queue failed", stage: text, status: "error" });
-        toast.error(text);
-      }
-    });
-  }
-
-  async function processEnrichmentQueue(maxRuns: number) {
-    let applied = 0;
-    const total = Math.max(maxRuns, 1);
-    for (let index = 0; index < total; index += 1) {
-      setOperationProgress({ label: "Processing", stage: "Processing enrichment queue", percent: Math.round((index / total) * 100), status: "running" });
-      const response = await fetch("/api/admin/enrichment/process", { method: "POST" });
-      const data = await response.json();
-      if (!response.ok) {
-        setOperationProgress({ label: "Processing failed", stage: data.error ?? "Icecat processing failed.", status: "error" });
-        toast.error(data.error ?? "Icecat processing failed.");
-        break;
-      }
-      if (!data.processed) break;
-      if (data.applied) applied += 1;
-    }
-    if (applied) {
-      setOperationProgress({ label: `Updated ${applied} product${applied === 1 ? "" : "s"}`, stage: "Complete", percent: 100, status: "success" });
-      toast.success(`Icecat updated ${applied} product${applied === 1 ? "" : "s"}`, { description: "Images, specs and descriptions were applied where available." });
-      window.location.reload();
-    } else {
-      setOperationProgress({ label: "Processing complete", stage: "No updates were applied", percent: 100, status: "success" });
-    }
-  }
 
   function toggleRow(id: string, event: React.ChangeEvent<HTMLInputElement>) {
     const ids = visibleRows.map((row) => row.id);
@@ -539,109 +413,89 @@ function Catalogue({ rows, allRows, selected, setSelected, icecatEnabled, catego
     }
   }
 
+  async function deleteRow(row: ProductRow) {
+    if (busy) return;
+    if (!window.confirm(`Delete or archive ${row.name}? Products referenced by orders, quotes, stock movements or serials will be archived instead of removed.`)) return;
+    setOperationProgress({ label: "Deleting...", stage: row.name, status: "running" });
+    try {
+      const result = await bulkProductAction([row.id], "delete");
+      setOperationProgress({ label: "Delete complete", stage: `Archived ${result.archived}, deleted ${result.deleted}`, percent: 100, status: result.failed.length ? "error" : "success" });
+      toast.success(`Archived ${result.archived}, deleted ${result.deleted}`);
+      window.location.reload();
+    } catch (error) {
+      const text = error instanceof Error ? error.message : "Delete failed.";
+      setOperationProgress({ label: "Delete failed", stage: text, status: "error" });
+      toast.error(text);
+    }
+  }
+
   function setRowsAfterBulk(result: { archived: number; deleted: number }) {
     if (result.deleted) window.location.reload();
     else if (result.archived) window.location.reload();
   }
 
-  return <><ViewHead title="Catalogue" copy="Products, media and the compatibility map that powers what fits this machine." actions={<><button type="button" onClick={() => setShowImport((current) => !current)} disabled={busy} className={showImport ? "btn-dark" : "btn-lite"}>{showImport ? "Close import" : "Import XLSX"}</button><button type="button" onClick={() => setShowAdd(true)} disabled={busy} className="btn-dark">Add product</button></>} />
-    {showAdd ? <AddProductDialog categories={categories} brands={brands} onClose={() => setShowAdd(false)} /> : null}
+  return <><ViewHead title="Catalogue" copy="Manage standalone products for storefront sale." actions={<><button type="button" onClick={() => setShowImport((current) => !current)} disabled={busy} className={showImport ? "btn-dark" : "btn-lite"}>{showImport ? "Close import" : "Import XLSX"}</button><button type="button" onClick={() => setShowAdd(true)} disabled={busy} className="btn-dark">Add Product</button></>} />
+    {showAdd ? <ProductDialog categories={categories} brands={brands} onClose={() => setShowAdd(false)} /> : null}
+    {editing ? <ProductDialog product={editing} categories={categories} brands={brands} onClose={() => setEditing(null)} /> : null}
     {showImport ? <Card title="XLSX import" tag="Preview before commit"><div className="p-3"><ExcelImportPanel /></div></Card> : null}
     <div className="mb-3"><AdminProgress progress={operationProgress} /></div>
-    <Card title="Find product">
-      <div className="grid gap-2 p-3 md:grid-cols-[1fr_1fr_1fr_auto]">
-        <input value={lookup.brand} onChange={(event) => setLookup({ ...lookup, brand: event.target.value })} className="admin-input" placeholder="Brand" />
-        <input value={lookup.mpn} onChange={(event) => setLookup({ ...lookup, mpn: event.target.value })} className="admin-input font-mono tabular-nums" placeholder="MPN / model" />
-        <input value={lookup.gtin} onChange={(event) => setLookup({ ...lookup, gtin: event.target.value })} className="admin-input font-mono tabular-nums" placeholder="GTIN / EAN" />
-        <ProgressButton onClick={findProduct} disabled={!icecatEnabled} progress={busy ? operationProgress : null} className="btn-dark">Find</ProgressButton>
-      </div>
-      {!icecatEnabled ? <div className="border-t border-line bg-warning/10 px-4 py-3 text-xs text-warning">Icecat is flagged off until credentials and commercial reuse rights are verified. CSV import remains available.</div> : null}
-      {lookupMessage ? <div className="border-t border-line bg-danger/10 px-4 py-3 text-xs text-danger">{lookupMessage}</div> : null}
-      {lookupResult ? <div className="grid gap-3 border-t border-line p-3 lg:grid-cols-[160px_1fr_300px]">
-        <div className="aspect-[4/3] overflow-hidden rounded-md border border-line bg-mist">{lookupResult.result.images[0] ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={lookupResult.result.images[0]} alt={lookupResult.result.title ?? "Icecat product"} className="h-full w-full object-contain p-2" />
-        ) : null}</div>
-        <div>
-          <div className="text-sm font-semibold">{lookupResult.result.title}</div>
-          <div className="mt-1 font-mono text-xs text-slate-500">{lookupResult.result.brand} | {lookupResult.result.mpn ?? lookupResult.result.gtin}</div>
-          <p className="mt-2 line-clamp-2 text-sm text-slate-600">{lookupResult.result.description}</p>
-          <div className="mt-2 flex flex-wrap gap-1"><Badge tone="teal">{lookupResult.cached ? "Cached" : "Icecat result"}</Badge>{lookupResult.result.category ? <Badge tone="mute">{lookupResult.result.category}</Badge> : null}{lookupResult.duplicate ? <Badge tone="warn">Existing product found</Badge> : null}</div>
-        </div>
-        <div className="grid gap-2">
-          {lookupResult.duplicate ? <Link href={`/product/${lookupResult.duplicate.slug}`} className="btn-lite text-center">Open existing product</Link> : <>
-            <input value={commercial.priceKes} onChange={(event) => setCommercial({ ...commercial, priceKes: event.target.value })} className="admin-input font-mono tabular-nums" placeholder="Price KSh required" />
-            <input value={commercial.costPriceKes} onChange={(event) => setCommercial({ ...commercial, costPriceKes: event.target.value })} className="admin-input font-mono tabular-nums" placeholder="Cost KSh required" />
-            <input value={commercial.stockQuantity} onChange={(event) => setCommercial({ ...commercial, stockQuantity: event.target.value })} className="admin-input font-mono tabular-nums" placeholder="Stock required" />
-            <input value={commercial.supplierName} onChange={(event) => setCommercial({ ...commercial, supplierName: event.target.value })} className="admin-input" placeholder="Supplier required" />
-            <select value={commercial.categoryId} onChange={(event) => setCommercial({ ...commercial, categoryId: event.target.value })} className="admin-input"><option value="">Category required</option>{categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</select>
-            <ProgressButton onClick={createListing} progress={busy ? operationProgress : null} className="btn-dark">Create listing</ProgressButton>
-          </>}
-        </div>
-      </div> : null}
-    </Card>
     <SelectionActionBar selectedCount={selectAllMatching ? visibleRows.length : selectedRows.length} totalCount={visibleRows.length} selectAllMatching={selectAllMatching} disabled={busy} onSelectAllMatching={() => setSelectAllMatching(true)} onClear={() => { setSelectedRows([]); setSelectAllMatching(false); }} onAction={runBulk} />
-    <div className="grid min-w-0 gap-3 xl:grid-cols-[minmax(0,1fr)_340px]">
+    <div className="grid min-w-0 gap-3">
       <Card title={`All products`} tag={`${visibleRows.length} of ${allRows.length} items`}>
         <div className="sticky top-0 z-20 border-b border-[#EDF1F6] bg-white p-3">
           <input value={query} onChange={(event) => setQuery(event.target.value)} className="admin-input w-full max-w-md" placeholder="Filter catalogue table" />
         </div>
-        <div className="max-h-[calc(100vh-260px)] overflow-auto"><table className="min-w-[880px] w-full table-fixed border-collapse text-[13px]"><colgroup><col className="w-10" /><col className="w-[34%]" /><col className="w-[16%]" /><col className="w-[18%]" /><col className="w-[14%]" /><col className="w-[18%]" /></colgroup><thead><tr><SelectTh rows={visibleRows} selectedRows={selectedRows} onToggle={togglePage} /><Th>Product</Th><Th>Part no.</Th><Th>Category</Th><Th right>Price (KSh)</Th><Th>Status</Th></tr></thead><tbody>
+        <div className="max-h-[calc(100vh-260px)] overflow-auto"><table className="min-w-[1080px] w-full table-fixed border-collapse text-[13px]"><colgroup><col className="w-10" /><col className="w-[27%]" /><col className="w-[12%]" /><col className="w-[14%]" /><col className="w-[17%]" /><col className="w-[10%]" /><col className="w-[8%]" /><col className="w-[7%]" /><col className="w-[5%]" /></colgroup><thead><tr><SelectTh rows={visibleRows} selectedRows={selectedRows} onToggle={togglePage} /><Th>Product</Th><Th>Brand</Th><Th>MPN/SKU</Th><Th>Category</Th><Th right>Price</Th><Th right>Stock</Th><Th>Published</Th><Th /></tr></thead><tbody>
           {visibleRows.map((row) => <tr key={row.id} onClick={() => setSelected(row.id)} className={`cursor-pointer border-b border-[#EDF1F6] hover:bg-[#F7FCFB] ${selected?.id === row.id ? "bg-[#EAF8F6] shadow-[inset_2px_0_0_#14B8A6]" : ""}`}>
             <SelectTd row={row} selected={selectedRows.includes(row.id) || selectAllMatching} onChange={toggleRow} />
-            <Td><div className="line-clamp-2 font-medium leading-snug">{row.name}</div><div className="text-xs text-slate-500">{row.brand}</div></Td><Td mono>{partNumber(row)}</Td><Td><span className="line-clamp-2">{row.category}</span></Td><Td right mono nowrap>{formatNumber(row.price_kes)}</Td><Td><ProductBadges row={row} /></Td>
+            <Td><div className="line-clamp-2 font-medium leading-snug">{row.name}</div>{row.archived_at ? <div className="mt-1"><Badge tone="mute">Archived</Badge></div> : null}</Td><Td>{row.brand}</Td><Td mono>{productCode(row)}</Td><Td><span className="line-clamp-2">{row.category}</span></Td><Td right mono nowrap>{formatNumber(row.price_kes)}</Td><Td right mono nowrap>{formatNumber(row.stock_quantity)}</Td><Td>{row.is_published && !row.archived_at ? <Badge tone="ok">Published</Badge> : <Badge tone="mute">Draft</Badge>}</Td><Td right nowrap><button type="button" onClick={(event) => { event.stopPropagation(); setEditing(row); }} className="btn-lite mr-1 min-h-8 px-2" aria-label={`Edit ${row.name}`}><Pencil className="h-3.5 w-3.5" /></button><button type="button" onClick={(event) => { event.stopPropagation(); deleteRow(row); }} className="btn-lite min-h-8 px-2 text-red-600" aria-label={`Delete or archive ${row.name}`}><Trash2 className="h-3.5 w-3.5" /></button></Td>
           </tr>)}
-          {!visibleRows.length ? <tr><Td /><Td><span className="text-[#5B6B80]">No products match this search.</span></Td><Td /><Td /><Td /><Td /></tr> : null}
+          {!visibleRows.length ? <tr><td colSpan={9}><Empty title="No products match" copy="Clear the search or import catalogue items." /></td></tr> : null}
         </tbody></table></div>
-      </Card>
-      <Card title="Compatibility">
-        {selected ? <div>
-          <div className="border-b border-[#EDF1F6] p-4"><div className="font-semibold">{selected.name}</div><div className="font-mono text-xs text-[#5B6B80]">{productCode(selected)} | {selected.brand}</div><div className="mt-2"><StockBadge row={selected} /></div></div>
-          <CompatibilityEditor selected={selected} rows={allRows} />
-          {selected.stock_quantity === 0 && selected.consumableCount > 0 ? <div className="border-t border-amber-200 bg-[#FEF3E2] p-3 text-xs text-[#B45309]"><b>This printer is out of stock.</b> Linked consumables may stop moving. Check before reordering.</div> : null}
-          <div className="border-t border-line p-3 text-xs text-slate-500">Icecat enrichment: {icecatEnabled ? "enabled" : "flagged off until credentials and licensing are verified"}.</div>
-          <div className="border-t border-line p-3"><ProgressButton onClick={() => queueEnrichment([selected.id])} disabled={!icecatEnabled} progress={busy ? operationProgress : null} className="btn-lite">Enrich</ProgressButton></div>
-        </div> : <Empty title="No product selected" copy="Select a product to inspect compatibility." />}
       </Card>
     </div>
   </>;
 }
 
-function AddProductDialog({ categories, brands, onClose }: { categories: Array<{ id: string; name: string }>; brands: Array<{ id: string; name: string }>; onClose: () => void }) {
+function ProductDialog({ product, categories, brands, onClose }: { product?: ProductRow; categories: Array<{ id: string; name: string }>; brands: Array<{ id: string; name: string }>; onClose: () => void }) {
+  const editing = Boolean(product);
+  const categoryId = product?.category_id ?? "";
+  const brandId = product?.brand_id ?? "";
   return (
-    <div className="fixed inset-0 z-[70] grid place-items-center bg-[#071426]/55 p-4" role="dialog" aria-modal="true" aria-label="Add product">
+    <div className="fixed inset-0 z-[70] grid place-items-center bg-[#071426]/55 p-4" role="dialog" aria-modal="true" aria-label={editing ? "Edit product" : "Add product"}>
       <div className="max-h-[90vh] w-full max-w-3xl overflow-auto rounded-[10px] border border-[#DDE4EC] bg-white shadow-2xl">
         <div className="flex items-center gap-3 border-b border-[#EDF1F6] px-4 py-3">
-          <h2 className="text-[15px] font-semibold">Add product manually</h2>
+          <h2 className="text-[15px] font-semibold">{editing ? "Edit product" : "Add product manually"}</h2>
           <button type="button" onClick={onClose} className="btn-lite ml-auto min-h-8 px-2" aria-label="Close add product"><X className="h-4 w-4" /></button>
         </div>
         <form action={upsertProductAction} className="grid gap-3 p-4 md:grid-cols-2">
-          <input name="name" required className="admin-input" placeholder="Product name" />
-          <input name="slug" required className="admin-input" placeholder="slug-used-in-url" />
-          <input name="mpn" className="admin-input font-mono tabular-nums" placeholder="MPN / model" />
-          <input name="sku" className="admin-input font-mono tabular-nums" placeholder="SKU" />
-          <select name="category_id" className="admin-input"><option value="">Category</option>{categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</select>
-          <select name="brand_id" className="admin-input"><option value="">Brand</option>{brands.map((brand) => <option key={brand.id} value={brand.id}>{brand.name}</option>)}</select>
-          <input name="price_kes" required type="number" min="0" className="admin-input font-mono tabular-nums" placeholder="Price KSh" />
-          <input name="cost_price_kes" type="number" min="0" className="admin-input font-mono tabular-nums" placeholder="Cost KSh" />
-          <input name="stock_quantity" required type="number" min="0" className="admin-input font-mono tabular-nums" placeholder="Stock quantity" />
-          <select name="stock_status" className="admin-input"><option value="in_stock">In stock</option><option value="backorder">Backorder</option><option value="out_of_stock">Out of stock</option></select>
-          <select name="condition" className="admin-input"><option value="new">New</option><option value="refurbished">Refurbished</option></select>
-          <input name="supplier_name" className="admin-input" placeholder="Supplier" />
-          <input name="reorder_level" type="number" min="0" className="admin-input font-mono tabular-nums" placeholder="Reorder level" />
-          <input name="reorder_quantity" type="number" min="0" className="admin-input font-mono tabular-nums" placeholder="Reorder quantity" />
-          <textarea name="description" required className="admin-input h-24 md:col-span-2" placeholder="Description" />
+          {product ? <input type="hidden" name="id" value={product.id} /> : null}
+          <input name="name" required defaultValue={product?.name ?? ""} className="admin-input" placeholder="Product name" />
+          <input name="slug" required defaultValue={product?.slug ?? ""} className="admin-input" placeholder="slug-used-in-url" />
+          <input name="mpn" defaultValue={product?.mpn ?? ""} className="admin-input font-mono tabular-nums" placeholder="MPN / model" />
+          <input name="sku" defaultValue={product?.sku ?? ""} className="admin-input font-mono tabular-nums" placeholder="SKU" />
+          <select name="category_id" defaultValue={categoryId} className="admin-input"><option value="">Category</option>{categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</select>
+          <select name="brand_id" defaultValue={brandId} className="admin-input"><option value="">Brand</option>{brands.map((brand) => <option key={brand.id} value={brand.id}>{brand.name}</option>)}</select>
+          <input name="price_kes" required type="number" min="0" defaultValue={product?.price_kes ?? ""} className="admin-input font-mono tabular-nums" placeholder="Price KSh" />
+          <input name="cost_price_kes" type="number" min="0" defaultValue={product?.cost_price_kes ?? ""} className="admin-input font-mono tabular-nums" placeholder="Cost KSh" />
+          <input name="stock_quantity" required type="number" min="0" defaultValue={product?.stock_quantity ?? ""} className="admin-input font-mono tabular-nums" placeholder="Stock quantity" />
+          <select name="stock_status" defaultValue={product?.stock_status ?? "in_stock"} className="admin-input"><option value="in_stock">In stock</option><option value="backorder">Backorder</option><option value="out_of_stock">Out of stock</option></select>
+          <select name="condition" defaultValue={product?.condition ?? "new"} className="admin-input"><option value="new">New</option><option value="refurbished">Refurbished</option></select>
+          <input name="supplier_name" defaultValue={product?.supplier_name ?? ""} className="admin-input" placeholder="Supplier" />
+          <input name="reorder_level" type="number" min="0" defaultValue={product?.reorder_level ?? ""} className="admin-input font-mono tabular-nums" placeholder="Reorder level" />
+          <input name="reorder_quantity" type="number" min="0" defaultValue={product?.reorder_quantity ?? ""} className="admin-input font-mono tabular-nums" placeholder="Reorder quantity" />
+          <textarea name="description" required defaultValue={product?.description ?? ""} className="admin-input h-24 md:col-span-2" placeholder="Description" />
           <label className="grid gap-1 text-xs font-semibold text-[#33445A] md:col-span-2">
             Primary image upload
             <input name="primary_image_file" type="file" accept="image/*" className="admin-input h-auto py-2" />
           </label>
-          <textarea name="images" className="admin-input h-24 md:col-span-2" placeholder="Image URLs, one per line" />
-          <textarea name="specs" className="admin-input h-24 md:col-span-2" placeholder="Specs, one per line: Paper size: A4" />
-          <label className="flex items-center gap-2 text-sm font-semibold text-[#33445A]"><input name="is_published" type="checkbox" defaultChecked /> Published</label>
-          <label className="flex items-center gap-2 text-sm font-semibold text-[#33445A]"><input name="is_featured" type="checkbox" /> Featured</label>
+          <textarea name="images" defaultValue={product?.images.join("\n") ?? ""} className="admin-input h-24 md:col-span-2" placeholder="Image URLs, one per line" />
+          <textarea name="specs" defaultValue={product?.specs ?? ""} className="admin-input h-24 md:col-span-2" placeholder="Specs, one per line: Paper size: A4" />
+          <label className="flex items-center gap-2 text-sm font-semibold text-[#33445A]"><input name="is_published" type="checkbox" defaultChecked={product?.is_published ?? true} /> Published</label>
+          <label className="flex items-center gap-2 text-sm font-semibold text-[#33445A]"><input name="is_featured" type="checkbox" defaultChecked={product?.is_featured ?? false} /> Featured</label>
           <div className="flex justify-end gap-2 border-t border-[#EDF1F6] pt-3 md:col-span-2">
             <button type="button" onClick={onClose} className="btn-lite">Cancel</button>
-            <FormSubmitButton pendingText="Uploading image and saving..." className="btn-dark">Create product</FormSubmitButton>
+            <FormSubmitButton pendingText="Uploading image and saving..." className="btn-dark">{editing ? "Save product" : "Create product"}</FormSubmitButton>
           </div>
         </form>
       </div>
@@ -721,7 +575,6 @@ function Inventory({ rows, filter, setFilter, dirty, status, updateCell, selecte
     ["zero-cost", "Zero cost"],
     ["missing-mpn", "Missing MPN"],
     ["missing-images", "Missing images"],
-    ["unmapped", "Unmapped"],
     ["archived", "Archived"]
   ] as const;
   return <><ViewHead title="Inventory" copy="Edit stock and prices straight in the table. Tab across, Enter moves down, Esc reverts a cell." actions={<><button onClick={() => setFilter(filter === "low" ? "" : "low")} disabled={busy} className={filter === "low" ? "btn-dark" : "btn-lite"}>Low stock</button><ProgressButton onClick={exportRows} progress={busy ? operationProgress : null} className="btn-lite">Export</ProgressButton></>} />
@@ -897,107 +750,10 @@ function SelectionActionBar({ selectedCount, totalCount, selectAllMatching, disa
 }
 function Badge({ tone, children }: { tone: "ok" | "warn" | "crit" | "mute" | "teal"; children: React.ReactNode }) { const classes = { ok: "border-green-100 bg-green-50 text-green-700", warn: "border-amber-100 bg-amber-50 text-amber-700", crit: "border-red-100 bg-red-50 text-red-700", mute: "border-slate-200 bg-slate-100 text-slate-600", teal: "border-[#CFE9E5] bg-[#EAF8F6] text-[#0F766E]" }; return <span className={`inline-flex items-center gap-1 rounded border px-2 py-1 text-[11.5px] font-semibold ${classes[tone]}`}>{children}</span>; }
 function StockBadge({ row }: { row: ProductRow }) { if (row.stock_quantity <= 0) return <Badge tone="crit">Out of stock</Badge>; if (row.stock_quantity <= row.reorder_level) return <Badge tone="crit">Restock now</Badge>; if (row.reorder_level > 0 && row.stock_quantity <= row.reorder_level * 1.6) return <Badge tone="warn">Getting low</Badge>; return <Badge tone="ok">In stock</Badge>; }
-function CompatibilityEditor({ selected, rows }: { selected: ProductRow; rows: ProductRow[] }) {
-  const [search, setSearch] = useState("");
-  const [targetId, setTargetId] = useState("");
-  const [relationType, setRelationType] = useState<CompatibilityRow["relationType"]>("TONER");
-  const [direction, setDirection] = useState<"printer" | "consumable">("printer");
-  const [progress, setProgress] = useState<AdminProgressState | null>(null);
-  const [pending, startTransition] = useTransition();
-  const busy = pending || progress?.status === "running";
-  const matches = rows
-    .filter((row) => row.id !== selected.id)
-    .filter((row) => !search.trim() || [row.name, row.brand, row.category, row.mpn, row.sku].some((value) => String(value ?? "").toLowerCase().includes(search.trim().toLowerCase())))
-    .slice(0, 8);
-
-  function attach() {
-    const otherId = targetId || matches[0]?.id;
-    if (!otherId || busy) return;
-    const input = direction === "printer"
-      ? { printerId: selected.id, consumableId: otherId, relationType }
-      : { printerId: otherId, consumableId: selected.id, relationType };
-    setProgress({ label: "Saving...", stage: "Attaching compatibility", status: "running" });
-    startTransition(async () => {
-      try {
-        await upsertCompatibilityAction(input);
-        setProgress({ label: "Compatibility attached", stage: "Complete", percent: 100, status: "success" });
-        toast.success("Compatibility mapping attached");
-        window.location.reload();
-      } catch (error) {
-        setProgress({ label: "Save failed", stage: error instanceof Error ? error.message : "Could not attach mapping.", status: "error" });
-        toast.error(error instanceof Error ? error.message : "Could not attach mapping.");
-      }
-    });
-  }
-
-  function remove(id: string) {
-    if (busy) return;
-    setProgress({ label: "Deleting...", stage: "Removing compatibility", status: "running" });
-    startTransition(async () => {
-      try {
-        await deleteCompatibilityAction(id);
-        setProgress({ label: "Compatibility removed", stage: "Complete", percent: 100, status: "success" });
-        toast.success("Compatibility mapping removed");
-        window.location.reload();
-      } catch (error) {
-        setProgress({ label: "Delete failed", stage: error instanceof Error ? error.message : "Could not remove mapping.", status: "error" });
-        toast.error(error instanceof Error ? error.message : "Could not remove mapping.");
-      }
-    });
-  }
-
-  return <div>
-    <div className="grid gap-2 border-b border-[#EDF1F6] p-3">
-      <AdminProgress progress={progress} />
-      <div className="grid grid-cols-2 gap-2">
-        <button disabled={busy} className={direction === "printer" ? "btn-dark" : "btn-lite"} onClick={() => setDirection("printer")}>Attach consumable</button>
-        <button disabled={busy} className={direction === "consumable" ? "btn-dark" : "btn-lite"} onClick={() => setDirection("consumable")}>Attach printer</button>
-      </div>
-      <input value={search} disabled={busy} onChange={(event) => setSearch(event.target.value)} className="admin-input" placeholder="Search catalogue" />
-      <select value={targetId} disabled={busy} onChange={(event) => setTargetId(event.target.value)} className="admin-input">
-        <option value="">Choose matching product</option>
-        {matches.map((row) => <option key={row.id} value={row.id}>{row.name} - {productCode(row)}</option>)}
-      </select>
-      <select value={relationType} disabled={busy} onChange={(event) => setRelationType(event.target.value as CompatibilityRow["relationType"])} className="admin-input">
-        <option value="TONER">Toner</option>
-        <option value="DRUM">Drum</option>
-        <option value="INKJET">Inkjet</option>
-        <option value="SPARE_PART">Spare part</option>
-        <option value="ACCESSORY">Accessory</option>
-      </select>
-      <ProgressButton onClick={attach} disabled={!targetId && !matches.length} progress={busy ? progress : null} className="btn-dark">Attach</ProgressButton>
-    </div>
-    {selected.compatibilities.length ? selected.compatibilities.map((item) => (
-      <ListRow key={item.id} title={item.product.name} sub={`${item.direction === "printer" ? "Fits this product" : "Uses this product"} | ${item.relationType} | ${productCode(item.product)}`} action={<button onClick={() => remove(item.id)} disabled={busy} className="btn-lite">Remove</button>} />
-    )) : <Empty title="Nothing mapped yet" copy="Link the toners and parts that fit this machine so storefront fit lists and stock warnings work." />}
-  </div>;
-}
-function ProductBadges({ row }: { row: ProductRow }) {
-  const job = row.latestEnrichmentJob;
-  const badges = [
-    !row.mpn ? { tone: "warn" as const, label: "Missing MPN" } : null,
-    job?.status === "FAILED" ? { tone: "crit" as const, label: job.error ?? "Icecat failed" } : null,
-    row.stock_quantity <= row.reorder_level ? { tone: "crit" as const, label: "Restock" } : null,
-    row.images.length === 0 ? { tone: "warn" as const, label: "No images" } : null,
-    row.compatibleCount === 0 ? { tone: "warn" as const, label: "No consumables" } : null,
-    row.cost_price_kes == null ? { tone: "warn" as const, label: "No cost price" } : null,
-    job?.status === "PENDING" || job?.status === "RUNNING" ? { tone: "teal" as const, label: "Enrichment running" } : null,
-    row.enriched_at || job?.status === "DONE" ? { tone: "ok" as const, label: "Icecat synced" } : null,
-    row.is_published ? { tone: "ok" as const, label: "Published" } : { tone: "mute" as const, label: "Unpublished" },
-    row.archived_at ? { tone: "mute" as const, label: "Archived" } : null,
-    !row.enriched_at && !job ? { tone: "mute" as const, label: "Shell created" } : null
-  ].filter((badge): badge is { tone: "ok" | "warn" | "crit" | "mute" | "teal"; label: string } => Boolean(badge));
-  const visible = badges.slice(0, 2);
-  return <div className="flex max-w-[260px] flex-wrap gap-1">
-    {visible.map((badge) => <Badge key={badge.label} tone={badge.tone}>{badge.label}</Badge>)}
-    {badges.length > visible.length ? <Badge tone="mute">+{badges.length - visible.length}</Badge> : null}
-  </div>;
-}
 function Total({ label, value, big }: { label: string; value: number; big?: boolean }) { return <div className={`flex justify-between py-1 ${big ? "mt-2 border-t border-[#DDE4EC] pt-3 text-base font-semibold" : ""}`}><span className="text-[#5B6B80]">{label}</span><span className="font-mono">{formatKes(value)}</span></div>; }
 function initials(value: string) { return value.split(/\s|@/).filter(Boolean).slice(0, 2).map((part) => part[0]?.toUpperCase()).join("") || "AD"; }
 function productCode(row?: { mpn: string | null; sku: string | null } | null) { return row?.mpn || row?.sku || "???"; }
-function partNumber(row?: { mpn: string | null } | null) { return row?.mpn || <span className="text-slate-400">???</span>; }
-function gapText(row: ProductRow) { if (!row.mpn) return "Missing part number"; if (row.reorder_level <= 0) return "Reorder level not configured"; if (!row.supplier_name) return "Supplier not configured"; if (row.images.length === 0) return "No images"; if (row.cost_price_kes == null) return "No cost price"; return "No compatible consumables mapped"; }
+function gapText(row: ProductRow) { if (!row.mpn) return "Missing part number"; if (row.reorder_level <= 0) return "Reorder level not configured"; if (!row.supplier_name) return "Supplier not configured"; if (row.images.length === 0) return "No images"; if (row.cost_price_kes == null) return "No cost price"; return "Review product data"; }
 function margin(rows: ProductRow[]) { const priced = rows.filter((row) => row.price_kes > 0 && row.cost_price_kes); if (!priced.length) return "0%"; return `${Math.round(priced.reduce((sum, row) => sum + (1 - (row.cost_price_kes ?? 0) / row.price_kes), 0) / priced.length * 1000) / 10}%`; }
 function bulkLabel(action: "delete" | "publish" | "unpublish" | "set-category" | "set-price" | "set-stock") {
   return action === "publish" ? "Publish" : action === "unpublish" ? "Unpublish" : action === "set-category" ? "Set category for" : action === "set-price" ? "Adjust price for" : action === "set-stock" ? "Set stock for" : "Delete";

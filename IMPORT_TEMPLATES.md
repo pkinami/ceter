@@ -26,7 +26,7 @@ Accepted optional values:
 - `cost_price_kes`, `supplier_lead_time_days`, `reorder_level`, `reorder_quantity`, `stock_quantity`: whole numbers. Blank `reorder_level`, `reorder_quantity`, and `stock_quantity` default to `0`.
 - `condition`: `new` or `refurbished`. Blank defaults to `new`.
 - `stock_status`: `in_stock`, `backorder`, or `out_of_stock`. Blank defaults to `in_stock`.
-- `images`: 1-3 URLs or paths separated by semicolons. Blank uses `/product-placeholder.svg`.
+- `images`: 1-3 public `http` or `https` image URLs separated by semicolons. During confirmed import the server downloads each image, validates status, content type and size, uploads it to Supabase Storage, and stores the resulting project-owned storage URL. Blank uses `/product-placeholder.svg`.
 - `specs`: semicolon-separated `Key: Value` pairs, for example `Speed: 40ppm; Paper size: A4`.
 - `is_featured`: `true`/`false`, `yes`/`no`, `1`/`0`, or blank. Blank defaults to `false`.
 - `is_published`: `true`/`false`, `yes`/`no`, `1`/`0`, or blank. Blank defaults to `true`.
@@ -58,3 +58,13 @@ Accepted optional values:
 - `icon`: icon text or image URL matching the manual category form.
 - `image`: 1-3 URLs or paths separated by semicolons. The first image is stored as the category image.
 - `sort_order`: whole number used to order siblings. Blank defaults to `0`.
+
+## Product Image Storage
+
+Product import uses the Supabase Storage bucket named by `SUPABASE_PRODUCT_IMAGES_BUCKET`, defaulting to `product-images`. The bucket must exist before imports with images are confirmed.
+
+Expected bucket setup:
+
+- Bucket: `product-images`
+- Public read access for stored product images, or equivalent policies that allow storefront image rendering.
+- Server-side writes only through `SUPABASE_SERVICE_ROLE_KEY`; do not expose service-role credentials in browser code.

@@ -46,7 +46,6 @@ model Category {
   sort_order  Int       @default(0)
   created_at  DateTime  @default(now()) @db.Timestamptz(6)
   banners     Banner[]
-  icecat_mappings IcecatCategoryMapping[]
   parent      Category? @relation("CategoryChildren", fields: [parent_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
   children    Category[] @relation("CategoryChildren")
   products    Product[]
@@ -148,8 +147,6 @@ model Product {
   reorder_level  Int              @default(0)
   reorder_quantity Int            @default(0)
   is_published   Boolean          @default(true)
-  enriched_fields Json            @default("{}") @db.JsonB
-  enriched_at    DateTime?        @db.Timestamptz(6)
   condition      ProductCondition @default(new)
   stock_status   StockStatus      @default(in_stock)
   stock_quantity Int              @default(0)
@@ -165,7 +162,6 @@ model Product {
   stock_movements StockMovement[]
   price_history  PriceHistory[]
   serials        ProductSerial[]
-  enrichment_jobs EnrichmentJob[]
   printer_compatibilities ProductCompatibility[] @relation("PrinterCompatibility")
   consumable_compatibilities ProductCompatibility[] @relation("ConsumableCompatibility")
   brand          Brand?           @relation(fields: [brand_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
@@ -222,7 +218,6 @@ model Profile {
   stock_movements StockMovement[]
   changed_prices  PriceHistory[] @relation("PriceChangedBy")
   audit_logs      AuditLog[]
-  enrichment_jobs EnrichmentJob[]
 
   @@map("profiles")
   @@schema("public")
@@ -354,53 +349,6 @@ model AuditLog {
   @@index([entity, entity_id])
   @@index([user_id, created_at])
   @@map("audit_logs")
-  @@schema("public")
-}
-
-model EnrichmentJob {
-  id          String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  product_id  String              @db.Uuid
-  provider    String
-  status      EnrichmentJobStatus @default(PENDING)
-  requested_by String?            @db.Uuid
-  started_at  DateTime?           @db.Timestamptz(6)
-  finished_at DateTime?           @db.Timestamptz(6)
-  error       String?
-  payload     Json?               @db.JsonB
-  created_at  DateTime            @default(now()) @db.Timestamptz(6)
-  product     Product             @relation(fields: [product_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
-  requester   Profile?            @relation(fields: [requested_by], references: [id], onDelete: SetNull, onUpdate: NoAction)
-
-  @@index([product_id, status])
-  @@index([status, created_at])
-  @@map("enrichment_jobs")
-  @@schema("public")
-}
-
-model IcecatLookupCache {
-  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  provider    String
-  lookup_key  String
-  result      Json     @db.JsonB
-  created_at  DateTime @default(now()) @db.Timestamptz(6)
-  updated_at  DateTime @default(now()) @updatedAt @db.Timestamptz(6)
-
-  @@unique([provider, lookup_key])
-  @@index([updated_at])
-  @@map("icecat_lookup_cache")
-  @@schema("public")
-}
-
-model IcecatCategoryMapping {
-  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  icecat_category  String   @unique
-  category_id      String   @db.Uuid
-  created_at       DateTime @default(now()) @db.Timestamptz(6)
-  updated_at       DateTime @default(now()) @updatedAt @db.Timestamptz(6)
-  category         Category @relation(fields: [category_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
-
-  @@index([category_id])
-  @@map("icecat_category_mappings")
   @@schema("public")
 }
 
@@ -551,15 +499,5 @@ enum ProductSerialStatus {
   RETURNED
 
   @@map("product_serial_status")
-  @@schema("public")
-}
-
-enum EnrichmentJobStatus {
-  PENDING
-  RUNNING
-  DONE
-  FAILED
-
-  @@map("enrichment_job_status")
   @@schema("public")
 }

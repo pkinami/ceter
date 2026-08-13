@@ -9,6 +9,7 @@ Production must use environment variables configured in Vercel Project Settings 
 - `NEXT_PUBLIC_SUPABASE_URL`
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY` or `SUPABASE_ANON_KEY` or `SUPABASE_PUBLISHABLE_KEY`
 - `SUPABASE_SERVICE_ROLE_KEY`
+- `SUPABASE_PRODUCT_IMAGES_BUCKET` optional; defaults to `product-images`
 - `VAT_RATE`
 - `NEXT_PUBLIC_VAT_RATE`
 
@@ -37,3 +38,7 @@ Pesapal IPN URL:
 `https://your-domain.com/api/payments/pesapal/ipn`
 
 Card checkout redirects customers to Pesapal. The callback page verifies the transaction status server-side before marking an order paid.
+
+## Supabase Storage
+
+Excel product imports download public image URLs server-side and upload them to Supabase Storage. Create a `product-images` bucket, or set `SUPABASE_PRODUCT_IMAGES_BUCKET` to the bucket you use. The storefront stores public Supabase Storage URLs in product records, so product images need public read access or an equivalent read policy. Uploads use `SUPABASE_SERVICE_ROLE_KEY` only on the server.

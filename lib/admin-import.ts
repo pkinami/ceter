@@ -1,6 +1,7 @@
 import { Prisma, type ProductCondition, type StockStatus } from "@prisma/client";
 import { products as demoProducts } from "@/data/mockProducts";
 import { flattenCategoryTree } from "@/lib/category-tree";
+import { storeProductImage } from "@/lib/product-image-storage";
 import { prisma } from "@/lib/prisma";
 import { readFirstWorksheet, rowsToObjects, writeWorkbook } from "@/lib/xlsx";
 
@@ -47,7 +48,7 @@ type Lookup = {
 
 type WorkbookRow = ReturnType<typeof parseWorkbook>[number];
 
-export type ImportProgressStage = "Validating" | "Preparing" | "Importing" | "Complete";
+export type ImportProgressStage = "Validating" | "Importing" | "Importing products" | "Downloading images" | "Saving" | "Complete";
 
 export type ImportProgress = {
   stage: ImportProgressStage;
@@ -121,13 +122,13 @@ function parseBoolean(value: string, label: string, errors: string[]) {
   return false;
 }
 
-function parseImages(value: string, errors: string[], allowPlaceholder: boolean) {
+function parseImages(value: string, errors: string[], allowPlaceholder: boolean, remoteOnly = false) {
   if (!value.trim()) return allowPlaceholder ? [PLACEHOLDER_IMAGE] : [];
   const images = value.split(";").map((item) => item.trim()).filter(Boolean);
   if (images.length < 1 || images.length > MAX_IMAGE_URLS) errors.push(`images must contain 1-${MAX_IMAGE_URLS} URLs separated by semicolons.`);
   for (const image of images) {
-    if (!/^https?:\/\/\S+$/i.test(image) && !image.startsWith("/") && !image.startsWith("data:image/")) {
-      errors.push(`Invalid image URL: ${image}`);
+    if (!/^https?:\/\/\S+$/i.test(image) && (remoteOnly || (!image.startsWith("/") && !image.startsWith("data:image/")))) {
+      errors.push(remoteOnly ? `Image must be a public http(s) URL: ${image}` : `Invalid image URL: ${image}`);
     }
   }
   return images;
@@ -226,7 +227,7 @@ function validateProductRows(workbookRows: WorkbookRow[], lookup: Lookup): Previ
     if (!PRODUCT_CONDITIONS.includes(condition)) errors.push(`condition must be one of: ${PRODUCT_CONDITIONS.join(", ")}`);
     if (!STOCK_STATUSES.includes(stockStatus)) errors.push(`stock_status must be one of: ${STOCK_STATUSES.join(", ")}`);
 
-    const images = parseImages(values.images, errors, true);
+    const images = parseImages(values.images, errors, true, true);
     const isFeatured = parseBoolean(values.is_featured, "is_featured", errors);
     const isPublished = values.is_published.trim() ? parseBoolean(values.is_published, "is_published", errors) : true;
 
@@ -313,18 +314,6 @@ export async function previewImport(kind: ImportKind, buffer: Buffer): Promise<P
   return { kind, rows, errorCount: rows.reduce((sum, row) => sum + row.errors.length, 0), rowLimit: MAX_ROWS };
 }
 
-export async function toStoredImage(value: string) {
-  if (!/^https?:\/\//i.test(value)) return value;
-
-  const response = await fetch(value);
-  if (!response.ok) throw new Error(`Could not download image ${value}: HTTP ${response.status}`);
-  const contentType = response.headers.get("content-type") ?? "";
-  if (!contentType.startsWith("image/")) throw new Error(`Image URL did not return an image: ${value}`);
-  const bytes = Buffer.from(await response.arrayBuffer());
-  if (bytes.length > 2 * 1024 * 1024) throw new Error(`Image is larger than 2 MB: ${value}`);
-  return `data:${contentType};base64,${bytes.toString("base64")}`;
-}
-
 export async function commitImport(
   kind: ImportKind,
   buffer: Buffer,
@@ -336,8 +325,6 @@ export async function commitImport(
   const validationErrors = preview.rows
     .filter((row) => row.errors.length > 0)
     .map((row) => ({ rowNumber: row.rowNumber, errors: row.errors }));
-
-  options.onProgress?.({ stage: "Preparing", processed: 0, total: validRows.length });
 
   const result =
     kind === "products"
@@ -368,24 +355,28 @@ async function commitProductRows(
   ]);
   const categoryIds = new Map(categories.map((category) => [key(category.slug), category.id]));
   const brandIds = new Map(brands.map((brand) => [key(brand.slug), brand.id]));
+  const currentImages = await currentProductImages(rows);
 
   for (let index = 0; index < rows.length; index += batchSize) {
     const batch = rows.slice(index, index + batchSize);
     try {
-      await upsertProductBatch(batch, preview, categoryIds, brandIds, options.userId);
+      await upsertProductBatch(batch, preview, categoryIds, brandIds, currentImages, options.userId);
       importedCount += batch.length;
     } catch (error) {
       for (const row of batch) {
         try {
-          await upsertProductBatch([row], preview, categoryIds, brandIds, options.userId);
+          await upsertProductBatch([row], preview, categoryIds, brandIds, currentImages, options.userId);
           importedCount += 1;
         } catch (rowError) {
           importErrors.push({ rowNumber: row.rowNumber, errors: [rowError instanceof Error ? rowError.message : error instanceof Error ? error.message : "Import failed."] });
         }
       }
     }
-    await options.onProgress?.({ stage: "Importing", processed: importedCount, total: rows.length });
+    await options.onProgress?.({ stage: "Importing products", processed: importedCount, total: rows.length });
   }
+
+  const imageResult = await downloadAndSaveProductImages(rows, currentImages, options);
+  importErrors.push(...imageResult.importErrors);
 
   return { importedCount, importErrors };
 }
@@ -420,6 +411,7 @@ async function upsertProductBatch(
   preview: PreviewResult,
   categoryIds: Map<string, string>,
   brandIds: Map<string, string>,
+  currentImages: Map<string, string[]>,
   userId?: string | null
 ) {
   if (!rows.length) return;
@@ -427,7 +419,8 @@ async function upsertProductBatch(
     const data = row.data;
     const categoryId = data.category_id ? String(data.category_id) : data.category_slug ? categoryIds.get(key(String(data.category_slug))) ?? null : null;
     const brandId = data.brand_id ? String(data.brand_id) : data.brand_slug ? brandIds.get(key(String(data.brand_slug))) ?? null : null;
-    const product = productData(data, data.images as string[], categoryId, brandId);
+    const existingImages = currentImages.get(key(String(data.slug))) ?? [];
+    const product = productData(data, initialImagesForProduct(data.images as string[], existingImages), categoryId, brandId);
     return Prisma.sql`(
       ${product.name},
       ${product.slug},
@@ -485,6 +478,72 @@ async function upsertProductBatch(
 
   await prisma.$executeRaw(query);
   await createImportAuditLogs("Product", rows, preview, userId);
+}
+
+async function currentProductImages(rows: PreviewRow[]) {
+  const slugs = rows.map((row) => key(String(row.data.slug))).filter(Boolean);
+  if (!slugs.length) return new Map<string, string[]>();
+  const products = await prisma.product.findMany({ where: { slug: { in: slugs } }, select: { slug: true, images: true } });
+  return new Map(products.map((product) => [key(product.slug), asImages(product.images)]));
+}
+
+function initialImagesForProduct(importImages: string[], currentImages: string[]) {
+  if (currentImages.length) return currentImages;
+  if (importImages.includes(PLACEHOLDER_IMAGE)) return [PLACEHOLDER_IMAGE];
+  return [PLACEHOLDER_IMAGE];
+}
+
+async function downloadAndSaveProductImages(
+  rows: PreviewRow[],
+  currentImages: Map<string, string[]>,
+  options: { onProgress?: (progress: ImportProgress) => void | Promise<void> }
+) {
+  const importErrors: Array<{ rowNumber: number; errors: string[] }> = [];
+  const rowsWithImages = rows.filter((row) => (row.data.images as string[]).some((image) => image !== PLACEHOLDER_IMAGE));
+  let processed = 0;
+
+  for (const row of rowsWithImages) {
+    const data = row.data;
+    const sourceImages = data.images as string[];
+    const storedImages: string[] = [];
+    const errors: string[] = [];
+    const existing = currentImages.get(key(String(data.slug))) ?? [];
+
+    for (let index = 0; index < sourceImages.length; index += 1) {
+      const sourceUrl = sourceImages[index];
+      try {
+        const stored = await storeProductImage({
+          slug: String(data.slug),
+          sku: data.sku ? String(data.sku) : null,
+          sourceUrl,
+          index,
+          currentImages: existing
+        });
+        storedImages.push(stored.storedUrl);
+      } catch (error) {
+        errors.push(`image ${index + 1} (${sourceUrl}): ${error instanceof Error ? error.message : "Download failed."}`);
+      }
+    }
+
+    processed += 1;
+    await options.onProgress?.({ stage: "Downloading images", processed, total: rowsWithImages.length });
+
+    if (storedImages.length) {
+      await prisma.product.update({
+        where: { slug: String(data.slug) },
+        data: { images: storedImages as Prisma.InputJsonValue }
+      });
+      currentImages.set(key(String(data.slug)), storedImages);
+    }
+    if (errors.length) importErrors.push({ rowNumber: row.rowNumber, errors });
+  }
+
+  await options.onProgress?.({ stage: "Saving", processed: rowsWithImages.length, total: rowsWithImages.length });
+  return { importErrors };
+}
+
+function asImages(value: Prisma.JsonValue | null | undefined) {
+  return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string" && item !== PLACEHOLDER_IMAGE) : [];
 }
 
 async function commitCategoryRows(
@@ -694,7 +753,7 @@ export function productTemplateWorkbook() {
         ["condition", "Optional", `Allowed values: ${PRODUCT_CONDITIONS.join(", ")}. Default: new.`],
         ["stock_status", "Optional", `Allowed values: ${STOCK_STATUSES.join(", ")}. Default: in_stock.`],
         ["stock_quantity", "Optional", "Whole number, greater than or equal to 0. Default: 0."],
-        ["images", "Optional", "Use 1-3 image URLs separated by semicolons, for example image1.jpg;image2.jpg;image3.jpg. Blank uses /product-placeholder.svg."],
+        ["images", "Optional", "Use 1-3 public http(s) image URLs separated by semicolons. Confirmed imports download and store images in Supabase Storage. Blank uses /product-placeholder.svg."],
         ["specs", "Optional", "Use semicolon-separated Key: Value pairs."],
         ["is_featured", "Optional", "Allowed values: true/false, yes/no, 1/0. Default: false."],
         ["is_published", "Optional", "Allowed values: true/false, yes/no, 1/0. Default: true."]

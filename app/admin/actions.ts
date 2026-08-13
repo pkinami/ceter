@@ -1,9 +1,10 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import type { HomepageSectionType, OrderStatus, Prisma, ProductCompatibilityType, ProductCondition, QuoteStatus, StockStatus } from "@prisma/client";
+import type { OrderStatus, Prisma, ProductCondition, QuoteStatus, StockStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireCapability } from "@/lib/admin/auth";
+import type { HomepageSectionType } from "@/lib/types";
 
 function parseImages(value: FormDataEntryValue | null) {
   const text = String(value ?? "").trim();
@@ -468,28 +469,6 @@ export async function bulkProductAction(ids: string[], action: BulkProductAction
 
   revalidateStorefront();
   return result;
-}
-
-export async function upsertCompatibilityAction(input: { printerId: string; consumableId: string; relationType: ProductCompatibilityType }) {
-  const session = await requireCapability("price", ["edit"]);
-  if (input.printerId === input.consumableId) throw new Error("A product cannot be compatible with itself.");
-  const mapping = await prisma.productCompatibility.upsert({
-    where: { printer_id_consumable_id_relation_type: { printer_id: input.printerId, consumable_id: input.consumableId, relation_type: input.relationType } },
-    create: { printer_id: input.printerId, consumable_id: input.consumableId, relation_type: input.relationType },
-    update: {}
-  });
-  await prisma.auditLog.create({ data: { user_id: session.userId, entity: "ProductCompatibility", entity_id: mapping.id, action: "compatibility.attach", before: {}, after: input } });
-  revalidateStorefront();
-  return mapping;
-}
-
-export async function deleteCompatibilityAction(id: string) {
-  const session = await requireCapability("price", ["edit"]);
-  const before = await prisma.productCompatibility.findUnique({ where: { id } });
-  if (!before) return;
-  await prisma.productCompatibility.delete({ where: { id } });
-  await prisma.auditLog.create({ data: { user_id: session.userId, entity: "ProductCompatibility", entity_id: id, action: "compatibility.remove", before, after: {} } });
-  revalidateStorefront();
 }
 
 function nullableNumber(value: FormDataEntryValue | null) {

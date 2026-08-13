@@ -29,7 +29,7 @@ type ImportJobResponse = {
   jobId?: string;
   status: "queued" | "running" | "success" | "error";
   progress?: {
-    stage: "Validating" | "Preparing" | "Importing" | "Complete";
+    stage: "Validating" | "Importing" | "Importing products" | "Downloading images" | "Saving" | "Complete";
     processed: number;
     total: number;
   };
@@ -131,8 +131,8 @@ function ImportCard({ kind }: { kind: ImportKind }) {
 
       const processed = job.progress?.processed ?? 0;
       const total = job.progress?.total ?? 0;
-      const percent = total > 0 ? Math.min(99, Math.round((processed / total) * 100)) : job.progress?.stage === "Preparing" ? 15 : 8;
-      const stage = job.progress?.stage === "Importing" && total > 0 ? `Importing ${processed}/${total}` : job.progress?.stage ?? "Importing";
+      const percent = total > 0 ? Math.min(99, Math.round((processed / total) * 100)) : 8;
+      const stage = job.progress?.stage && total > 0 && job.progress.stage !== "Complete" ? `${job.progress.stage} ${processed}/${total}` : job.progress?.stage ?? "Importing";
 
       setProgress({ label: "Importing", stage, percent: job.status === "success" ? 100 : percent, status: job.status === "error" ? "error" : job.status === "success" ? "success" : "running" });
 

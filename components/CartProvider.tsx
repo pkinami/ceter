@@ -154,7 +154,6 @@ export function CartProvider({ children }: { children: ReactNode }) {
     if (existing) existing.quantity += quantity;
     else nextItems.push({ product, quantity });
     await persist(nextItems);
-    toast.success(`${product.name} added to cart`);
   }
 
   async function updateItem(productId: string, quantity: number) {

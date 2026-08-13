@@ -7,6 +7,14 @@ const supabaseAnonKey =
 const nextConfig = {
   env: {
     NEXT_PUBLIC_SUPABASE_ANON_KEY: supabaseAnonKey
+  },
+  images: {
+    remotePatterns: [
+      {
+        protocol: "https",
+        hostname: "*.supabase.co"
+      }
+    ]
   }
 };
 

@@ -40,7 +40,6 @@ try {
   for (const table of [
     "cart_items",
     "product_compatibilities",
-    "enrichment_jobs",
     "product_serials",
     "stock_movements",
     "price_history",

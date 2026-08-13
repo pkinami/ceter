@@ -2,6 +2,7 @@
 
 import { ReactNode, useState } from "react";
 import { Check } from "lucide-react";
+import { toast } from "sonner";
 import { LoadingSpinner } from "@/components/LoadingSpinner";
 import { useCart } from "@/components/CartProvider";
 import { cn } from "@/lib/utils";
@@ -25,6 +26,7 @@ export function AddToCartButton({
     setState("loading");
     try {
       await addItem(product, quantity);
+      toast.success("Added to cart", { description: product.name, duration: 3000, id: `add-to-cart-${product.id}` });
       setState("success");
       window.setTimeout(() => setState("idle"), 900);
     } catch {

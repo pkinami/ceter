@@ -4,7 +4,8 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "npm run check:banners && next build",
+    "build": "prisma generate && npm run check:banners && next build",
+    "postinstall": "prisma generate",
     "start": "next start",
     "lint": "eslint .",
     "check:banners": "node scripts/check-banners.mjs",
