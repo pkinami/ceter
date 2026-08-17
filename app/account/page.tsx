@@ -1,5 +1,7 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
+import { ProductImageFrame } from "@/components/ProductImageFrame";
+import { productImageRenderUrls } from "@/lib/product-image-urls";
 import { createClient } from "@/lib/supabase/server";
 import { formatKes } from "@/lib/utils";
 
@@ -16,7 +18,7 @@ type Order = {
   order_items: {
     quantity: number;
     price_at_purchase_kes: number;
-    products: { name: string }[] | { name: string } | null;
+    products: { name: string; images?: unknown }[] | { name: string; images?: unknown } | null;
   }[];
 };
 
@@ -28,7 +30,7 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
 
   const { data: orders } = await supabase
     .from("orders")
-    .select("id,status,total_kes,created_at,order_items(quantity,price_at_purchase_kes,products(name))")
+    .select("id,status,total_kes,created_at,order_items(quantity,price_at_purchase_kes,products(name,images))")
     .eq("user_id", userData.user.id)
     .order("created_at", { ascending: false });
 
@@ -67,9 +69,10 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
               </div>
               <div className="mt-4 grid gap-2 text-sm">
                 {order.order_items.map((item, index) => (
-                  <div key={index} className="flex justify-between gap-3 rounded bg-mist px-3 py-2">
-                    <span>{Array.isArray(item.products) ? item.products[0]?.name ?? "Product" : item.products?.name ?? "Product"} x {item.quantity}</span>
-                    <strong>{formatKes(item.price_at_purchase_kes * item.quantity)}</strong>
+                  <div key={index} className="grid grid-cols-[48px_minmax(0,1fr)_auto] items-center gap-3 rounded bg-mist px-3 py-2">
+                    <ProductImageFrame src={orderProductImage(item.products)} alt="" sizes="48px" className="h-12 w-12" imageClassName="p-1" />
+                    <span className="min-w-0 break-words">{orderProductName(item.products)} x {item.quantity}</span>
+                    <strong className="text-right">{formatKes(item.price_at_purchase_kes * item.quantity)}</strong>
                   </div>
                 ))}
               </div>
@@ -86,4 +89,14 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
       </section>
     </div>
   );
+}
+
+function orderProductName(product: Order["order_items"][number]["products"]) {
+  return Array.isArray(product) ? product[0]?.name ?? "Product" : product?.name ?? "Product";
+}
+
+function orderProductImage(product: Order["order_items"][number]["products"]) {
+  const value = Array.isArray(product) ? product[0]?.images : product?.images;
+  const images = Array.isArray(value) ? value.filter((image): image is string => typeof image === "string") : [];
+  return productImageRenderUrls(images)[0];
 }

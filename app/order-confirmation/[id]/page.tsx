@@ -2,8 +2,10 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { CheckCircle2, Clock, XCircle } from "lucide-react";
 import { BrandIcon } from "@/components/BrandIcon";
+import { ProductImageFrame } from "@/components/ProductImageFrame";
 import { deliveryRegionLabel } from "@/lib/delivery";
 import { prisma } from "@/lib/prisma";
+import { productImageRenderUrls } from "@/lib/product-image-urls";
 import { createClient } from "@/lib/supabase/server";
 import { formatKes } from "@/lib/utils";
 import { verifyPesapalByTrackingId } from "@/lib/payments";
@@ -33,7 +35,7 @@ export default async function OrderConfirmationPage({
     where: { id, user_id: data.user.id },
     include: {
       payments: { orderBy: { created_at: "desc" }, take: 1 },
-      order_items: { include: { product: { select: { name: true } } } }
+      order_items: { include: { product: { select: { name: true, images: true } } } }
     }
   });
   if (!order) redirect("/account#orders");
@@ -61,9 +63,10 @@ export default async function OrderConfirmationPage({
         ) : null}
         <div className="mt-5 divide-y divide-line rounded-md border border-line">
           {order.order_items.map((item) => (
-            <div key={item.id} className="flex justify-between gap-3 p-3 text-sm">
-              <span>{item.product?.name ?? "Product"} x {item.quantity}</span>
-              <strong>{formatKes(item.price_at_purchase_kes * item.quantity)}</strong>
+            <div key={item.id} className="grid grid-cols-[56px_minmax(0,1fr)_auto] items-center gap-3 p-3 text-sm">
+              <ProductImageFrame src={productImageRenderUrls(Array.isArray(item.product?.images) ? item.product.images.filter((image): image is string => typeof image === "string") : [])[0]} alt="" sizes="56px" className="h-14 w-14" imageClassName="p-1.5" />
+              <span className="min-w-0 break-words">{item.product?.name ?? "Product"} x {item.quantity}</span>
+              <strong className="text-right">{formatKes(item.price_at_purchase_kes * item.quantity)}</strong>
             </div>
           ))}
           {order.delivery_fee_kes ? (

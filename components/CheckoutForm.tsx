@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { BrandIcon } from "@/components/BrandIcon";
 import { useCart } from "@/components/CartProvider";
+import { ProductImageFrame } from "@/components/ProductImageFrame";
 import { formatKes } from "@/lib/utils";
 
 type PaymentMethod = "mpesa" | "card" | "pay_on_delivery";
@@ -201,9 +202,10 @@ export function CheckoutForm({ defaultProfile, deliveryFees }: { defaultProfile:
         </div>
         <div className="mt-4 space-y-3 text-sm">
           {items.map((item) => (
-            <div key={item.product.id} className="flex justify-between gap-3">
+            <div key={item.product.id} className="grid grid-cols-[64px_minmax(0,1fr)_auto] items-center gap-3">
+              <ProductImageFrame src={item.product.image} alt="" sizes="64px" className="h-16 w-16" imageClassName="p-1.5" />
               <span className="min-w-0 break-words">{item.product.name} x {item.quantity}</span>
-              <strong>{formatKes(item.product.price * item.quantity)}</strong>
+              <strong className="text-right">{formatKes(item.product.price * item.quantity)}</strong>
             </div>
           ))}
           <div className="border-t border-line pt-3">

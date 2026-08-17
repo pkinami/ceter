@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
 import { Flame, ShoppingCart, Zap } from "lucide-react";
 import { KeyboardEvent, MouseEvent, PointerEvent, useRef } from "react";
@@ -9,6 +8,7 @@ import type { Product } from "@/lib/types";
 import { AddToCartButton } from "@/components/AddToCartButton";
 import { QuickViewPopover } from "@/components/QuickViewPopover";
 import { WhatsAppOrderButton } from "@/components/WhatsAppOrderButton";
+import { ProductImageFrame } from "@/components/ProductImageFrame";
 import { formatKes } from "@/lib/utils";
 
 const TAP_MOVEMENT_THRESHOLD_PX = 10;
@@ -66,11 +66,11 @@ export function ProductCard({ product }: { product: Product }) {
         onClick={onProductClick}
         onKeyDown={onProductKeyDown}
       >
-        <div className="relative aspect-[4/3] overflow-hidden rounded-md bg-white">
+        <div className="relative aspect-[4/3]">
           {hasImage ? (
-            <Image src={product.image} alt={product.name} fill className="object-contain object-center p-2" sizes="(max-width: 520px) 100vw, (max-width: 768px) 50vw, 25vw" />
+            <ProductImageFrame src={product.image} alt={product.name} sizes="(max-width: 520px) 100vw, (max-width: 768px) 50vw, 25vw" className="h-full w-full border-0" />
           ) : (
-            <div className="flex h-full w-full items-center justify-center bg-white text-slate-400">
+            <div className="flex h-full w-full items-center justify-center rounded-md border border-slate-200 bg-slate-50 text-slate-400">
               <span className="grid h-16 w-16 place-items-center rounded-md border border-slate-200 bg-slate-50 text-3xl font-black">{placeholderLabel}</span>
             </div>
           )}

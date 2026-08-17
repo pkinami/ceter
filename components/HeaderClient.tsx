@@ -3,7 +3,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { Menu, Search, ShoppingCart, X } from "lucide-react";
-import { FormEvent, Suspense, useEffect, useState } from "react";
+import { FormEvent, Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { TopBar } from "@/components/TopBar";
 import { Tooltip } from "@/components/Tooltip";
 import { Sidebar } from "@/components/Sidebar";
@@ -14,6 +14,7 @@ import type { Category } from "@/lib/types";
 
 export function HeaderClient({ categories, brands }: { categories: Category[]; brands: string[] }) {
   const [open, setOpen] = useState(false);
+  const scrollLockRef = useRef<{ scrollY: number; previous: { position: string; top: string; left: string; right: string; width: string; overflowY: string } } | null>(null);
   const [query, setQuery] = useState(() => {
     if (typeof window === "undefined") return "";
     return new URLSearchParams(window.location.search).get("q") ?? "";
@@ -21,19 +22,69 @@ export function HeaderClient({ categories, brands }: { categories: Category[]; b
   const { items } = useCart();
   const cartQuantity = items.reduce((sum, item) => sum + item.quantity, 0);
 
+  const closeMenu = useCallback(() => setOpen(false), []);
+  const openMenu = useCallback(() => setOpen(true), []);
+
   useEffect(() => {
-    if (!open) return;
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    function onKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") setOpen(false);
-    }
-    window.addEventListener("keydown", onKeyDown);
-    return () => {
-      document.body.style.overflow = previousOverflow;
-      window.removeEventListener("keydown", onKeyDown);
+    if (!open || scrollLockRef.current) return;
+    const scrollY = window.scrollY;
+    const { style } = document.body;
+    scrollLockRef.current = {
+      scrollY,
+      previous: {
+        position: style.position,
+        top: style.top,
+        left: style.left,
+        right: style.right,
+        width: style.width,
+        overflowY: style.overflowY
+      }
     };
-  }, [open]);
+    style.position = "fixed";
+    style.top = `-${scrollY}px`;
+    style.left = "0";
+    style.right = "0";
+    style.width = "100%";
+    style.overflowY = "scroll";
+
+    const marker = { ceterMobileMenu: true };
+    if (!window.history.state?.ceterMobileMenu) {
+      window.history.pushState(marker, "", window.location.href);
+    }
+
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") closeMenu();
+    }
+
+    function onPopState() {
+      closeMenu();
+    }
+
+    function onOrientationChange() {
+      window.requestAnimationFrame(() => {
+        if (window.innerWidth >= 1024) closeMenu();
+      });
+    }
+
+    window.addEventListener("keydown", onKeyDown);
+    window.addEventListener("popstate", onPopState);
+    window.addEventListener("orientationchange", onOrientationChange);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("popstate", onPopState);
+      window.removeEventListener("orientationchange", onOrientationChange);
+      const lock = scrollLockRef.current;
+      if (!lock) return;
+      style.position = lock.previous.position;
+      style.top = lock.previous.top;
+      style.left = lock.previous.left;
+      style.right = lock.previous.right;
+      style.width = lock.previous.width;
+      style.overflowY = lock.previous.overflowY;
+      scrollLockRef.current = null;
+      window.scrollTo(0, lock.scrollY);
+    };
+  }, [closeMenu, open]);
 
   function submitSearch(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -82,7 +133,7 @@ export function HeaderClient({ categories, brands }: { categories: Category[]; b
       <div className="mx-auto grid max-w-7xl grid-cols-[auto_1fr_auto] items-center gap-3 px-4 py-4 lg:grid-cols-[240px_1fr_auto]">
         <div className="flex items-center gap-3">
           <Tooltip label="Open categories">
-          <button className="grid h-11 w-11 place-items-center rounded-md border border-slate-300 lg:hidden" onClick={() => setOpen(true)} aria-label="Open categories" aria-expanded={open}>
+          <button className="grid h-11 w-11 shrink-0 place-items-center rounded-md border border-slate-300 lg:hidden" onClick={openMenu} aria-label="Open categories" aria-controls="mobile-category-drawer" aria-expanded={open}>
             <Menu className="h-5 w-5" />
           </button>
           </Tooltip>
@@ -132,7 +183,7 @@ export function HeaderClient({ categories, brands }: { categories: Category[]; b
         </form>
       </div>
       <Suspense fallback={null}>
-        <Sidebar categories={categories} brands={brands} mobileOpen={open} onClose={() => setOpen(false)} drawerOnly />
+        <Sidebar categories={categories} brands={brands} mobileOpen={open} onClose={closeMenu} drawerOnly />
       </Suspense>
     </header>
   );

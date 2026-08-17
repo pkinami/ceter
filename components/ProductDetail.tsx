@@ -1,12 +1,12 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
-import { FileText, Flame, Minus, Package, Plus, ShoppingCart, Zap } from "lucide-react";
+import { FileText, Flame, Minus, Plus, ShoppingCart, Zap } from "lucide-react";
 import { useState } from "react";
 import type { Product } from "@/lib/types";
 import { AddToCartButton } from "@/components/AddToCartButton";
 import { ProductCard } from "@/components/ProductCard";
+import { ProductImageFrame } from "@/components/ProductImageFrame";
 import { WhatsAppOrderButton } from "@/components/WhatsAppOrderButton";
 import { formatKes } from "@/lib/utils";
 
@@ -21,15 +21,7 @@ export function ProductDetail({ product, related }: { product: Product; related:
     <div className="mx-auto max-w-7xl px-4 py-6">
       <div className="grid gap-8 lg:grid-cols-[1fr_0.9fr]">
         <section className="rounded-lg border border-slate-300 bg-white p-4">
-          <div className="relative aspect-[4/3] overflow-hidden rounded-md bg-white">
-            {activeImage ? (
-              <Image src={activeImage} alt={product.name} fill className="object-contain object-center p-3" priority sizes="(max-width: 1024px) 100vw, 50vw" />
-            ) : (
-              <div className="flex h-full w-full items-center justify-center text-slate-500">
-                <Package className="h-14 w-14" aria-hidden />
-              </div>
-            )}
-          </div>
+          <ProductImageFrame src={activeImage} alt={product.name} priority sizes="(max-width: 1024px) 100vw, 50vw" className="aspect-[4/3] w-full" imageClassName="p-3" placeholderClassName="[&_svg]:h-14 [&_svg]:w-14" />
           {gallery.length > 1 ? (
             <div className="mt-3 grid grid-cols-3 gap-3 min-[520px]:grid-cols-4">
               {gallery.map((image, index) => (
@@ -41,7 +33,7 @@ export function ProductDetail({ product, related }: { product: Product; related:
                   aria-label={`Show product image ${index + 1}`}
                   aria-current={image === activeImage}
                 >
-                  <Image src={image} alt="" fill className="object-contain object-center p-1.5" sizes="120px" />
+                  <ProductImageFrame src={image} alt="" sizes="120px" className="h-full w-full border-0" imageClassName="p-1.5" />
                 </button>
               ))}
             </div>

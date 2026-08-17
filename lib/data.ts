@@ -1,4 +1,5 @@
 import { cache } from "react";
+import { getStaticCategoryBanners, getStaticHomepageBanners } from "@/lib/banner-assets";
 import { normalizeBannerImageVariants, normalizePublicAssetUrl } from "@/lib/banner-schema";
 import { categoryAndDescendantKeys } from "@/lib/category-tree";
 import { prisma } from "@/lib/prisma";
@@ -205,13 +206,13 @@ export async function getHomepageBanners(): Promise<HomepageBannerGroups> {
 }
 
 export async function getCategoryBanners(categorySlug: string): Promise<Banner[]> {
-  if (isProductionBuild()) return [];
+  if (isProductionBuild()) return getStaticCategoryBanners(categorySlug);
   const banners = await prismaRead(() => prisma.banner.findMany({
     where: { is_enabled: true, placement: "category", category: { slug: categorySlug } },
     include: { category: true },
     orderBy: [{ sort_order: "asc" }, { title: "asc" }]
   }));
-  return banners.map(mapDbBanner);
+  return banners.length ? banners.map(mapDbBanner) : getStaticCategoryBanners(categorySlug);
 }
 
 type DbBanner = Awaited<ReturnType<typeof prisma.banner.findMany>>[number] & {
@@ -340,7 +341,7 @@ function isProductionBuild() {
 }
 
 function emptyHomepageBanners(): HomepageBannerGroups {
-  return { main: [], category: {}, services: [] };
+  return getStaticHomepageBanners();
 }
 
 export function filterProductsByCategory(products: Product[], categories: Category[], categoryValue: string | null | undefined) {

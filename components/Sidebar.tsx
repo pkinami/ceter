@@ -4,8 +4,9 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 import { ChevronDown, X } from "lucide-react";
-import { useState } from "react";
+import { memo, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { Tooltip } from "@/components/Tooltip";
 import { buildCategoryTree } from "@/lib/category-tree";
 import { iconForCategory } from "@/lib/category-icons";
@@ -28,8 +29,17 @@ export function Sidebar({
   const router = useRouter();
   const searchParams = useSearchParams();
   const [expandedCategoryPath, setExpandedCategoryPath] = useState<string[]>([]);
-  const categoryTree = buildCategoryTree(categories);
+  const [portalReady, setPortalReady] = useState(false);
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
+  const categoryTree = useMemo(() => buildCategoryTree(categories), [categories]);
   const selectedBrand = searchParams.get("brand") ?? "";
+
+  useEffect(() => setPortalReady(true), []);
+
+  useEffect(() => {
+    if (!mobileOpen) return;
+    closeButtonRef.current?.focus({ preventScroll: true });
+  }, [mobileOpen]);
 
   function toggleBrand(brand: string) {
     const params = new URLSearchParams(searchParams.toString());
@@ -50,6 +60,7 @@ export function Sidebar({
           expandedPath={expandedCategoryPath}
           icon={<Icon className="h-4 w-4 text-signal" />}
           onToggle={setExpandedCategoryPath}
+          onNavigate={onClose}
         />
       );})}
       <div className="mt-4 border-t border-line pt-4">
@@ -76,45 +87,59 @@ export function Sidebar({
   return (
     <>
       <aside className={cn("hidden w-64 shrink-0 border-r border-line bg-white p-4 lg:block", drawerOnly && "lg:hidden")}>{content}</aside>
-      <AnimatePresence>
+      {portalReady ? createPortal(<AnimatePresence>
         {mobileOpen ? (
-          <motion.div className="fixed inset-0 z-50 bg-slate-950/40 lg:hidden" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose}>
+          <motion.div
+            className="fixed inset-0 z-50 touch-none bg-slate-950/40 lg:hidden"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.16, ease: "easeOut" }}
+            onPointerDown={(event) => {
+              if (event.target === event.currentTarget) onClose?.();
+            }}
+          >
             <motion.aside
-              className="absolute bottom-0 left-0 right-0 max-h-[82dvh] overflow-y-auto rounded-t-lg bg-white p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] shadow-industrial"
+              id="mobile-category-drawer"
+              className="absolute bottom-0 left-0 right-0 mx-auto flex max-h-[calc(100dvh-0.75rem)] w-full max-w-[100dvw] flex-col overflow-hidden rounded-t-lg bg-white shadow-industrial"
               initial={{ y: "100%" }}
               animate={{ y: 0 }}
               exit={{ y: "100%" }}
-              transition={{ duration: 0.22 }}
-              onClick={(event) => event.stopPropagation()}
+              transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
+              onPointerDown={(event) => event.stopPropagation()}
               role="dialog"
               aria-modal="true"
               aria-label="Categories"
             >
-              <div className="mb-4 flex items-center justify-between">
+              <div className="flex shrink-0 items-center justify-between border-b border-line px-4 py-3">
                 <p className="text-sm font-black uppercase text-ink">Categories</p>
-                <button className="grid h-11 w-11 place-items-center rounded-md border border-slate-300" onClick={onClose} aria-label="Close categories">
+                <button ref={closeButtonRef} className="grid h-11 w-11 place-items-center rounded-md border border-slate-300" onClick={onClose} aria-label="Close categories">
                   <X className="h-4 w-4" />
                 </button>
               </div>
-              {content}
+              <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-4 pb-[calc(1rem+env(safe-area-inset-bottom))]">
+                {content}
+              </div>
             </motion.aside>
           </motion.div>
         ) : null}
-      </AnimatePresence>
+      </AnimatePresence>, document.body) : null}
     </>
   );
 }
 
-function CategoryBranch({
+const CategoryBranch = memo(function CategoryBranch({
   category,
   expandedPath,
   icon,
-  onToggle
+  onToggle,
+  onNavigate
 }: {
   category: Category;
   expandedPath: string[];
   icon?: ReactNode;
   onToggle: (path: string[]) => void;
+  onNavigate?: () => void;
 }) {
   const depth = category.depth ?? 0;
   const children = category.children ?? [];
@@ -133,6 +158,7 @@ function CategoryBranch({
         <Tooltip label={`Browse ${category.name}`}>
           <Link
             href={`/category/${category.slug}`}
+            onClick={onNavigate}
             className={cn(
               "flex min-h-11 min-w-0 flex-1 items-center gap-2 rounded-md border-l-2 border-transparent px-3 py-2.5 text-sm font-semibold text-slate-700 hover:border-signal hover:bg-teal-50 hover:text-ink",
               depth === 1 && "pl-7 text-xs",
@@ -170,6 +196,7 @@ function CategoryBranch({
                 category={{ ...child, depth: depth + 1 }}
                 expandedPath={expandedPath}
                 onToggle={onToggle}
+                onNavigate={onNavigate}
               />
             ))}
           </motion.div>
@@ -177,4 +204,4 @@ function CategoryBranch({
       </AnimatePresence>
     </div>
   );
-}
+});

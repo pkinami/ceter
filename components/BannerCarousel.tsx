@@ -4,10 +4,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { motion, PanInfo, useReducedMotion } from "framer-motion";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import Link from "next/link";
-import { Tooltip } from "@/components/Tooltip";
+import { getImageProps } from "next/image";
 import { cn } from "@/lib/utils";
 import type { Banner } from "@/lib/types";
-import { bannerVariantSrcSet, getBannerFallbackUrl, getBannerSrcSet, normalizePublicAssetUrl, type BannerManifestEntry } from "@/lib/banner-schema";
+import { getBannerAssetUrl, getBannerFallbackUrl, getBannerSrcSet, normalizePublicAssetUrl, type BannerManifestEntry, type LoadingPriority } from "@/lib/banner-schema";
 
 type BannerVariant = "main" | "category" | "services";
 
@@ -15,18 +15,18 @@ const variantConfig = {
   main: {
     interval: 15000,
     duration: 0.85,
-    sectionClass: "aspect-[9/5] md:aspect-[2.33/1] xl:aspect-[32/9] min-h-[320px] md:min-h-[360px]",
-    contentClass: "h-full px-5 py-8 sm:px-8 lg:px-12",
-    titleClass: "text-3xl sm:text-5xl lg:text-6xl",
-    bodyClass: "text-base sm:text-lg",
-    imageClass: "scale-[1.04]",
+    sectionClass: "aspect-[4/5] min-h-[400px] max-h-[min(76dvh,620px)] sm:aspect-[9/5] md:aspect-[2.33/1] md:min-h-[360px] xl:aspect-[32/9]",
+    contentClass: "h-full px-5 py-7 sm:px-8 lg:px-12",
+    titleClass: "text-[clamp(1.75rem,9vw,3rem)] sm:text-5xl lg:text-6xl",
+    bodyClass: "text-sm sm:text-lg",
+    imageClass: "",
     initial: { opacity: 0 },
     animate: { opacity: 1 }
   },
   category: {
     interval: 15000,
     duration: 0.6,
-    sectionClass: "aspect-[9/5] md:aspect-[21/9] lg:aspect-[32/9] min-h-[190px]",
+    sectionClass: "aspect-[4/5] min-h-[320px] max-h-[min(68dvh,500px)] sm:aspect-[9/5] md:aspect-[21/9] lg:aspect-[32/9] md:min-h-[190px]",
     contentClass: "h-full px-5 py-6 sm:px-8",
     titleClass: "text-2xl sm:text-3xl",
     bodyClass: "text-sm sm:text-base",
@@ -37,7 +37,7 @@ const variantConfig = {
   services: {
     interval: 15000,
     duration: 0.8,
-    sectionClass: "aspect-[5/3] md:aspect-[2/1] lg:aspect-[16/5] min-h-[210px]",
+    sectionClass: "aspect-[4/5] min-h-[320px] max-h-[min(68dvh,520px)] sm:aspect-[5/3] md:aspect-[2/1] lg:aspect-[16/5] md:min-h-[210px]",
     contentClass: "h-full px-5 py-6 sm:px-8",
     titleClass: "text-2xl sm:text-4xl",
     bodyClass: "text-sm sm:text-base",
@@ -117,7 +117,7 @@ export function BannerCarousel({
 
   return (
     <section
-      className={cn("relative isolate overflow-hidden rounded-lg border border-slate-300 bg-ink shadow-industrial", config.sectionClass, className)}
+      className={cn("relative isolate w-full max-w-full overflow-hidden rounded-lg border border-slate-300 bg-ink shadow-industrial", config.sectionClass, className)}
       onMouseEnter={() => setPaused(true)}
       onMouseLeave={() => setPaused(false)}
     >
@@ -137,8 +137,8 @@ export function BannerCarousel({
           <div className="pointer-events-none absolute inset-0 z-10 bg-gradient-to-r from-ink/90 via-ink/50 to-ink/10" />
           <div className={cn("relative z-20 flex h-full max-w-4xl flex-col justify-center drop-shadow-[0_2px_10px_rgba(0,0,0,0.55)]", config.contentClass)}>
             {item.kicker ? <p className="text-xs font-bold uppercase tracking-normal text-teal-200 sm:text-sm">{item.kicker}</p> : null}
-            <h1 className={cn("mt-3 max-w-3xl font-black leading-tight text-balance", config.titleClass)}>{item.title}</h1>
-            <p className={cn("mt-3 max-w-2xl leading-7 text-slate-100", config.bodyClass)}>{item.body}</p>
+            <h1 className={cn("mt-3 max-w-[min(42rem,calc(100vw-3rem))] font-black leading-tight text-balance", config.titleClass)}>{item.title}</h1>
+            <p className={cn("mt-3 max-w-[min(36rem,calc(100vw-3rem))] leading-6 text-slate-100 sm:leading-7", config.bodyClass)}>{item.body}</p>
             {item.ctaLabel && item.ctaHref ? (
               <div className="mt-5 flex flex-wrap gap-3">
                 <Link href={item.ctaHref} className="inline-flex w-fit rounded-md bg-white px-5 py-3 text-sm font-bold text-ink shadow hover:bg-slate-100">
@@ -157,20 +157,16 @@ export function BannerCarousel({
 
       {visibleBanners.length > 1 ? (
         <>
-          <Tooltip label="Previous banner">
-            <button className="absolute left-3 top-1/2 z-20 -translate-y-1/2 rounded-full bg-white/92 p-2 text-ink shadow hover:bg-white" onClick={() => move(-1)} aria-label="Previous banner">
-              <ChevronLeft className="h-5 w-5" />
-            </button>
-          </Tooltip>
-          <Tooltip label="Next banner">
-            <button className="absolute right-3 top-1/2 z-20 -translate-y-1/2 rounded-full bg-white/92 p-2 text-ink shadow hover:bg-white" onClick={() => move(1)} aria-label="Next banner">
-              <ChevronRight className="h-5 w-5" />
-            </button>
-          </Tooltip>
+          <button className="absolute left-3 top-1/2 z-20 grid h-11 w-11 -translate-y-1/2 place-items-center rounded-full bg-white/92 text-ink shadow hover:bg-white" onClick={() => move(-1)} aria-label="Previous banner" title="Previous banner">
+            <ChevronLeft className="h-5 w-5" />
+          </button>
+          <button className="absolute right-3 top-1/2 z-20 grid h-11 w-11 -translate-y-1/2 place-items-center rounded-full bg-white/92 text-ink shadow hover:bg-white" onClick={() => move(1)} aria-label="Next banner" title="Next banner">
+            <ChevronRight className="h-5 w-5" />
+          </button>
         </>
       ) : null}
 
-      <div className="absolute bottom-4 left-1/2 z-20 flex -translate-x-1/2 gap-2">
+      <div className="absolute bottom-4 left-1/2 z-20 flex max-w-[calc(100%-2rem)] -translate-x-1/2 gap-2">
         {visibleBanners.map((item, index) => (
           <button
             key={item.id}
@@ -188,8 +184,6 @@ export function BannerCarousel({
 function BannerImage({ banner, imageClass, reduceMotion, active }: { banner: Banner; imageClass: string; reduceMotion: boolean; active: boolean }) {
   const manifestBanner = hasResponsiveAssets(banner) ? banner : null;
   const variantImages = banner.imageVariants ?? [];
-  const hasVariantImages = variantImages.length > 0;
-  const responsiveDbImages = !manifestBanner && banner.image && banner.laptopImage && banner.mobileImage;
   const fallbackImage = normalizePublicAssetUrl(manifestBanner ? getBannerFallbackUrl(manifestBanner) : variantImages.find((variant) => variant.shape === "wide")?.url ?? variantImages[0]?.url ?? banner.image);
   const [imageMode, setImageMode] = useState<"responsive" | "fallback" | "hidden">("responsive");
 
@@ -205,33 +199,88 @@ function BannerImage({ banner, imageClass, reduceMotion, active }: { banner: Ban
 
   return (
     <picture className="absolute inset-0 z-0 block h-full w-full overflow-hidden bg-ink">
+      <OptimizedBannerPicture
+        banner={banner}
+        manifestBanner={manifestBanner}
+        variantImages={variantImages}
+        useResponsiveSources={useResponsiveSources}
+        fallbackImage={fallbackImage}
+        focalPosition={focalPosition}
+        imageClass={imageClass}
+        priority={priority}
+        active={active}
+        reduceMotion={reduceMotion}
+        onError={(failedUrl) => {
+          setImageMode(useResponsiveSources && failedUrl !== new URL(fallbackImage, window.location.href).href ? "fallback" : "hidden");
+        }}
+      />
+    </picture>
+  );
+}
+
+function OptimizedBannerPicture({
+  banner,
+  manifestBanner,
+  variantImages,
+  useResponsiveSources,
+  fallbackImage,
+  focalPosition,
+  imageClass,
+  priority,
+  active,
+  reduceMotion,
+  onError
+}: {
+  banner: Banner;
+  manifestBanner: BannerManifestEntry | null;
+  variantImages: Banner["imageVariants"];
+  useResponsiveSources: boolean;
+  fallbackImage: string;
+  focalPosition: string;
+  imageClass: string;
+  priority: LoadingPriority;
+  active: boolean;
+  reduceMotion: boolean;
+  onError: (failedUrl: string) => void;
+}) {
+  const wide = manifestBanner ? getBannerFallbackUrl(manifestBanner) : pickVariant(variantImages, "wide")?.url ?? normalizePublicAssetUrl(banner.image) ?? fallbackImage;
+  const mid = manifestBanner ? getBannerAssetUrl(manifestBanner, "mid", manifestBanner.assets.mid.widths[manifestBanner.assets.mid.widths.length - 1]) : pickVariant(variantImages, "mid")?.url ?? normalizePublicAssetUrl(banner.laptopImage) ?? wide;
+  const tall = manifestBanner ? getBannerAssetUrl(manifestBanner, "tall", manifestBanner.assets.tall.widths[manifestBanner.assets.tall.widths.length - 1]) : pickVariant(variantImages, "tall")?.url ?? normalizePublicAssetUrl(banner.mobileImage) ?? mid;
+  const common = {
+    alt: banner.alt,
+    quality: 92,
+    sizes: "100vw",
+    priority: priority === "high"
+  };
+  const wideProps = getImageProps({ ...common, src: wide, width: 1920, height: 720 }).props;
+  const midProps = getImageProps({ ...common, src: mid, width: 1280, height: 549 }).props;
+  const tallProps = getImageProps({ ...common, src: tall, width: 1080, height: 1350 }).props;
+
+  return (
+    <>
       {manifestBanner && useResponsiveSources ? (
         <>
-          <source media={manifestBanner.assets.wide.media} srcSet={getBannerSrcSet(manifestBanner, "wide")} sizes={manifestBanner.assets.wide.sizes} type="image/webp" />
-          <source media={manifestBanner.assets.mid.media} srcSet={getBannerSrcSet(manifestBanner, "mid")} sizes={manifestBanner.assets.mid.sizes} type="image/webp" />
-          <source media={manifestBanner.assets.tall.media} srcSet={getBannerSrcSet(manifestBanner, "tall")} sizes={manifestBanner.assets.tall.sizes} type="image/webp" />
+          <source media={manifestBanner.assets.wide.media} srcSet={wideProps.srcSet} sizes={wideProps.sizes} type="image/webp" />
+          <source media={manifestBanner.assets.mid.media} srcSet={midProps.srcSet} sizes={midProps.sizes} type="image/webp" />
+          <source media={manifestBanner.assets.tall.media} srcSet={tallProps.srcSet} sizes={tallProps.sizes} type="image/webp" />
         </>
-      ) : hasVariantImages ? (
+      ) : (
         <>
-          <source media="(min-aspect-ratio: 28/10)" srcSet={bannerVariantSrcSet(variantImages, "wide")} sizes="100vw" />
-          <source media="(min-aspect-ratio: 20/10)" srcSet={bannerVariantSrcSet(variantImages, "mid")} sizes="100vw" />
-          <source srcSet={bannerVariantSrcSet(variantImages, "tall") || bannerVariantSrcSet(variantImages, "mid") || bannerVariantSrcSet(variantImages, "wide")} sizes="100vw" />
+          <source media="(min-width: 1280px)" srcSet={wideProps.srcSet} sizes={wideProps.sizes} />
+          <source media="(min-width: 640px)" srcSet={midProps.srcSet} sizes={midProps.sizes} />
+          <source srcSet={tallProps.srcSet} sizes={tallProps.sizes} />
         </>
-      ) : responsiveDbImages ? (
-        <>
-          <source media="(min-width: 1024px)" srcSet={normalizePublicAssetUrl(banner.image) ?? ""} />
-          <source media="(min-width: 640px)" srcSet={normalizePublicAssetUrl(banner.laptopImage) ?? ""} />
-          <source srcSet={normalizePublicAssetUrl(banner.mobileImage) ?? ""} />
-        </>
-      ) : null}
+      )}
       <motion.img
-        src={fallbackImage}
+        src={tallProps.src}
+        srcSet={tallProps.srcSet}
+        sizes={tallProps.sizes}
+        width={1080}
+        height={1350}
         alt={banner.alt}
-        width={1920}
-        height={720}
         onError={(event) => {
           const failedUrl = event.currentTarget.currentSrc || event.currentTarget.src;
-          setImageMode(useResponsiveSources && failedUrl !== new URL(fallbackImage, window.location.href).href ? "fallback" : "hidden");
+          onError(failedUrl);
         }}
         className={cn("absolute inset-0 h-full w-full transform-gpu object-cover object-center [backface-visibility:hidden] will-change-transform", imageClass)}
         style={{ objectPosition: focalPosition }}
@@ -239,11 +288,15 @@ function BannerImage({ banner, imageClass, reduceMotion, active }: { banner: Ban
         fetchPriority={priority === "high" ? "high" : "auto"}
         decoding="async"
         initial={false}
-        animate={reduceMotion || !active ? { scale: 1.04 } : { scale: 1.08 }}
+        animate={reduceMotion || !active ? { scale: 1 } : { scale: 1.015 }}
         transition={{ duration: 8, ease: "easeOut" }}
       />
-    </picture>
+    </>
   );
+}
+
+function pickVariant(variants: Banner["imageVariants"], shape: "wide" | "mid" | "tall") {
+  return (variants ?? []).filter((variant) => variant.shape === shape).sort((a, b) => b.width - a.width)[0];
 }
 
 async function preloadBanner(banner: Banner) {

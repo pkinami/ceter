@@ -1,9 +1,9 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
-import { Minus, Package, Plus, Trash2 } from "lucide-react";
+import { Minus, Plus, Trash2 } from "lucide-react";
 import { useCart } from "@/components/CartProvider";
+import { ProductImageFrame } from "@/components/ProductImageFrame";
 import { formatKes } from "@/lib/utils";
 
 export function CartView() {
@@ -31,15 +31,7 @@ export function CartView() {
           ) : null}
           {items.map(({ product, quantity }) => (
             <div key={product.id} className="grid gap-4 p-4 sm:grid-cols-[96px_1fr_auto]">
-              <div className="relative h-28 w-full rounded-md bg-panel sm:h-24">
-                {product.image ? (
-                  <Image src={product.image} alt={product.name} fill className="object-contain p-2" />
-                ) : (
-                  <div className="flex h-full w-full items-center justify-center text-slate-500">
-                    <Package className="h-8 w-8" aria-hidden />
-                  </div>
-                )}
-              </div>
+              <ProductImageFrame src={product.image} alt={product.name} sizes="96px" className="h-28 w-full sm:h-24" />
               <div>
                 <p className="text-sm font-black text-ink">{product.name}</p>
                 <p className="text-xs font-bold uppercase text-signal">{product.brand}</p>

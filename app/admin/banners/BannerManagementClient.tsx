@@ -165,7 +165,7 @@ function BannerForm({ banner, categories, liveHomepageCount }: { banner?: Banner
       <label className="grid gap-2 rounded-md border border-slate-200 bg-white p-3 text-xs font-semibold md:col-span-3">
         <span className="flex flex-wrap items-center justify-between gap-2">
           <span>Master image</span>
-          <span className="text-slate-500">One high-resolution image, minimum 1600x500px</span>
+          <span className="text-slate-500">Minimum 1600x500px. Recommended 2160px wide or larger for sharp high-density phones.</span>
         </span>
         <input
           className="admin-input"
@@ -184,7 +184,7 @@ function BannerForm({ banner, categories, liveHomepageCount }: { banner?: Banner
             <img src={currentPreview} alt="" className="h-full w-full object-cover" style={{ objectPosition: `${focalX}% ${focalY}%` }} />
           </div>
         ) : <div className="flex h-36 items-center justify-center rounded-md border border-dashed border-slate-300 text-slate-500"><ImagePlus className="h-5 w-5" /></div>}
-        <span className={preview?.ok === false ? "text-red-700" : "text-slate-500"}>{preview?.message ?? "Upload a single master image. The storefront crops responsively from the selected focal point without stretching."}</span>
+        <span className={preview?.ok === false ? "text-red-700" : preview?.message.includes("Warning") ? "text-amber-700" : "text-slate-500"}>{preview?.message ?? "Upload a single master image. The storefront crops responsively from the selected focal point without stretching."}</span>
       </label>
 
       <label className="grid gap-1 text-xs font-semibold">
@@ -237,10 +237,15 @@ function validateImage(file: File) {
     const image = new Image();
     image.onload = () => {
       const ok = image.naturalWidth >= 1600 && image.naturalHeight >= 500;
+      const sharpOnPhones = image.naturalWidth >= 2160 && image.naturalHeight >= 1200;
       resolve({
         url,
         ok,
-        message: ok ? `Ready: ${image.naturalWidth}x${image.naturalHeight}px master image.` : `Image is ${image.naturalWidth}x${image.naturalHeight}px. Minimum is 1600x500px.`
+        message: ok
+          ? sharpOnPhones
+            ? `Ready: ${image.naturalWidth}x${image.naturalHeight}px master image.`
+            : `Warning: ${image.naturalWidth}x${image.naturalHeight}px meets the minimum, but 2160x1200px or larger is recommended for sharp high-density phones.`
+          : `Image is ${image.naturalWidth}x${image.naturalHeight}px. Minimum is 1600x500px.`
       });
     };
     image.onerror = () => resolve({ url, message: "Image preview could not be loaded.", ok: false });
