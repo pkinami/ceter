@@ -16,11 +16,8 @@ Nothing in these Terms limits any right you have under the Consumer Protection A
 
 Ceter Technologies Limited is a supplier of office printing equipment, consumables, spare parts, and related IT services and business solutions, based in Nairobi, Kenya.
 
-| | |
+| Detail | Information |
 |---|---|
-| Registered office | [To be completed] |
-| Certificate of Incorporation No. | [To be completed] |
-| KRA PIN | [To be completed] |
 | Email | info@cetertechnologies.com |
 | Telephone / WhatsApp | +254 707 143 322 |
 | Website | www.cetertechnologies.com |
@@ -151,4 +148,3 @@ We may update these Terms from time to time to reflect changes in our business o
 **Ceter Technologies Limited**
 Email: info@cetertechnologies.com
 Phone / WhatsApp: +254 707 143 322
-Address: [To be completed]

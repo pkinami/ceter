@@ -16,7 +16,7 @@ By using the Site, creating an account, placing an order, requesting a quotation
 
 Ceter Technologies Limited is a company incorporated in Kenya.
 
-| | |
+| Detail | Information |
 |---|---|
 | Data protection contact | info@cetertechnologies.com |
 | Telephone / WhatsApp | +254 707 143 322 |
@@ -162,7 +162,6 @@ For questions about this Policy or to exercise your data protection rights, cont
 **Ceter Technologies Limited**
 Email: info@cetertechnologies.com
 Phone / WhatsApp: +254 707 143 322
-Address: [To be completed]
 
 ## 17. Complaints to the Regulator
 
