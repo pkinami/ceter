@@ -44,30 +44,30 @@ export default async function EditAccountPage({ searchParams }: { searchParams: 
           <input type="hidden" name="return_to" value="/account/edit" />
           <label className="block text-sm font-bold text-slate-700">
             Full name
-            <input name="full_name" defaultValue={profile?.full_name ?? ""} className="mt-2 h-11 w-full rounded-md border border-slate-300 px-3 text-sm focus:border-signal focus:outline-none" />
+            <input id="account-full-name" name="full_name" autoComplete="name" placeholder="Your full name" defaultValue={profile?.full_name ?? ""} className="mt-2 h-11 w-full rounded-md border border-slate-300 px-3 text-sm focus:border-signal focus:outline-none" />
           </label>
           <label className="block text-sm font-bold text-slate-700">
-            Phone
-            <input name="phone" defaultValue={profile?.phone ?? ""} className="mt-2 h-11 w-full rounded-md border border-slate-300 px-3 text-sm focus:border-signal focus:outline-none" />
+            Phone number
+            <input id="account-phone" name="phone" type="tel" autoComplete="tel" placeholder="Your mobile number" defaultValue={profile?.phone ?? ""} className="mt-2 h-11 w-full rounded-md border border-slate-300 px-3 text-sm focus:border-signal focus:outline-none" />
           </label>
           <label className="block text-sm font-bold text-slate-700">
-            Email
-            <input name="email" type="email" defaultValue={profile?.email ?? userData.user.email ?? ""} className="mt-2 h-11 w-full rounded-md border border-slate-300 px-3 text-sm focus:border-signal focus:outline-none" />
+            Email address
+            <input id="account-email" name="email" type="email" autoComplete="email" placeholder="you@example.com" defaultValue={profile?.email ?? userData.user.email ?? ""} className="mt-2 h-11 w-full rounded-md border border-slate-300 px-3 text-sm focus:border-signal focus:outline-none" />
           </label>
           <label className="block text-sm font-bold text-slate-700">
             Delivery region
-            <select name="delivery_region" defaultValue={profile?.delivery_region ?? ""} className="mt-2 h-11 w-full rounded-md border border-slate-300 bg-white px-3 text-sm focus:border-signal focus:outline-none">
+            <select id="account-delivery-region" name="delivery_region" autoComplete="address-level1" defaultValue={profile?.delivery_region ?? ""} className="mt-2 h-11 w-full rounded-md border border-slate-300 bg-white px-3 text-sm focus:border-signal focus:outline-none">
               <option value="">No saved delivery region</option>
               {DELIVERY_REGIONS.map((region) => <option key={region.value} value={region.value}>{region.label}</option>)}
             </select>
           </label>
           <label className="block text-sm font-bold text-slate-700">
-            Delivery location / address details
-            <input name="delivery_location" defaultValue={profile?.delivery_location ?? ""} className="mt-2 h-11 w-full rounded-md border border-slate-300 px-3 text-sm focus:border-signal focus:outline-none" />
+            Delivery address
+            <input id="account-delivery-location" name="delivery_location" autoComplete="street-address" placeholder="Street, building, estate, town, or pickup point" defaultValue={profile?.delivery_location ?? ""} className="mt-2 h-11 w-full rounded-md border border-slate-300 px-3 text-sm focus:border-signal focus:outline-none" />
           </label>
           <label className="block text-sm font-bold text-slate-700">
             Delivery instructions
-            <textarea name="delivery_instructions" defaultValue={profile?.delivery_instructions ?? ""} rows={3} className="mt-2 w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-signal focus:outline-none" />
+            <textarea id="account-delivery-instructions" name="delivery_instructions" autoComplete="off" placeholder="Gate code, floor, landmark, or preferred delivery time" defaultValue={profile?.delivery_instructions ?? ""} rows={3} className="mt-2 w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-signal focus:outline-none" />
           </label>
           <FormSubmitButton pendingText="Saving..." className="h-11 rounded-md bg-signal px-5 text-sm font-bold text-white hover:bg-teal-700">Save Account</FormSubmitButton>
         </form>

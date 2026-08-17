@@ -19,6 +19,7 @@ export function WhatsAppOrderButton({ product, className }: WhatsAppOrderButtonP
       href={href}
       target="_blank"
       rel="noreferrer"
+      onClick={(event) => event.stopPropagation()}
       className={cn(
         "inline-flex h-11 items-center justify-center gap-2 rounded-md border border-signal bg-white px-4 text-sm font-semibold text-ink shadow-sm hover:bg-teal-50 hover:text-teal-800",
         className

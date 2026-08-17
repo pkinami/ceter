@@ -2,28 +2,73 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { motion } from "framer-motion";
 import { Flame, ShoppingCart, Zap } from "lucide-react";
+import { KeyboardEvent, MouseEvent, PointerEvent, useRef } from "react";
+import { useRouter } from "next/navigation";
 import type { Product } from "@/lib/types";
 import { AddToCartButton } from "@/components/AddToCartButton";
 import { QuickViewPopover } from "@/components/QuickViewPopover";
 import { WhatsAppOrderButton } from "@/components/WhatsAppOrderButton";
 import { formatKes } from "@/lib/utils";
 
+const TAP_MOVEMENT_THRESHOLD_PX = 10;
+
 export function ProductCard({ product }: { product: Product }) {
+  const router = useRouter();
+  const productHref = `/product/${product.slug}`;
+  const pointerStartRef = useRef<{ x: number; y: number; pointerId: number; pointerType: string } | null>(null);
+  const suppressActivationRef = useRef(false);
   const hasImage = Boolean(product.image);
   const placeholderLabel = (product.name || product.category || "Ceter").trim().charAt(0).toUpperCase();
 
+  function onPointerDown(event: PointerEvent<HTMLAnchorElement>) {
+    pointerStartRef.current = { x: event.clientX, y: event.clientY, pointerId: event.pointerId, pointerType: event.pointerType };
+    suppressActivationRef.current = false;
+  }
+
+  function onPointerMove(event: PointerEvent<HTMLAnchorElement>) {
+    const start = pointerStartRef.current;
+    if (!start || start.pointerId !== event.pointerId) return;
+    if (start.pointerType === "mouse") return;
+    const distance = Math.hypot(event.clientX - start.x, event.clientY - start.y);
+    if (distance > TAP_MOVEMENT_THRESHOLD_PX) suppressActivationRef.current = true;
+  }
+
+  function onPointerEnd() {
+    pointerStartRef.current = null;
+  }
+
+  function onProductClick(event: MouseEvent<HTMLAnchorElement>) {
+    if (!suppressActivationRef.current) return;
+    event.preventDefault();
+    event.stopPropagation();
+    suppressActivationRef.current = false;
+    pointerStartRef.current = null;
+  }
+
+  function onProductKeyDown(event: KeyboardEvent<HTMLAnchorElement>) {
+    if (event.key !== " ") return;
+    event.preventDefault();
+    router.push(productHref);
+  }
+
   return (
-    <motion.article
-      className="group relative rounded-lg border border-slate-300 bg-white p-3 shadow-sm hover:-translate-y-1 hover:shadow-industrial"
-      whileHover={{ scale: 1.01 }}
-      transition={{ duration: 0.18 }}
+    <article
+      className="product-card group relative flex h-full min-w-0 flex-col rounded-lg border border-slate-300 bg-white p-3 shadow-sm"
     >
-      <Link href={`/product/${product.slug}`} className="block">
+      <Link
+        href={productHref}
+        className="block min-w-0 flex-1 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2"
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerCancel={onPointerEnd}
+        onPointerUp={onPointerEnd}
+        onClick={onProductClick}
+        onKeyDown={onProductKeyDown}
+      >
         <div className="relative aspect-[4/3] overflow-hidden rounded-md bg-white">
           {hasImage ? (
-            <Image src={product.image} alt={product.name} fill className="object-contain object-center" sizes="(max-width: 768px) 100vw, 25vw" />
+            <Image src={product.image} alt={product.name} fill className="object-contain object-center p-2" sizes="(max-width: 520px) 100vw, (max-width: 768px) 50vw, 25vw" />
           ) : (
             <div className="flex h-full w-full items-center justify-center bg-white text-slate-400">
               <span className="grid h-16 w-16 place-items-center rounded-md border border-slate-200 bg-slate-50 text-3xl font-black">{placeholderLabel}</span>
@@ -47,13 +92,13 @@ export function ProductCard({ product }: { product: Product }) {
           </p>
         </div>
       </Link>
-      <div className="mt-3 grid gap-2 min-[1180px]:grid-cols-2">
-        <AddToCartButton product={product} className="w-full px-2 text-xs">
+      <div className="mt-3 grid gap-2 min-[1180px]:grid-cols-2" onClick={(event) => event.stopPropagation()} onPointerDown={(event) => event.stopPropagation()}>
+        <AddToCartButton product={product} className="min-h-11 w-full px-2 text-xs">
           <ShoppingCart className="h-4 w-4" /> Add to cart
         </AddToCartButton>
-        <WhatsAppOrderButton product={product} className="w-full px-2 text-xs" />
+        <WhatsAppOrderButton product={product} className="min-h-11 w-full px-2 text-xs" />
       </div>
       <QuickViewPopover product={product} />
-    </motion.article>
+    </article>
   );
 }

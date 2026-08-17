@@ -21,12 +21,12 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
         {params.error ? <p className="mt-4 rounded-md bg-red-50 p-3 text-sm font-semibold text-red-700">{params.error}</p> : null}
         <input type="hidden" name="next" value={params.next ?? "/account"} />
         <label className="mt-5 block text-sm font-bold text-slate-700">
-          <span className="inline-flex items-center gap-2"><BrandIcon name="email" label="Email" size={18} className="h-4 w-4" /> Email</span>
-          <input name="email" type="email" required className="mt-2 h-11 w-full rounded-md border border-slate-300 px-3 text-sm focus:border-signal focus:outline-none" />
+          <span className="inline-flex items-center gap-2"><BrandIcon name="email" label="Email" size={18} className="h-4 w-4" /> Email address</span>
+          <input id="login-email" name="email" type="email" autoComplete="username" placeholder="you@example.com" required className="mt-2 h-11 w-full rounded-md border border-slate-300 px-3 text-sm focus:border-signal focus:outline-none" />
         </label>
         <label className="mt-4 block text-sm font-bold text-slate-700">
           Password
-          <input name="password" type="password" required minLength={6} className="mt-2 h-11 w-full rounded-md border border-slate-300 px-3 text-sm focus:border-signal focus:outline-none" />
+          <input id="login-password" name="password" type="password" autoComplete="current-password" placeholder="Your password" required minLength={6} className="mt-2 h-11 w-full rounded-md border border-slate-300 px-3 text-sm focus:border-signal focus:outline-none" />
         </label>
         <FormSubmitButton pendingText="Signing in..." className="mt-5 h-11 w-full rounded-md bg-signal px-5 text-sm font-bold text-white hover:bg-teal-700">Sign in</FormSubmitButton>
         <p className="mt-4 text-sm text-slate-600">New customer? <Link href="/signup" className="font-bold text-signal">Create an account</Link></p>

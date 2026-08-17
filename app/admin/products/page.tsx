@@ -33,28 +33,34 @@ export default async function ProductsPage({ searchParams }: Props) {
         actions={<Link href="/admin/products/new" className="btn-dark">Add Product</Link>}
       />
       <form className="admin-toolbar" action="/admin/products">
-        <input className="admin-input min-w-64" name="q" defaultValue={input.q ?? ""} placeholder="Search products, SKU, MPN" />
-        <select className="admin-input" name="brand" defaultValue={input.brand ?? ""}>
+        <label className="sr-only" htmlFor="products-search">Search products</label>
+        <input id="products-search" className="admin-input min-w-64" name="q" type="search" autoComplete="off" defaultValue={input.q ?? ""} placeholder="Search products, SKU, or MPN" />
+        <label className="sr-only" htmlFor="products-brand">Brand filter</label>
+        <select id="products-brand" className="admin-input" name="brand" autoComplete="off" defaultValue={input.brand ?? ""}>
           <option value="">All brands</option>
           {data.brands.map((brand) => <option key={brand.id} value={brand.id}>{brand.name}</option>)}
         </select>
-        <select className="admin-input" name="category" defaultValue={input.category ?? ""}>
+        <label className="sr-only" htmlFor="products-category">Category filter</label>
+        <select id="products-category" className="admin-input" name="category" autoComplete="off" defaultValue={input.category ?? ""}>
           <option value="">All categories</option>
           {data.categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}
         </select>
-        <select className="admin-input" name="publication" defaultValue={input.publication ?? "all"}>
+        <label className="sr-only" htmlFor="products-publication">Publication filter</label>
+        <select id="products-publication" className="admin-input" name="publication" autoComplete="off" defaultValue={input.publication ?? "all"}>
           <option value="all">Published and draft</option>
           <option value="published">Published</option>
           <option value="draft">Draft</option>
         </select>
-        <select className="admin-input" name="stock" defaultValue={input.stock ?? "all"}>
+        <label className="sr-only" htmlFor="products-stock">Stock filter</label>
+        <select id="products-stock" className="admin-input" name="stock" autoComplete="off" defaultValue={input.stock ?? "all"}>
           <option value="all">All stock</option>
           <option value="in_stock">In stock</option>
           <option value="backorder">Backorder</option>
           <option value="out_of_stock">Out of stock</option>
           <option value="low">Low stock</option>
         </select>
-        <select className="admin-input" name="sort" defaultValue={input.sort ?? "newest"}>
+        <label className="sr-only" htmlFor="products-sort">Sort products</label>
+        <select id="products-sort" className="admin-input" name="sort" autoComplete="off" defaultValue={input.sort ?? "newest"}>
           <option value="newest">Recently updated</option>
           <option value="name">Name</option>
           <option value="price_asc">Price low-high</option>

@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { useFormStatus } from "react-dom";
 import { HelpCircle, ImagePlus, Trash2 } from "lucide-react";
 import { deleteBannerAction, upsertBannerAction } from "@/app/admin/actions";
-import { BANNER_ALLOWED_TYPES, BANNER_IMAGE_SLOTS, BANNER_MAX_FILE_SIZE, HOMEPAGE_BANNER_LIMIT, HOMEPAGE_BANNER_REQUIREMENTS, type BannerImageSlot } from "@/lib/banner-requirements";
+import { BANNER_ALLOWED_TYPES, BANNER_MAX_FILE_SIZE, HOMEPAGE_BANNER_LIMIT } from "@/lib/banner-requirements";
 
 type BannerRow = {
   id: string;
@@ -26,7 +26,7 @@ type BannerRow = {
 
 type CategoryOption = { id: string; name: string };
 
-type PreviewState = Partial<Record<BannerImageSlot, { url: string; message: string; ok: boolean }>>;
+type PreviewState = { url: string; message: string; ok: boolean } | null;
 
 export function BannerManagementClient({
   banners,
@@ -118,9 +118,14 @@ function DeleteBannerButton() {
 }
 
 function BannerForm({ banner, categories, liveHomepageCount }: { banner?: BannerRow; categories: CategoryOption[]; liveHomepageCount: number }) {
-  const [previews, setPreviews] = useState<PreviewState>({});
-  const hasClientError = Object.values(previews).some((preview) => preview && !preview.ok);
+  const [preview, setPreview] = useState<PreviewState>(null);
+  const [focalMode, setFocalMode] = useState(() => currentFocal(banner?.image_variants).mode);
+  const [focalX, setFocalX] = useState(() => currentFocal(banner?.image_variants).x);
+  const [focalY, setFocalY] = useState(() => currentFocal(banner?.image_variants).y);
+  const hasClientError = Boolean(preview && !preview.ok);
   const wouldExceedLiveLimit = !banner && liveHomepageCount >= HOMEPAGE_BANNER_LIMIT;
+  const master = currentMaster(banner?.image_variants);
+  const currentPreview = preview?.url ?? master?.url ?? banner?.image ?? "";
 
   return (
     <form action={upsertBannerAction} className="grid gap-3 md:grid-cols-3">
@@ -131,15 +136,15 @@ function BannerForm({ banner, categories, liveHomepageCount }: { banner?: Banner
       <input type="hidden" name="existing_mobile_image" value={banner?.mobile_image ?? ""} />
       <input type="hidden" name="existing_image_variants" value={JSON.stringify(normalizeVariants(banner?.image_variants))} />
 
-      <label className="grid gap-1 text-xs font-semibold">Title<input className="admin-input" name="title" defaultValue={banner?.title ?? ""} required /></label>
-      <label className="grid gap-1 text-xs font-semibold">Kicker<input className="admin-input" name="kicker" defaultValue={banner?.kicker ?? ""} /></label>
-      <label className="grid gap-1 text-xs font-semibold">Sort order<input className="admin-input" type="number" min={0} name="sort_order" defaultValue={banner?.sort_order ?? 0} /></label>
-      <label className="grid gap-1 text-xs font-semibold md:col-span-3">Description<input className="admin-input" name="body" defaultValue={banner?.body ?? ""} required /></label>
-      <label className="grid gap-1 text-xs font-semibold">CTA label<input className="admin-input" name="cta_label" defaultValue={banner?.cta_label ?? ""} /></label>
-      <label className="grid gap-1 text-xs font-semibold">CTA URL<input className="admin-input" name="cta_href" defaultValue={banner?.cta_href ?? ""} placeholder="/category" /></label>
+      <label className="grid gap-1 text-xs font-semibold">Title<input className="admin-input" name="title" autoComplete="off" defaultValue={banner?.title ?? ""} required /></label>
+      <label className="grid gap-1 text-xs font-semibold">Kicker<input className="admin-input" name="kicker" autoComplete="off" defaultValue={banner?.kicker ?? ""} /></label>
+      <label className="grid gap-1 text-xs font-semibold">Sort order<input className="admin-input" type="number" autoComplete="off" min={0} name="sort_order" defaultValue={banner?.sort_order ?? 0} /></label>
+      <label className="grid gap-1 text-xs font-semibold md:col-span-3">Description<input className="admin-input" name="body" autoComplete="off" defaultValue={banner?.body ?? ""} required /></label>
+      <label className="grid gap-1 text-xs font-semibold">CTA label<input className="admin-input" name="cta_label" autoComplete="off" defaultValue={banner?.cta_label ?? ""} /></label>
+      <label className="grid gap-1 text-xs font-semibold">CTA URL<input className="admin-input" name="cta_href" autoComplete="off" defaultValue={banner?.cta_href ?? ""} placeholder="/category" /></label>
       <label className="grid gap-1 text-xs font-semibold">
         Placement
-        <select className="admin-input" name="placement" defaultValue={banner?.placement ?? "main"}>
+        <select className="admin-input" name="placement" autoComplete="off" defaultValue={banner?.placement ?? "main"}>
           <option value="main">Homepage hero</option>
           <option value="category">Category page</option>
           <option value="services">Services section</option>
@@ -147,7 +152,7 @@ function BannerForm({ banner, categories, liveHomepageCount }: { banner?: Banner
       </label>
       <label className="grid gap-1 text-xs font-semibold">
         Category
-        <select className="admin-input" name="category_id" defaultValue={banner?.category_id ?? ""}>
+        <select className="admin-input" name="category_id" autoComplete="off" defaultValue={banner?.category_id ?? ""}>
           <option value="">No category</option>
           {categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}
         </select>
@@ -157,9 +162,60 @@ function BannerForm({ banner, categories, liveHomepageCount }: { banner?: Banner
         Live
       </label>
 
-      {BANNER_IMAGE_SLOTS.map((slot) => (
-        <ImageUploadField key={slot} slot={slot} currentUrl={currentVariantUrl(banner?.image_variants, slot)} preview={previews[slot]} onPreview={(preview) => setPreviews((current) => ({ ...current, [slot]: preview }))} />
-      ))}
+      <label className="grid gap-2 rounded-md border border-slate-200 bg-white p-3 text-xs font-semibold md:col-span-3">
+        <span className="flex flex-wrap items-center justify-between gap-2">
+          <span>Master image</span>
+          <span className="text-slate-500">One high-resolution image, minimum 1600x500px</span>
+        </span>
+        <input
+          className="admin-input"
+          type="file"
+          name="master_image_file"
+          accept={BANNER_ALLOWED_TYPES.join(",")}
+          onChange={(event) => {
+            const file = event.target.files?.[0];
+            if (!file) return;
+            validateImage(file).then(setPreview);
+          }}
+        />
+        {currentPreview ? (
+          <div className="relative overflow-hidden rounded-md border border-slate-200 bg-slate-950" style={{ aspectRatio: "32 / 9" }}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={currentPreview} alt="" className="h-full w-full object-cover" style={{ objectPosition: `${focalX}% ${focalY}%` }} />
+          </div>
+        ) : <div className="flex h-36 items-center justify-center rounded-md border border-dashed border-slate-300 text-slate-500"><ImagePlus className="h-5 w-5" /></div>}
+        <span className={preview?.ok === false ? "text-red-700" : "text-slate-500"}>{preview?.message ?? "Upload a single master image. The storefront crops responsively from the selected focal point without stretching."}</span>
+      </label>
+
+      <label className="grid gap-1 text-xs font-semibold">
+        Focal position
+        <select
+          className="admin-input"
+          name="focal_mode"
+          value={focalMode}
+          onChange={(event) => {
+            const next = event.target.value;
+            setFocalMode(next);
+            if (next === "left") setFocalX(25);
+            if (next === "center") setFocalX(50);
+            if (next === "right") setFocalX(75);
+          }}
+        >
+          <option value="center">Center</option>
+          <option value="left">Left</option>
+          <option value="right">Right</option>
+          <option value="custom">Custom</option>
+        </select>
+      </label>
+      <label className="grid gap-1 text-xs font-semibold">
+        Focal X
+        <input className="admin-input" type="number" min={0} max={100} name="focal_x" value={focalX} onChange={(event) => { setFocalMode("custom"); setFocalX(Number(event.target.value)); }} />
+      </label>
+      <label className="grid gap-1 text-xs font-semibold">
+        Focal Y
+        <input className="admin-input" type="number" min={0} max={100} name="focal_y" value={focalY} onChange={(event) => { setFocalMode("custom"); setFocalY(Number(event.target.value)); }} />
+      </label>
+      <label className="grid gap-1 text-xs font-semibold md:col-span-3">Optional crop notes<input className="admin-input" name="crop_metadata" autoComplete="off" defaultValue={currentFocal(banner?.image_variants).crop ?? ""} placeholder="Subject or crop guidance for future image updates" /></label>
 
       {wouldExceedLiveLimit ? <p className="text-xs font-semibold text-amber-700 md:col-span-3">The five live homepage slots are already occupied. New banners are created disabled unless you disable another homepage banner.</p> : null}
       <button className="btn-dark md:col-span-3" disabled={hasClientError}>{banner ? "Save Banner" : "Create Banner"}</button>
@@ -167,39 +223,7 @@ function BannerForm({ banner, categories, liveHomepageCount }: { banner?: Banner
   );
 }
 
-function ImageUploadField({ slot, currentUrl, preview, onPreview }: { slot: BannerImageSlot; currentUrl?: string | null; preview?: PreviewState[BannerImageSlot]; onPreview: (preview: { url: string; message: string; ok: boolean }) => void }) {
-  const requirement = HOMEPAGE_BANNER_REQUIREMENTS[slot];
-  const accept = BANNER_ALLOWED_TYPES.join(",");
-  const currentPreview = preview?.url ?? currentUrl ?? "";
-
-  return (
-    <label className="grid gap-2 rounded-md border border-slate-200 bg-white p-3 text-xs font-semibold">
-      <span className="flex items-center justify-between gap-2">
-        <span>{requirement.label}</span>
-        <span className="text-slate-500">{requirement.width}x{requirement.height}px | {requirement.aspectRatio}</span>
-      </span>
-      <input
-        className="admin-input"
-        type="file"
-        name={requirement.field}
-        accept={accept}
-        onChange={(event) => {
-          const file = event.target.files?.[0];
-          if (!file) return;
-          validateImage(file, slot).then(onPreview);
-        }}
-      />
-      {currentPreview ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img src={currentPreview} alt="" className="h-28 w-full rounded-md border border-slate-200 object-cover" />
-      ) : <div className="flex h-28 items-center justify-center rounded-md border border-dashed border-slate-300 text-slate-500"><ImagePlus className="h-5 w-5" /></div>}
-      <span className={preview?.ok === false ? "text-red-700" : "text-slate-500"}>{preview?.message ?? requirement.use}</span>
-    </label>
-  );
-}
-
-function validateImage(file: File, slot: BannerImageSlot) {
-  const requirement = HOMEPAGE_BANNER_REQUIREMENTS[slot];
+function validateImage(file: File) {
   const url = URL.createObjectURL(file);
   return new Promise<{ url: string; message: string; ok: boolean }>((resolve) => {
     if (!BANNER_ALLOWED_TYPES.includes(file.type as never)) {
@@ -212,11 +236,11 @@ function validateImage(file: File, slot: BannerImageSlot) {
     }
     const image = new Image();
     image.onload = () => {
-      const ok = image.naturalWidth === requirement.width && image.naturalHeight === requirement.height;
+      const ok = image.naturalWidth >= 1600 && image.naturalHeight >= 500;
       resolve({
         url,
         ok,
-        message: ok ? `Ready: ${image.naturalWidth}x${image.naturalHeight}px (${requirement.aspectRatio}).` : `Wrong size: ${image.naturalWidth}x${image.naturalHeight}px. Required ${requirement.width}x${requirement.height}px.`
+        message: ok ? `Ready: ${image.naturalWidth}x${image.naturalHeight}px master image.` : `Image is ${image.naturalWidth}x${image.naturalHeight}px. Minimum is 1600x500px.`
       });
     };
     image.onerror = () => resolve({ url, message: "Image preview could not be loaded.", ok: false });
@@ -225,15 +249,15 @@ function validateImage(file: File, slot: BannerImageSlot) {
 }
 
 function HelpDialog({ onClose }: { onClose: () => void }) {
-  const requirements = useMemo(() => Object.values(HOMEPAGE_BANNER_REQUIREMENTS), []);
+  const requirements = useMemo(() => ["Use one master image of at least 1600x500px.", "Set the focal position to keep the subject visible across phone, tablet, desktop, and ultrawide crops.", "Use optional crop notes when a subject cannot be preserved automatically."], []);
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" role="dialog" aria-modal="true" aria-labelledby="banner-help-title">
       <div className="max-w-2xl rounded-lg bg-white p-5 shadow-xl">
         <h2 id="banner-help-title" className="text-lg font-black text-ink">Homepage Banner Requirements</h2>
         <div className="mt-3 space-y-3 text-sm leading-6 text-slate-700">
-          <p>Homepage carousel has a maximum of {HOMEPAGE_BANNER_LIMIT} live banners. Each banner can store multiple aspect-ratio variants so the storefront can choose the closest image for the current viewport without stretching.</p>
+          <p>Homepage carousel has a maximum of {HOMEPAGE_BANNER_LIMIT} live banners. Each banner uses a single master image with focal-point-aware responsive cropping so administrators do not need to upload separate desktop and mobile files.</p>
           <ul className="list-disc pl-5">
-            {requirements.map((item) => <li key={item.field}>{item.label}: {item.width}x{item.height}px ({item.aspectRatio}) for {item.use.toLowerCase()}</li>)}
+            {requirements.map((item) => <li key={item}>{item}</li>)}
           </ul>
           <p>Supported formats are JPG, PNG, and WebP. Each file must be 3 MB or smaller.</p>
           <p>Wide, mid and tall variants are selected by viewport aspect ratio. The carousel still rotates automatically and keeps arrows, indicators, drag/swipe, smooth transitions, CTA links and reduced-motion support.</p>
@@ -250,7 +274,20 @@ function normalizeVariants(value: unknown) {
   return Array.isArray(value) ? value.filter((item) => item && typeof item === "object") : [];
 }
 
-function currentVariantUrl(value: unknown, slot: BannerImageSlot) {
-  const match = normalizeVariants(value).find((item) => (item as { slot?: unknown }).slot === slot) as { url?: unknown } | undefined;
-  return typeof match?.url === "string" ? match.url : null;
+function currentMaster(value: unknown) {
+  const variants = normalizeVariants(value);
+  return variants.find((item) => (item as { slot?: unknown }).slot === "master") as { url?: string; width?: number; height?: number } | undefined;
+}
+
+function currentFocal(value: unknown) {
+  const master = currentMaster(value) as { focalMode?: unknown; focalX?: unknown; focalY?: unknown; crop?: unknown } | undefined;
+  const mode = master?.focalMode === "left" || master?.focalMode === "right" || master?.focalMode === "custom" ? master.focalMode : "center";
+  const x = Number(master?.focalX);
+  const y = Number(master?.focalY);
+  return {
+    mode,
+    x: Number.isFinite(x) ? x : mode === "left" ? 25 : mode === "right" ? 75 : 50,
+    y: Number.isFinite(y) ? y : 50,
+    crop: typeof master?.crop === "string" ? master.crop : ""
+  };
 }

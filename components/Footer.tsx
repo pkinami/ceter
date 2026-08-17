@@ -45,7 +45,7 @@ export function Footer() {
           </div>
           <form className="flex w-full max-w-lg flex-col gap-2 sm:flex-row">
             <label className="sr-only" htmlFor="footer-newsletter">Email address</label>
-            <input id="footer-newsletter" type="email" placeholder="Email address" className="h-11 min-w-0 flex-1 rounded-md border border-white/15 bg-white px-3 text-sm text-ink outline-none focus:border-signal focus:ring-2 focus:ring-teal-400/20" />
+            <input id="footer-newsletter" name="email" type="email" autoComplete="email" placeholder="you@example.com" className="h-11 min-w-0 flex-1 rounded-md border border-white/15 bg-white px-3 text-sm text-ink outline-none focus:border-signal focus:ring-2 focus:ring-teal-400/20" />
             <button type="button" className="h-11 rounded-md bg-signal px-5 text-sm font-bold text-white hover:bg-teal-700">Subscribe</button>
           </form>
         </div>

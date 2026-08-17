@@ -3,7 +3,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { Menu, Search, ShoppingCart, X } from "lucide-react";
-import { FormEvent, Suspense, useState } from "react";
+import { FormEvent, Suspense, useEffect, useState } from "react";
 import { TopBar } from "@/components/TopBar";
 import { Tooltip } from "@/components/Tooltip";
 import { Sidebar } from "@/components/Sidebar";
@@ -20,6 +20,20 @@ export function HeaderClient({ categories, brands }: { categories: Category[]; b
   });
   const { items } = useCart();
   const cartQuantity = items.reduce((sum, item) => sum + item.quantity, 0);
+
+  useEffect(() => {
+    if (!open) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") setOpen(false);
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [open]);
 
   function submitSearch(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -39,6 +53,8 @@ export function HeaderClient({ categories, brands }: { categories: Category[]; b
       <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
       <input
         name="q"
+        type="search"
+        autoComplete="off"
         value={query}
         onChange={(event) => setQuery(event.target.value)}
         className={className}
@@ -66,9 +82,9 @@ export function HeaderClient({ categories, brands }: { categories: Category[]; b
       <div className="mx-auto grid max-w-7xl grid-cols-[auto_1fr_auto] items-center gap-3 px-4 py-4 lg:grid-cols-[240px_1fr_auto]">
         <div className="flex items-center gap-3">
           <Tooltip label="Open categories">
-            <button className="rounded-md border border-slate-300 p-2 lg:hidden" onClick={() => setOpen(true)} aria-label="Open categories">
-              <Menu className="h-5 w-5" />
-            </button>
+          <button className="grid h-11 w-11 place-items-center rounded-md border border-slate-300 lg:hidden" onClick={() => setOpen(true)} aria-label="Open categories" aria-expanded={open}>
+            <Menu className="h-5 w-5" />
+          </button>
           </Tooltip>
           <Link href="/" className="inline-flex items-center leading-tight" aria-label="Ceter Technologies Limited home">
             <Image
@@ -97,7 +113,7 @@ export function HeaderClient({ categories, brands }: { categories: Category[]; b
               </a>
             </Tooltip>
             <Tooltip label="View cart">
-              <Link href="/cart" className="relative rounded-md border border-slate-300 p-2.5 hover:bg-slate-50" aria-label={`Cart${cartQuantity ? ` with ${cartQuantity} items` : ""}`}>
+              <Link href="/cart" className="relative grid h-11 w-11 place-items-center rounded-md border border-slate-300 hover:bg-slate-50" aria-label={`Cart${cartQuantity ? ` with ${cartQuantity} items` : ""}`}>
                 <ShoppingCart className="h-5 w-5" />
                 {cartQuantity > 0 ? (
                   <span className="absolute -right-2 -top-2 grid min-h-5 min-w-5 place-items-center rounded-full bg-signal px-1.5 text-[11px] font-black leading-none text-white shadow">

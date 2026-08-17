@@ -89,9 +89,17 @@ export type Banner = {
   laptopImage?: string | null;
   mobileImage: string | null;
   imageVariants?: BannerImageVariant[];
+  focalPoint?: BannerFocalPoint;
   placement: BannerPlacement;
   categoryId: string | null;
   sortOrder: number;
+};
+
+export type BannerFocalPoint = {
+  x: number;
+  y: number;
+  mode: "left" | "center" | "right" | "custom";
+  crop?: string | null;
 };
 
 export type BannerImageVariant = {

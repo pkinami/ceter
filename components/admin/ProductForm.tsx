@@ -17,38 +17,38 @@ export function ProductForm({ product, brands, categories }: { product?: Product
         <input type="hidden" name="id" value={product?.id ?? ""} />
         <input type="hidden" name="return_to" value={product ? `/admin/products/${product.id}/edit` : "/admin/products/new"} />
         <div className="grid gap-3 md:grid-cols-2">
-          <label className="grid gap-1 text-xs font-semibold">Name<input required className="admin-input" name="name" defaultValue={product?.name ?? ""} /></label>
-          <label className="grid gap-1 text-xs font-semibold">Slug<input className="admin-input" name="slug" defaultValue={product?.slug ?? ""} placeholder="Auto-generated from name if blank" /></label>
-          <label className="grid gap-1 text-xs font-semibold">SKU<input className="admin-input" name="sku" defaultValue={product?.sku ?? ""} /></label>
-          <label className="grid gap-1 text-xs font-semibold">MPN<input className="admin-input" name="mpn" defaultValue={product?.mpn ?? ""} /></label>
+          <label className="grid gap-1 text-xs font-semibold">Product name<input required className="admin-input" name="name" autoComplete="off" defaultValue={product?.name ?? ""} /></label>
+          <label className="grid gap-1 text-xs font-semibold">Product slug<input className="admin-input" name="slug" autoComplete="off" defaultValue={product?.slug ?? ""} placeholder="Auto-generated from product name if blank" /></label>
+          <label className="grid gap-1 text-xs font-semibold">SKU<input className="admin-input" name="sku" autoComplete="off" defaultValue={product?.sku ?? ""} /></label>
+          <label className="grid gap-1 text-xs font-semibold">MPN<input className="admin-input" name="mpn" autoComplete="off" defaultValue={product?.mpn ?? ""} /></label>
           <label className="grid gap-1 text-xs font-semibold">Brand
-            <select className="admin-input" name="brand_id" defaultValue={product?.brand_id ?? ""}>
+            <select className="admin-input" name="brand_id" autoComplete="off" defaultValue={product?.brand_id ?? ""}>
               <option value="">Unbranded</option>
               {brands.map((brand) => <option key={brand.id} value={brand.id}>{brand.name}</option>)}
             </select>
           </label>
           <label className="grid gap-1 text-xs font-semibold">Category
-            <select className="admin-input" name="category_id" defaultValue={product?.category_id ?? ""}>
+            <select className="admin-input" name="category_id" autoComplete="off" defaultValue={product?.category_id ?? ""}>
               <option value="">Uncategorised</option>
               {categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}
             </select>
           </label>
-          <label className="grid gap-1 text-xs font-semibold">Cost Price<input min={0} type="number" className="admin-input" name="cost_price_kes" defaultValue={product?.cost_price_kes ?? ""} /></label>
-          <label className="grid gap-1 text-xs font-semibold">Selling Price<input required min={0} type="number" className="admin-input" name="price_kes" defaultValue={product?.price_kes ?? 0} /></label>
-          <label className="grid gap-1 text-xs font-semibold">Stock Quantity<input min={0} type="number" className="admin-input" name="stock_quantity" defaultValue={product?.stock_quantity ?? 0} /></label>
+          <label className="grid gap-1 text-xs font-semibold">Cost Price<input min={0} type="number" className="admin-input" name="cost_price_kes" autoComplete="off" defaultValue={product?.cost_price_kes ?? ""} /></label>
+          <label className="grid gap-1 text-xs font-semibold">Selling Price<input required min={0} type="number" className="admin-input" name="price_kes" autoComplete="off" defaultValue={product?.price_kes ?? 0} /></label>
+          <label className="grid gap-1 text-xs font-semibold">Stock Quantity<input min={0} type="number" className="admin-input" name="stock_quantity" autoComplete="off" defaultValue={product?.stock_quantity ?? 0} /></label>
           <label className="grid gap-1 text-xs font-semibold">Stock Status
-            <select className="admin-input" name="stock_status" defaultValue={product?.stock_status ?? "in_stock"}>
+            <select className="admin-input" name="stock_status" autoComplete="off" defaultValue={product?.stock_status ?? "in_stock"}>
               <option value="in_stock">In stock</option>
               <option value="backorder">Backorder</option>
               <option value="out_of_stock">Out of stock</option>
             </select>
           </label>
-          <label className="grid gap-1 text-xs font-semibold">Reorder Level<input min={0} type="number" className="admin-input" name="reorder_level" defaultValue={product?.reorder_level ?? 0} /></label>
-          <label className="grid gap-1 text-xs font-semibold">Reorder Quantity<input min={0} type="number" className="admin-input" name="reorder_quantity" defaultValue={product?.reorder_quantity ?? 0} /></label>
-          <label className="grid gap-1 text-xs font-semibold">Supplier<input className="admin-input" name="supplier_name" defaultValue={product?.supplier_name ?? ""} /></label>
-          <label className="grid gap-1 text-xs font-semibold">Lead Time Days<input min={0} type="number" className="admin-input" name="supplier_lead_time_days" defaultValue={product?.supplier_lead_time_days ?? ""} /></label>
+          <label className="grid gap-1 text-xs font-semibold">Reorder Level<input min={0} type="number" className="admin-input" name="reorder_level" autoComplete="off" defaultValue={product?.reorder_level ?? 0} /></label>
+          <label className="grid gap-1 text-xs font-semibold">Reorder Quantity<input min={0} type="number" className="admin-input" name="reorder_quantity" autoComplete="off" defaultValue={product?.reorder_quantity ?? 0} /></label>
+          <label className="grid gap-1 text-xs font-semibold">Supplier company<input className="admin-input" name="supplier_name" autoComplete="organization" placeholder="Supplier business name" defaultValue={product?.supplier_name ?? ""} /></label>
+          <label className="grid gap-1 text-xs font-semibold">Lead Time Days<input min={0} type="number" className="admin-input" name="supplier_lead_time_days" autoComplete="off" defaultValue={product?.supplier_lead_time_days ?? ""} /></label>
           <label className="grid gap-1 text-xs font-semibold">Condition
-            <select className="admin-input" name="condition" defaultValue={product?.condition ?? "new"}>
+            <select className="admin-input" name="condition" autoComplete="off" defaultValue={product?.condition ?? "new"}>
               <option value="new">New</option>
               <option value="refurbished">Refurbished</option>
             </select>
@@ -58,11 +58,11 @@ export function ProductForm({ product, brands, categories }: { product?: Product
           <label className="flex items-center gap-2 text-xs font-semibold"><input type="checkbox" name="show_offer_badge" defaultChecked={product?.show_offer_badge ?? false} /> Show Offer flame Badge</label>
           <label className="flex items-center gap-2 text-xs font-semibold"><input type="checkbox" name="show_flash_sale_badge" defaultChecked={product?.show_flash_sale_badge ?? false} /> Flash Sale</label>
         </div>
-        <label className="mt-3 grid gap-1 text-xs font-semibold">Description<textarea required className="admin-input min-h-28 py-2" name="description" defaultValue={product?.description ?? ""} /></label>
+        <label className="mt-3 grid gap-1 text-xs font-semibold">Description<textarea required className="admin-input min-h-28 py-2" name="description" autoComplete="off" defaultValue={product?.description ?? ""} /></label>
         <label className="mt-3 grid gap-1 text-xs font-semibold">Upload Primary Image<input className="admin-input" name="primary_image_file" type="file" accept="image/*" /></label>
-        <label className="mt-3 grid gap-1 text-xs font-semibold">Primary Image URL<input className="admin-input" name="primary_image" defaultValue={images[0] ?? ""} placeholder="https://... or /product-placeholder.svg" /></label>
-        <label className="mt-3 grid gap-1 text-xs font-semibold">Image URLs, one per line<textarea className="admin-input min-h-24 py-2" name="images" defaultValue={images.join("\n")} /></label>
-        <label className="mt-3 grid gap-1 text-xs font-semibold">Specs, one `Key: Value` per line<textarea className="admin-input min-h-24 py-2" name="specs" defaultValue={specs} /></label>
+        <label className="mt-3 grid gap-1 text-xs font-semibold">Primary Image URL<input className="admin-input" name="primary_image" autoComplete="off" defaultValue={images[0] ?? ""} placeholder="https://... or /product-placeholder.svg" /></label>
+        <label className="mt-3 grid gap-1 text-xs font-semibold">Image URLs, one per line<textarea className="admin-input min-h-24 py-2" name="images" autoComplete="off" defaultValue={images.join("\n")} /></label>
+        <label className="mt-3 grid gap-1 text-xs font-semibold">Specs, one `Key: Value` per line<textarea className="admin-input min-h-24 py-2" name="specs" autoComplete="off" defaultValue={specs} /></label>
         <div className="mt-4 flex gap-2">
           <FormSubmitButton className="btn-dark" pendingText={product ? "Saving product..." : "Creating product..."}>{product ? "Save Product" : "Create Product"}</FormSubmitButton>
           <a className="btn-lite" href="/admin/products">Cancel</a>

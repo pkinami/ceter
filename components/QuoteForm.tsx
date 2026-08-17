@@ -90,17 +90,17 @@ export function QuoteForm({ product }: { product?: { id: string; name: string; s
   return (
     <form onSubmit={submit} className="rounded-lg border border-slate-300 bg-white p-5 shadow-sm" aria-live="polite">
       <div className="grid gap-4 md:grid-cols-2">
-        <Field id="quote-name" label="Name" error={errors.name}>
-          <input ref={refs.name} id="quote-name" aria-describedby={errors.name ? "quote-name-error" : undefined} value={form.name} onChange={(event) => field("name", event.target.value)} className="h-11 w-full rounded-md border border-slate-300 px-3 text-sm focus:border-signal focus:outline-none" />
+        <Field id="quote-name" label="Full name" error={errors.name}>
+          <input ref={refs.name} id="quote-name" name="name" autoComplete="name" placeholder="Your full name" aria-describedby={errors.name ? "quote-name-error" : undefined} value={form.name} onChange={(event) => field("name", event.target.value)} className="h-11 w-full rounded-md border border-slate-300 px-3 text-sm focus:border-signal focus:outline-none" />
         </Field>
-        <Field id="quote-email" label="Email" error={errors.email}>
-          <input ref={refs.email} id="quote-email" aria-describedby={errors.email ? "quote-email-error" : undefined} value={form.email} onChange={(event) => field("email", event.target.value)} className="h-11 w-full rounded-md border border-slate-300 px-3 text-sm focus:border-signal focus:outline-none" />
+        <Field id="quote-email" label="Email address" error={errors.email}>
+          <input ref={refs.email} id="quote-email" name="email" type="email" autoComplete="email" placeholder="you@example.com" aria-describedby={errors.email ? "quote-email-error" : undefined} value={form.email} onChange={(event) => field("email", event.target.value)} className="h-11 w-full rounded-md border border-slate-300 px-3 text-sm focus:border-signal focus:outline-none" />
         </Field>
-        <Field id="quote-phone" label="Phone" error={errors.phone}>
-          <input ref={refs.phone} id="quote-phone" aria-describedby={errors.phone ? "quote-phone-error" : undefined} value={form.phone} onChange={(event) => field("phone", event.target.value)} className="h-11 w-full rounded-md border border-slate-300 px-3 text-sm focus:border-signal focus:outline-none" />
+        <Field id="quote-phone" label="Phone number" error={errors.phone}>
+          <input ref={refs.phone} id="quote-phone" name="phone" type="tel" autoComplete="tel" placeholder="Your mobile number" aria-describedby={errors.phone ? "quote-phone-error" : undefined} value={form.phone} onChange={(event) => field("phone", event.target.value)} className="h-11 w-full rounded-md border border-slate-300 px-3 text-sm focus:border-signal focus:outline-none" />
         </Field>
         <Field id="quote-service" label="Service needed" error={errors.service}>
-          <select ref={refs.service} id="quote-service" aria-describedby={errors.service ? "quote-service-error" : undefined} value={form.service} onChange={(event) => field("service", event.target.value)} className="h-11 w-full rounded-md border border-slate-300 px-3 text-sm focus:border-signal focus:outline-none">
+          <select ref={refs.service} id="quote-service" name="service" autoComplete="off" aria-describedby={errors.service ? "quote-service-error" : undefined} value={form.service} onChange={(event) => field("service", event.target.value)} className="h-11 w-full rounded-md border border-slate-300 px-3 text-sm focus:border-signal focus:outline-none">
             <option value="">Select service</option>
             <option>Product quotation</option>
             <option>Printer repair</option>
@@ -112,12 +112,12 @@ export function QuoteForm({ product }: { product?: { id: string; name: string; s
         </Field>
         {product ? (
           <Field id="quote-quantity" label="Quantity" error={errors.quantity}>
-            <input ref={refs.quantity} id="quote-quantity" type="number" min="1" value={form.quantity} onChange={(event) => field("quantity", Math.max(1, Number(event.target.value) || 1))} className="h-11 w-full rounded-md border border-slate-300 px-3 text-sm focus:border-signal focus:outline-none" />
+            <input ref={refs.quantity} id="quote-quantity" name="quantity" type="number" autoComplete="off" min="1" value={form.quantity} onChange={(event) => field("quantity", Math.max(1, Number(event.target.value) || 1))} className="h-11 w-full rounded-md border border-slate-300 px-3 text-sm focus:border-signal focus:outline-none" />
           </Field>
         ) : null}
       </div>
       <Field id="quote-message" label="Message" error={errors.message} className="mt-4">
-        <textarea ref={refs.message} id="quote-message" aria-describedby={errors.message ? "quote-message-error" : undefined} value={form.message} onChange={(event) => field("message", event.target.value)} rows={6} className="w-full rounded-md border border-slate-300 px-3 py-3 text-sm focus:border-signal focus:outline-none" />
+        <textarea ref={refs.message} id="quote-message" name="message" autoComplete="off" placeholder="Tell us what you need quoted, including model numbers or delivery details if available" aria-describedby={errors.message ? "quote-message-error" : undefined} value={form.message} onChange={(event) => field("message", event.target.value)} rows={6} className="w-full rounded-md border border-slate-300 px-3 py-3 text-sm focus:border-signal focus:outline-none" />
       </Field>
       <div className="mt-5 rounded bg-panel p-3">
         <p className="mb-2 text-xs font-bold uppercase text-slate-600">Submission progress</p>

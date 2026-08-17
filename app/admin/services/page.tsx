@@ -24,27 +24,27 @@ export default async function ServicesPage({ searchParams }: Props) {
           <input type="hidden" name="existing_image" value={editing?.image ?? ""} />
           <label className="grid gap-1 text-xs font-semibold">
             Title
-            <input className="admin-input" name="title" defaultValue={editing?.title ?? ""} required />
+            <input className="admin-input" name="title" autoComplete="off" defaultValue={editing?.title ?? ""} required />
           </label>
           <label className="grid gap-1 text-xs font-semibold">
             Slug
-            <input className="admin-input" name="slug" defaultValue={editing?.slug ?? ""} placeholder="auto-normalized from title" />
+            <input className="admin-input" name="slug" autoComplete="off" defaultValue={editing?.slug ?? ""} placeholder="auto-normalized from title" />
           </label>
           <label className="grid gap-1 text-xs font-semibold">
             Sort order
-            <input className="admin-input" name="sort_order" type="number" min={0} defaultValue={editing?.sort_order ?? 0} />
+            <input className="admin-input" name="sort_order" type="number" autoComplete="off" min={0} defaultValue={editing?.sort_order ?? 0} />
           </label>
           <label className="grid gap-1 text-xs font-semibold md:col-span-3">
             Description
-            <input className="admin-input" name="description" defaultValue={editing?.description ?? ""} required />
+            <input className="admin-input" name="description" autoComplete="off" defaultValue={editing?.description ?? ""} required />
           </label>
           <label className="grid gap-1 text-xs font-semibold">
             Price KSh
-            <input className="admin-input" name="price_kes" type="number" min={0} defaultValue={editing?.price_kes ?? ""} />
+            <input className="admin-input" name="price_kes" type="number" autoComplete="off" min={0} defaultValue={editing?.price_kes ?? ""} />
           </label>
           <label className="grid gap-1 text-xs font-semibold md:col-span-2">
             Image URL or /public path
-            <input className="admin-input" name="image" defaultValue={editing?.image ?? ""} />
+            <input className="admin-input" name="image" autoComplete="off" defaultValue={editing?.image ?? ""} />
           </label>
           <label className="grid gap-1 text-xs font-semibold">
             Upload image

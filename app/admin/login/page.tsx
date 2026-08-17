@@ -22,11 +22,11 @@ export default async function AdminLoginPage({ searchParams }: { searchParams: P
         <input type="hidden" name="next" value="/admin" />
         <label className="mt-5 block text-sm font-bold text-slate-700">
           <span className="inline-flex items-center gap-2"><BrandIcon name="email" label="Email" size={18} className="h-4 w-4" /> Staff email</span>
-          <input name="email" type="email" required className="mt-2 h-11 w-full rounded-md border border-slate-300 px-3 text-sm focus:border-signal focus:outline-none" />
+          <input id="admin-login-email" name="email" type="email" autoComplete="username" placeholder="staff@example.com" required className="mt-2 h-11 w-full rounded-md border border-slate-300 px-3 text-sm focus:border-signal focus:outline-none" />
         </label>
         <label className="mt-4 block text-sm font-bold text-slate-700">
           Password
-          <input name="password" type="password" required minLength={6} className="mt-2 h-11 w-full rounded-md border border-slate-300 px-3 text-sm focus:border-signal focus:outline-none" />
+          <input id="admin-login-password" name="password" type="password" autoComplete="current-password" placeholder="Your admin password" required minLength={6} className="mt-2 h-11 w-full rounded-md border border-slate-300 px-3 text-sm focus:border-signal focus:outline-none" />
         </label>
         <FormSubmitButton pendingText="Signing in..." className="mt-5 h-11 w-full rounded-md bg-ink px-5 text-sm font-bold text-white hover:bg-slate-800">Sign in to admin</FormSubmitButton>
         <p className="mt-4 text-sm text-slate-600">Customer account? <Link href="/login" className="font-bold text-signal">Use customer login</Link></p>

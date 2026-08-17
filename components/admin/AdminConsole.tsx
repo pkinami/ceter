@@ -303,7 +303,8 @@ function Topbar({ session, query, setQuery, onMenu, stats, autoCollapse, setAuto
       <div className="admin-global-zone">
         <div className="admin-global-search">
           <Search className="admin-search-symbol" />
-          <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search products, SKU, MPN, brands..." />
+          <label className="sr-only" htmlFor="admin-console-search">Search admin products</label>
+          <input id="admin-console-search" type="search" autoComplete="off" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search products, SKU, MPN, brands..." />
         </div>
         <div className="admin-top-spacer" />
         <label className="admin-collapse-option" title="Auto hide/collapse sidebar on hover">
@@ -453,7 +454,7 @@ function MatrixPage({ title, copy, rows, dirty, updateCell, save, pending, field
         <div className="admin-table-wrap">
           <table className="w-full min-w-[980px] text-left text-[13px]">
             <thead><tr><Th>Product</Th><Th>SKU / MPN</Th><Th>Brand</Th><Th right>Cost Price</Th><Th right>Selling Price</Th><Th right>Margin</Th><Th right>Stock</Th><Th>Status</Th></tr></thead>
-            <tbody>{rows.map((row) => <tr key={row.id} className="border-t border-[#edf1f6] hover:bg-[#f8fcfc]"><Td><strong>{row.name}</strong><span className="block text-xs text-[#60748a]">{row.category}</span></Td><Td mono>{row.sku || "-"}{fields.includes("mpn") ? <input className={inputClass(dirty[`${row.id}:mpn`])} value={row.mpn ?? ""} onChange={(event) => updateCell(row, "mpn", event.target.value)} /> : <span className="block text-xs text-[#60748a]">{row.mpn || "-"}</span>}</Td><Td>{row.brand}</Td><Td right>{fields.includes("cost_price_kes") ? <EditInput row={row} field="cost_price_kes" dirty={dirty} updateCell={updateCell} /> : formatNumber(row.cost_price_kes ?? 0)}</Td><Td right>{fields.includes("price_kes") ? <EditInput row={row} field="price_kes" dirty={dirty} updateCell={updateCell} /> : formatNumber(row.price_kes)}</Td><Td right mono>{marginPercent(row)}%</Td><Td right>{fields.includes("stock_quantity") ? <EditInput row={row} field="stock_quantity" dirty={dirty} updateCell={updateCell} /> : formatNumber(row.stock_quantity)}</Td><Td><StatusBadge row={row} /></Td></tr>)}</tbody>
+            <tbody>{rows.map((row) => <tr key={row.id} className="border-t border-[#edf1f6] hover:bg-[#f8fcfc]"><Td><strong>{row.name}</strong><span className="block text-xs text-[#60748a]">{row.category}</span></Td><Td mono>{row.sku || "-"}{fields.includes("mpn") ? <input className={inputClass(dirty[`${row.id}:mpn`])} autoComplete="off" value={row.mpn ?? ""} onChange={(event) => updateCell(row, "mpn", event.target.value)} aria-label={`${row.name} MPN`} /> : <span className="block text-xs text-[#60748a]">{row.mpn || "-"}</span>}</Td><Td>{row.brand}</Td><Td right>{fields.includes("cost_price_kes") ? <EditInput row={row} field="cost_price_kes" dirty={dirty} updateCell={updateCell} /> : formatNumber(row.cost_price_kes ?? 0)}</Td><Td right>{fields.includes("price_kes") ? <EditInput row={row} field="price_kes" dirty={dirty} updateCell={updateCell} /> : formatNumber(row.price_kes)}</Td><Td right mono>{marginPercent(row)}%</Td><Td right>{fields.includes("stock_quantity") ? <EditInput row={row} field="stock_quantity" dirty={dirty} updateCell={updateCell} /> : formatNumber(row.stock_quantity)}</Td><Td><StatusBadge row={row} /></Td></tr>)}</tbody>
           </table>
         </div>
       </div>
@@ -562,7 +563,7 @@ function BulkBar({ count, pending, publish, unpublish, remove, clear }: { count:
 }
 
 function EditInput({ row, field, dirty, updateCell }: { row: ProductRow; field: DirtyCell["field"]; dirty: Record<string, DirtyCell>; updateCell: (row: ProductRow, field: DirtyCell["field"], raw: string) => void }) {
-  return <input className={inputClass(dirty[`${row.id}:${field}`])} value={String(row[field] ?? "")} onChange={(event) => updateCell(row, field, event.target.value)} inputMode="numeric" />;
+  return <input className={inputClass(dirty[`${row.id}:${field}`])} autoComplete="off" value={String(row[field] ?? "")} onChange={(event) => updateCell(row, field, event.target.value)} inputMode="numeric" aria-label={`${row.name} ${field}`} />;
 }
 
 function inputClass(dirty?: DirtyCell) {
@@ -596,7 +597,7 @@ function ListMetric({ label, value }: { label: string; value: React.ReactNode })
 }
 
 function ReadonlyField({ label, value }: { label: string; value: string }) {
-  return <label className="block text-xs font-bold uppercase text-[#60748a]"><span>{label}</span><input value={value} readOnly className="mt-1 h-10 w-full rounded-md border border-[#dde8ee] bg-[#f8fafc] px-3 text-sm normal-case text-[#0b1e39]" /></label>;
+  return <label className="block text-xs font-bold uppercase text-[#60748a]"><span>{label}</span><input value={value} readOnly autoComplete="off" className="mt-1 h-10 w-full rounded-md border border-[#dde8ee] bg-[#f8fafc] px-3 text-sm normal-case text-[#0b1e39]" /></label>;
 }
 
 function buildStats(products: ProductRow[], orders: OrderRow[], quotes: QuoteRow[]) {

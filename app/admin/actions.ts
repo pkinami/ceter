@@ -123,6 +123,32 @@ async function uploadedBannerImageUrl(file: FormDataEntryValue | null, slug: str
   return data.publicUrl;
 }
 
+async function uploadedBannerMasterImageUrl(file: FormDataEntryValue | null, slug: string) {
+  if (!(file instanceof File) || file.size === 0) return null;
+  if (!BANNER_ALLOWED_TYPES.includes(file.type as never)) throw new Error("Master banner image must be JPG, PNG, or WebP.");
+  if (file.size > BANNER_MAX_FILE_SIZE) throw new Error("Master banner image must be 3 MB or smaller.");
+
+  const bytes = Buffer.from(await file.arrayBuffer());
+  const dimensions = imageDimensions(bytes, file.type);
+  if (!dimensions) throw new Error("Master banner image dimensions could not be read.");
+  if (dimensions.width < 1600 || dimensions.height < 500) {
+    throw new Error(`Master banner image must be at least 1600x500px. Selected image is ${dimensions.width}x${dimensions.height}px.`);
+  }
+
+  const extension = file.name.split(".").pop()?.toLowerCase().replace(/[^a-z0-9]/g, "") || extensionForImageType(file.type);
+  const path = `banners/${slug}/master-${Date.now()}-${crypto.randomUUID()}.${extension}`;
+  const supabase = createAdminClient();
+  const bucket = process.env.SUPABASE_BANNER_IMAGES_BUCKET || "banner-images";
+  const { error } = await retrySupabaseStorageWrite(() => supabase.storage.from(bucket).upload(path, bytes, {
+    contentType: file.type || "application/octet-stream",
+    upsert: false,
+    cacheControl: "31536000"
+  }));
+  if (error) throw new Error(`Banner image upload failed: ${error.message}`);
+  const { data } = supabase.storage.from(bucket).getPublicUrl(path);
+  return { url: data.publicUrl, width: dimensions.width, height: dimensions.height };
+}
+
 function parseBannerVariants(value: FormDataEntryValue | null) {
   const text = String(value ?? "").trim();
   if (!text) return [];
@@ -894,16 +920,40 @@ export async function upsertBannerAction(formData: FormData) {
   let image: string | null = null;
   let laptop_image: string | null = null;
   let mobile_image: string | null = null;
-  let image_variants: Array<{ slot: string; url: string; width: number; height: number; aspectRatio: string; shape: string }> = [];
+  let image_variants: Array<{ slot: string; url: string; width: number; height: number; aspectRatio: string; shape?: string; focalMode?: string; focalX?: number; focalY?: number; crop?: string | null }> = [];
   try {
-    image_variants = await bannerImageVariantsFromForm(formData, slug);
-    image = image_variants.find((variant) => variant.slot === "wide_1600")?.url
+    const existingVariants = parseBannerVariants(formData.get("existing_image_variants"));
+    const existingMaster = existingVariants.find((variant) => (variant as { slot?: unknown }).slot === "master") as { url?: string; width?: number; height?: number } | undefined;
+    const uploadedMaster = await uploadedBannerMasterImageUrl(formData.get("master_image_file"), slug);
+    const focalMode = String(formData.get("focal_mode") ?? "center");
+    const focalX = Math.min(100, Math.max(0, Number(formData.get("focal_x") ?? (focalMode === "left" ? 25 : focalMode === "right" ? 75 : 50))));
+    const focalY = Math.min(100, Math.max(0, Number(formData.get("focal_y") ?? 50)));
+    const masterUrl = uploadedMaster?.url ?? existingMaster?.url ?? bannerImageValueFromForm(formData, "image", String(formData.get("existing_image") ?? "") || null);
+    const masterWidth = uploadedMaster?.width ?? (Number(existingMaster?.width) || 1920);
+    const masterHeight = uploadedMaster?.height ?? (Number(existingMaster?.height) || 720);
+
+    image_variants = masterUrl ? [{
+      slot: "master",
+      url: masterUrl,
+      width: masterWidth,
+      height: masterHeight,
+      aspectRatio: `${masterWidth}:${masterHeight}`,
+      focalMode: focalMode === "left" || focalMode === "right" || focalMode === "custom" ? focalMode : "center",
+      focalX: Number.isFinite(focalX) ? focalX : 50,
+      focalY: Number.isFinite(focalY) ? focalY : 50,
+      crop: nullableString(formData.get("crop_metadata"))
+    }] : await bannerImageVariantsFromForm(formData, slug);
+
+    image = masterUrl
+      ?? image_variants.find((variant) => variant.slot === "wide_1600")?.url
       ?? image_variants.find((variant) => variant.shape === "wide")?.url
       ?? bannerImageValueFromForm(formData, "image", String(formData.get("existing_image") ?? "") || null);
-    laptop_image = image_variants.find((variant) => variant.slot === "mid_1280")?.url
+    laptop_image = masterUrl
+      ?? image_variants.find((variant) => variant.slot === "mid_1280")?.url
       ?? image_variants.find((variant) => variant.shape === "mid")?.url
       ?? bannerImageValueFromForm(formData, "laptop_image", String(formData.get("existing_laptop_image") ?? "") || null);
-    mobile_image = image_variants.find((variant) => variant.slot === "tall_720")?.url
+    mobile_image = masterUrl
+      ?? image_variants.find((variant) => variant.slot === "tall_720")?.url
       ?? image_variants.find((variant) => variant.shape === "tall")?.url
       ?? bannerImageValueFromForm(formData, "mobile_image", String(formData.get("existing_mobile_image") ?? "") || null);
   } catch (error) {
@@ -926,8 +976,8 @@ export async function upsertBannerAction(formData: FormData) {
     is_enabled: isEnabled
   };
   if (!payload.title || !payload.body) messageRedirect(returnTo, "error", "Banner title and body are required.");
-  if (payload.is_enabled && image_variants.length < BANNER_IMAGE_SLOTS.length && (!payload.image || !payload.laptop_image || !payload.mobile_image)) {
-    messageRedirect(returnTo, "error", "A live banner requires responsive variants. Upload all seven production sizes or keep the legacy wide, mid, and tall fallbacks.");
+  if (payload.is_enabled && !payload.image) {
+    messageRedirect(returnTo, "error", "A live banner requires a master banner image.");
   }
   try {
     if (id) {

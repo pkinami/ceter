@@ -16,7 +16,8 @@ export default async function OrdersPage({ searchParams }: { searchParams: Promi
     <>
       <PageHeader title="Orders" copy="Real order lifecycle records with persisted status changes and purchase-time item prices." />
       <form className="admin-toolbar" action="/admin/orders">
-        <select className="admin-input" name="status" defaultValue={status ?? "all"}>
+        <label className="sr-only" htmlFor="orders-status-filter">Order status filter</label>
+        <select id="orders-status-filter" className="admin-input" name="status" autoComplete="off" defaultValue={status ?? "all"}>
           <option value="all">All statuses</option>
           {statuses.map((item) => <option key={item} value={item}>{item}</option>)}
         </select>
@@ -42,7 +43,8 @@ export default async function OrdersPage({ searchParams }: { searchParams: Promi
               <td>
                 <form action={updateOrderStatusAction} className="flex gap-2">
                   <input type="hidden" name="id" value={order.id} />
-                  <select className="admin-input" name="status" defaultValue={order.status}>
+                  <label className="sr-only" htmlFor={`order-status-${order.id}`}>Order status</label>
+                  <select id={`order-status-${order.id}`} className="admin-input" name="status" autoComplete="off" defaultValue={order.status}>
                     {statuses.map((item) => <option key={item} value={item}>{item}</option>)}
                   </select>
                   <button className="btn-lite">Save</button>

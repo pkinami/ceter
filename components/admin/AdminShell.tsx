@@ -94,7 +94,8 @@ export function AdminShell({ children, session }: AdminShellProps) {
         <div className="admin-global-zone">
           <form action="/admin/products" className="admin-global-search">
             <Search className="admin-search-symbol" />
-            <input name="q" placeholder="Search products, SKU, MPN, brand or category" />
+            <label className="sr-only" htmlFor="admin-global-product-search">Search products</label>
+            <input id="admin-global-product-search" name="q" type="search" autoComplete="off" placeholder="Search products, SKU, MPN, brand or category" />
           </form>
           <div className="admin-top-spacer" />
           <label className="admin-collapse-option" title="Auto-collapse sidebar">

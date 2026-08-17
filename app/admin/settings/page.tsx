@@ -27,7 +27,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
           {deliveryFees.map((region) => (
             <label key={region.value} className="grid gap-2 rounded-md border border-line bg-white p-3 text-xs font-semibold">
               <span>{region.label}</span>
-              <input className="admin-input" name={`delivery_fee_${region.value}`} type="number" min={0} step={1} defaultValue={region.feeKes} />
+              <input className="admin-input" name={`delivery_fee_${region.value}`} type="number" autoComplete="off" min={0} step={1} defaultValue={region.feeKes} />
               <span className="text-slate-500">Currently {formatKes(region.feeKes)}</span>
               <span className="flex items-center gap-2">
                 <input type="checkbox" name={`delivery_enabled_${region.value}`} defaultChecked={region.isEnabled} />

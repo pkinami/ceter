@@ -235,9 +235,26 @@ function mapDbBanner(banner: DbBanner): Banner {
     laptopImage: images.laptopImage,
     mobileImage: images.mobileImage,
     imageVariants: normalizeBannerImageVariants("image_variants" in banner ? banner.image_variants : []),
+    focalPoint: bannerFocalPoint("image_variants" in banner ? banner.image_variants : []),
     placement: banner.placement,
     categoryId: banner.category_id,
     sortOrder: banner.sort_order
+  };
+}
+
+function bannerFocalPoint(value: unknown) {
+  if (!Array.isArray(value)) return undefined;
+  const master = value.find((item) => item && typeof item === "object" && (item as Record<string, unknown>).slot === "master");
+  if (!master || typeof master !== "object") return undefined;
+  const record = master as Record<string, unknown>;
+  const x = Number(record.focalX);
+  const y = Number(record.focalY);
+  const mode: "left" | "center" | "right" | "custom" = record.focalMode === "left" || record.focalMode === "right" || record.focalMode === "custom" ? record.focalMode : "center";
+  return {
+    x: Number.isFinite(x) ? Math.min(100, Math.max(0, x)) : mode === "left" ? 25 : mode === "right" ? 75 : 50,
+    y: Number.isFinite(y) ? Math.min(100, Math.max(0, y)) : 50,
+    mode,
+    crop: typeof record.crop === "string" ? record.crop : null
   };
 }
 

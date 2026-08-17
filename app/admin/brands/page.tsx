@@ -18,9 +18,12 @@ export default async function BrandsPage({ searchParams }: Props) {
       <Card title="Create / Update Brand">
         <form action={upsertBrandAction} className="grid gap-3 p-4 md:grid-cols-4">
           <input type="hidden" name="return_to" value="/admin/brands" />
-          <input className="admin-input" name="name" placeholder="Brand name" required />
-          <input className="admin-input" name="slug" placeholder="slug (auto-normalized)" />
-          <input className="admin-input" name="icon" placeholder="/brands/hp.svg or local asset" />
+          <label className="sr-only" htmlFor="brand-name">Brand name</label>
+          <input id="brand-name" className="admin-input" name="name" autoComplete="organization" placeholder="Brand or business name" required />
+          <label className="sr-only" htmlFor="brand-slug">Brand slug</label>
+          <input id="brand-slug" className="admin-input" name="slug" autoComplete="off" placeholder="slug (auto-normalized)" />
+          <label className="sr-only" htmlFor="brand-icon">Brand icon URL</label>
+          <input id="brand-icon" className="admin-input" name="icon" autoComplete="off" placeholder="/brands/hp.svg or local asset" />
           <input className="admin-input" name="icon_file" type="file" accept="image/*" />
           <FormSubmitButton className="btn-dark md:col-span-4" pendingText="Saving brand...">Save Brand</FormSubmitButton>
         </form>
@@ -43,9 +46,12 @@ export default async function BrandsPage({ searchParams }: Props) {
                     <input type="hidden" name="id" value={brand.id} />
                     <input type="hidden" name="return_to" value="/admin/brands" />
                     <input type="hidden" name="existing_icon" value={brand.icon ?? ""} />
-                    <input className="admin-input" name="name" defaultValue={brand.name} required />
-                    <input className="admin-input" name="slug" defaultValue={brand.slug} required />
-                    <input className="admin-input" name="icon" defaultValue={brand.icon ?? ""} placeholder="Icon URL" />
+                    <label className="sr-only" htmlFor={`brand-name-${brand.id}`}>Brand name</label>
+                    <input id={`brand-name-${brand.id}`} className="admin-input" name="name" autoComplete="organization" defaultValue={brand.name} required />
+                    <label className="sr-only" htmlFor={`brand-slug-${brand.id}`}>Brand slug</label>
+                    <input id={`brand-slug-${brand.id}`} className="admin-input" name="slug" autoComplete="off" defaultValue={brand.slug} required />
+                    <label className="sr-only" htmlFor={`brand-icon-${brand.id}`}>Brand icon URL</label>
+                    <input id={`brand-icon-${brand.id}`} className="admin-input" name="icon" autoComplete="off" defaultValue={brand.icon ?? ""} placeholder="Icon URL" />
                     <input className="admin-input" name="icon_file" type="file" accept="image/*" />
                     <div className="flex flex-wrap gap-2">
                       <FormSubmitButton className="btn-dark" pendingText="Updating...">Update</FormSubmitButton>

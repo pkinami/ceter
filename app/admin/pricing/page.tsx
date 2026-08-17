@@ -11,7 +11,8 @@ export default async function PricingPage({ searchParams }: { searchParams: Prom
     <>
       <PageHeader title="Pricing & Cost" copy="Inline edits write to product prices, price history and storefront cache." />
       <form className="admin-toolbar" action="/admin/pricing">
-        <input className="admin-input min-w-64" name="q" defaultValue={searchParam(params.q) ?? ""} placeholder="Search product, SKU or MPN" />
+        <label className="sr-only" htmlFor="pricing-search">Search pricing records</label>
+        <input id="pricing-search" className="admin-input min-w-64" name="q" type="search" autoComplete="off" defaultValue={searchParam(params.q) ?? ""} placeholder="Search product, SKU, or MPN" />
         <button className="btn-dark">Search</button>
       </form>
       <Table headers={["Product", "SKU / MPN", "Brand", "Category", "Cost Price", "Selling Price", "Margin", "Stock", "Action"]} minWidth={1040}>
@@ -27,8 +28,8 @@ export default async function PricingPage({ searchParams }: { searchParams: Prom
               <td colSpan={2}>
                 <form action={updateProductPricingAction} className="flex flex-wrap gap-2">
                   <input type="hidden" name="id" value={product.id} />
-                  <input className="admin-input w-28" type="number" min={0} name="cost_price_kes" defaultValue={product.cost_price_kes ?? ""} aria-label="Cost price" />
-                  <input className="admin-input w-28" type="number" min={0} name="price_kes" defaultValue={product.price_kes} aria-label="Selling price" />
+                  <input className="admin-input w-28" type="number" autoComplete="off" min={0} name="cost_price_kes" defaultValue={product.cost_price_kes ?? ""} aria-label="Cost price" />
+                  <input className="admin-input w-28" type="number" autoComplete="off" min={0} name="price_kes" defaultValue={product.price_kes} aria-label="Selling price" />
                   <button className="btn-lite">Save</button>
                 </form>
               </td>

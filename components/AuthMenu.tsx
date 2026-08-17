@@ -63,11 +63,11 @@ export function AuthMenu() {
   }
 
   if (!initialized) {
-    return <span className="h-10 w-20 rounded-md border border-slate-200 bg-slate-100" aria-hidden="true" />;
+    return <span className="h-11 w-20 rounded-md border border-slate-200 bg-slate-100" aria-hidden="true" />;
   }
 
   if (!email) {
-    return <Link href="/login" className="h-10 rounded-md border border-slate-300 px-3 py-2 text-sm font-bold text-ink hover:bg-slate-50">Sign in</Link>;
+    return <Link href="/login" className="inline-flex min-h-11 items-center rounded-md border border-slate-300 px-3 py-2 text-sm font-bold text-ink hover:bg-slate-50">Sign in</Link>;
   }
 
   return (
@@ -75,7 +75,7 @@ export function AuthMenu() {
       <button
         type="button"
         onClick={() => setOpen((value) => !value)}
-        className="flex h-10 w-10 items-center justify-center rounded-md bg-ink text-sm font-black text-white"
+        className="flex h-11 w-11 items-center justify-center rounded-md bg-ink text-sm font-black text-white"
         aria-label="Account menu"
       >
         {initials(profile?.full_name, email)}

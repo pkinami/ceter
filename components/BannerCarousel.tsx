@@ -201,6 +201,7 @@ function BannerImage({ banner, imageClass, reduceMotion, active }: { banner: Ban
 
   const useResponsiveSources = Boolean(manifestBanner && imageMode === "responsive");
   const priority = manifestBanner?.priority ?? "lazy";
+  const focalPosition = banner.focalPoint ? `${banner.focalPoint.x}% ${banner.focalPoint.y}%` : "center";
 
   return (
     <picture className="absolute inset-0 z-0 block h-full w-full overflow-hidden bg-ink">
@@ -233,6 +234,7 @@ function BannerImage({ banner, imageClass, reduceMotion, active }: { banner: Ban
           setImageMode(useResponsiveSources && failedUrl !== new URL(fallbackImage, window.location.href).href ? "fallback" : "hidden");
         }}
         className={cn("absolute inset-0 h-full w-full transform-gpu object-cover object-center [backface-visibility:hidden] will-change-transform", imageClass)}
+        style={{ objectPosition: focalPosition }}
         loading={priority === "high" ? "eager" : "lazy"}
         fetchPriority={priority === "high" ? "high" : "auto"}
         decoding="async"

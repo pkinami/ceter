@@ -14,7 +14,8 @@ export default async function PaymentsPage({ searchParams }: { searchParams: Pro
     <>
       <PageHeader title="Payments" copy="PaymentTransaction records for M-Pesa Daraja, Pesapal/card and Pay on Delivery providers. Secrets are never rendered." />
       <form className="admin-toolbar" action="/admin/payments">
-        <select className="admin-input" name="status" defaultValue={status ?? "all"}>
+        <label className="sr-only" htmlFor="payments-status-filter">Payment status filter</label>
+        <select id="payments-status-filter" className="admin-input" name="status" autoComplete="off" defaultValue={status ?? "all"}>
           <option value="all">All statuses</option>
           {statuses.map((item) => <option key={item} value={item}>{item}</option>)}
         </select>

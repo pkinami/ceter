@@ -23,11 +23,11 @@ export default async function HomepagePage({ searchParams }: Props) {
           <input type="hidden" name="id" value={editing?.id ?? ""} />
           <label className="grid gap-1 text-xs font-semibold">
             Title
-            <input className="admin-input" name="title" defaultValue={editing?.title ?? ""} required />
+            <input className="admin-input" name="title" autoComplete="off" defaultValue={editing?.title ?? ""} required />
           </label>
           <label className="grid gap-1 text-xs font-semibold">
             Section type
-            <select className="admin-input" name="section_type" defaultValue={editing?.section_type ?? "category_products"}>
+            <select className="admin-input" name="section_type" autoComplete="off" defaultValue={editing?.section_type ?? "category_products"}>
               <option value="category_products">Category products</option>
               <option value="latest_products">Latest products</option>
               <option value="services">Services</option>
@@ -36,18 +36,18 @@ export default async function HomepagePage({ searchParams }: Props) {
           </label>
           <label className="grid gap-1 text-xs font-semibold">
             Category
-            <select className="admin-input" name="category_id" defaultValue={editing?.category_id ?? ""}>
+            <select className="admin-input" name="category_id" autoComplete="off" defaultValue={editing?.category_id ?? ""}>
               <option value="">No category</option>
               {categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}
             </select>
           </label>
           <label className="grid gap-1 text-xs font-semibold">
             Sort order
-            <input className="admin-input" name="sort_order" type="number" min={0} defaultValue={editing?.sort_order ?? 0} />
+            <input className="admin-input" name="sort_order" type="number" autoComplete="off" min={0} defaultValue={editing?.sort_order ?? 0} />
           </label>
           <label className="grid gap-1 text-xs font-semibold">
             Product/service limit
-            <input className="admin-input" name="product_limit" type="number" min={1} max={24} defaultValue={editing?.product_limit ?? 8} />
+            <input className="admin-input" name="product_limit" type="number" autoComplete="off" min={1} max={24} defaultValue={editing?.product_limit ?? 8} />
           </label>
           <label className="flex items-center gap-2 text-xs font-semibold">
             <input type="checkbox" name="is_enabled" defaultChecked={editing?.is_enabled ?? true} />

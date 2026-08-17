@@ -109,29 +109,29 @@ export function CheckoutForm({ defaultProfile, deliveryFees }: { defaultProfile:
           <div className="mt-5 grid gap-4 sm:grid-cols-2">
             <label className="block text-sm font-bold text-slate-700">
               Delivery name
-              <input value={name} onChange={(event) => setName(event.target.value)} className="mt-2 h-11 w-full rounded-md border border-slate-300 px-3 text-sm focus:border-signal focus:outline-none" />
+              <input id="checkout-delivery-name" name="name" autoComplete="name" placeholder="Recipient full name" value={name} onChange={(event) => setName(event.target.value)} className="mt-2 h-11 w-full rounded-md border border-slate-300 px-3 text-sm focus:border-signal focus:outline-none" />
             </label>
             <label className="block text-sm font-bold text-slate-700">
-              Phone
-              <input value={phone} onChange={(event) => setPhone(event.target.value)} className="mt-2 h-11 w-full rounded-md border border-slate-300 px-3 text-sm focus:border-signal focus:outline-none" />
+              Phone number
+              <input id="checkout-phone" name="phone" type="tel" autoComplete="tel" placeholder="Mobile number for delivery updates" value={phone} onChange={(event) => setPhone(event.target.value)} className="mt-2 h-11 w-full rounded-md border border-slate-300 px-3 text-sm focus:border-signal focus:outline-none" />
             </label>
             <label className="block text-sm font-bold text-slate-700">
-              Email
-              <input type="email" value={email} onChange={(event) => setEmail(event.target.value)} className="mt-2 h-11 w-full rounded-md border border-slate-300 px-3 text-sm focus:border-signal focus:outline-none" />
+              Email address
+              <input id="checkout-email" name="email" type="email" autoComplete="email" placeholder="Email for order updates" value={email} onChange={(event) => setEmail(event.target.value)} className="mt-2 h-11 w-full rounded-md border border-slate-300 px-3 text-sm focus:border-signal focus:outline-none" />
             </label>
             <label className="block text-sm font-bold text-slate-700">
               Delivery region
-              <select value={deliveryRegion} onChange={(event) => setDeliveryRegion(event.target.value as DeliveryRegion)} className="mt-2 h-11 w-full rounded-md border border-slate-300 bg-white px-3 text-sm focus:border-signal focus:outline-none">
+              <select id="checkout-delivery-region" name="delivery_region" autoComplete="address-level1" value={deliveryRegion} onChange={(event) => setDeliveryRegion(event.target.value as DeliveryRegion)} className="mt-2 h-11 w-full rounded-md border border-slate-300 bg-white px-3 text-sm focus:border-signal focus:outline-none">
                 {deliveryFees.map((region) => <option key={region.value} value={region.value} disabled={!region.isEnabled}>{region.label} - {region.isEnabled ? formatKes(region.feeKes) : "Unavailable"}</option>)}
               </select>
             </label>
             <label className="block text-sm font-bold text-slate-700 sm:col-span-2">
-              Location / address details
-              <input value={deliveryLocation} onChange={(event) => setDeliveryLocation(event.target.value)} placeholder="Estate, building, road, town, or pickup point details" className="mt-2 h-11 w-full rounded-md border border-slate-300 px-3 text-sm focus:border-signal focus:outline-none" />
+              Delivery address
+              <input id="checkout-delivery-location" name="delivery_location" autoComplete="street-address" value={deliveryLocation} onChange={(event) => setDeliveryLocation(event.target.value)} placeholder="Street, building, estate, town, or pickup point" className="mt-2 h-11 w-full rounded-md border border-slate-300 px-3 text-sm focus:border-signal focus:outline-none" />
             </label>
             <label className="block text-sm font-bold text-slate-700 sm:col-span-2">
               Delivery instructions
-              <textarea value={deliveryInstructions} onChange={(event) => setDeliveryInstructions(event.target.value)} rows={3} className="mt-2 w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-signal focus:outline-none" />
+              <textarea id="checkout-delivery-instructions" name="delivery_instructions" autoComplete="off" value={deliveryInstructions} onChange={(event) => setDeliveryInstructions(event.target.value)} placeholder="Gate code, floor, landmark, or preferred delivery time" rows={3} className="mt-2 w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-signal focus:outline-none" />
             </label>
           </div>
         ) : null}
@@ -172,9 +172,13 @@ export function CheckoutForm({ defaultProfile, deliveryFees }: { defaultProfile:
           <label className="mt-5 block text-sm font-bold text-slate-700">
             M-Pesa phone number
             <input
+              id="checkout-mpesa-phone"
+              name="mpesa_phone"
+              type="tel"
+              autoComplete="tel"
               value={phone}
               onChange={(event) => setPhone(event.target.value)}
-              placeholder="07XXXXXXXX"
+              placeholder="07XX XXX XXX"
               className="mt-2 h-11 w-full rounded-md border border-slate-300 px-3 text-sm focus:border-signal focus:outline-none"
             />
           </label>
@@ -183,7 +187,7 @@ export function CheckoutForm({ defaultProfile, deliveryFees }: { defaultProfile:
           type="button"
           disabled={loading || !items.length}
           onClick={submit}
-          className="mt-6 h-11 rounded-md bg-signal px-5 text-sm font-bold text-white hover:bg-teal-700 disabled:cursor-not-allowed disabled:opacity-60"
+          className="mt-6 min-h-11 w-full rounded-md bg-signal px-5 text-sm font-bold text-white hover:bg-teal-700 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
         >
           {loading ? "Placing order..." : method === "mpesa" ? "Pay with M-Pesa" : method === "card" ? "Continue to card payment" : "Confirm Pay on Delivery order"}
         </button>
@@ -198,7 +202,7 @@ export function CheckoutForm({ defaultProfile, deliveryFees }: { defaultProfile:
         <div className="mt-4 space-y-3 text-sm">
           {items.map((item) => (
             <div key={item.product.id} className="flex justify-between gap-3">
-              <span>{item.product.name} x {item.quantity}</span>
+              <span className="min-w-0 break-words">{item.product.name} x {item.quantity}</span>
               <strong>{formatKes(item.product.price * item.quantity)}</strong>
             </div>
           ))}

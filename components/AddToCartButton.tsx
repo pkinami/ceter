@@ -1,6 +1,6 @@
 "use client";
 
-import { ReactNode, useState } from "react";
+import { MouseEvent, ReactNode, useState } from "react";
 import { Check } from "lucide-react";
 import { toast } from "sonner";
 import { LoadingSpinner } from "@/components/LoadingSpinner";
@@ -22,7 +22,8 @@ export function AddToCartButton({
   const { addItem } = useCart();
   const [state, setState] = useState<"idle" | "loading" | "success">("idle");
 
-  async function click() {
+  async function click(event: MouseEvent<HTMLButtonElement>) {
+    event.stopPropagation();
     setState("loading");
     try {
       await addItem(product, quantity);

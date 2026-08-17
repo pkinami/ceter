@@ -31,7 +31,7 @@ export function CartView() {
           ) : null}
           {items.map(({ product, quantity }) => (
             <div key={product.id} className="grid gap-4 p-4 sm:grid-cols-[96px_1fr_auto]">
-              <div className="relative h-24 rounded-md bg-panel">
+              <div className="relative h-28 w-full rounded-md bg-panel sm:h-24">
                 {product.image ? (
                   <Image src={product.image} alt={product.name} fill className="object-contain p-2" />
                 ) : (
@@ -45,11 +45,11 @@ export function CartView() {
                 <p className="text-xs font-bold uppercase text-signal">{product.brand}</p>
                 <p className="mt-2 font-black">{formatKes(product.price)}</p>
               </div>
-              <div className="flex items-center gap-2">
-                <button className="rounded-md border border-slate-300 p-2 hover:bg-slate-50" onClick={() => update(product.id, quantity, -1)} aria-label="Decrease quantity"><Minus className="h-4 w-4" /></button>
+              <div className="flex flex-wrap items-center gap-2">
+                <button className="grid h-11 w-11 place-items-center rounded-md border border-slate-300 hover:bg-slate-50" onClick={() => update(product.id, quantity, -1)} aria-label="Decrease quantity"><Minus className="h-4 w-4" /></button>
                 <span className="w-8 text-center font-black">{quantity}</span>
-                <button className="rounded-md border border-slate-300 p-2 hover:bg-slate-50" onClick={() => update(product.id, quantity, 1)} aria-label="Increase quantity"><Plus className="h-4 w-4" /></button>
-                <button className="rounded-md border border-red-200 p-2 text-red-600 hover:bg-red-50" onClick={() => removeItem(product.id)} aria-label="Remove item"><Trash2 className="h-4 w-4" /></button>
+                <button className="grid h-11 w-11 place-items-center rounded-md border border-slate-300 hover:bg-slate-50" onClick={() => update(product.id, quantity, 1)} aria-label="Increase quantity"><Plus className="h-4 w-4" /></button>
+                <button className="grid h-11 w-11 place-items-center rounded-md border border-red-200 text-red-600 hover:bg-red-50" onClick={() => removeItem(product.id)} aria-label="Remove item"><Trash2 className="h-4 w-4" /></button>
               </div>
             </div>
           ))}

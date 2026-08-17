@@ -15,7 +15,8 @@ export default async function QuotesPage({ searchParams }: { searchParams: Promi
     <>
       <PageHeader title="Quotes & Tenders" copy="Real quote pipeline using new/contacted/quoted/won/closed statuses." />
       <form className="admin-toolbar" action="/admin/quotes">
-        <select className="admin-input" name="status" defaultValue={status ?? "all"}>
+        <label className="sr-only" htmlFor="quotes-status-filter">Quote status filter</label>
+        <select id="quotes-status-filter" className="admin-input" name="status" autoComplete="off" defaultValue={status ?? "all"}>
           <option value="all">All statuses</option>
           {statuses.map((item) => <option key={item} value={item}>{item}</option>)}
         </select>
@@ -34,7 +35,8 @@ export default async function QuotesPage({ searchParams }: { searchParams: Promi
             <td>
               <form action={updateQuoteStatusAction} className="flex gap-2">
                 <input type="hidden" name="id" value={quote.id} />
-                <select className="admin-input" name="status" defaultValue={quote.status}>
+                <label className="sr-only" htmlFor={`quote-status-${quote.id}`}>Quote status</label>
+                <select id={`quote-status-${quote.id}`} className="admin-input" name="status" autoComplete="off" defaultValue={quote.status}>
                   {statuses.map((item) => <option key={item} value={item}>{item}</option>)}
                 </select>
                 <button className="btn-lite">Save</button>

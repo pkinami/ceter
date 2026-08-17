@@ -28,6 +28,21 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+img,
+svg,
+video,
+canvas {
+  max-width: 100%;
+}
+
+button,
+a,
+input,
+select,
+textarea {
+  -webkit-tap-highlight-color: transparent;
+}
+
 h1,
 h2,
 h3,
@@ -48,6 +63,29 @@ input,
 select,
 textarea {
   transition: color 180ms ease, background-color 180ms ease, border-color 180ms ease, box-shadow 180ms ease, transform 180ms ease, opacity 180ms ease;
+}
+
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid #14b8a6;
+  outline-offset: 2px;
+}
+
+button,
+[role="button"],
+input:not([type="checkbox"]):not([type="radio"]),
+select,
+textarea {
+  min-height: 44px;
+}
+
+input,
+select,
+textarea {
+  max-width: 100%;
 }
 
 select {
@@ -190,6 +228,43 @@ select option:checked {
 
   .legal-document td {
     @apply border-t border-line px-4 py-3 align-top leading-6 text-slate-700 first:font-bold first:text-ink;
+  }
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .group:hover > .tooltip-label {
+    display: block;
+    opacity: 1;
+  }
+
+  .product-card:hover {
+    transform: translateY(-0.25rem);
+    box-shadow: 0 18px 36px rgba(11, 30, 57, 0.14);
+  }
+
+  .product-card:hover > .product-quick-view,
+  .product-card:focus-within > .product-quick-view {
+    display: block;
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (hover: none), (pointer: coarse) {
+  .tooltip-label,
+  .product-quick-view {
+    display: none !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: .01ms !important;
   }
 }
 
@@ -964,10 +1039,38 @@ select option:checked {
   }
 
   .admin-page-head {
-    display: block;
+    display: grid;
+    gap: 10px;
   }
 
   .admin-actions {
     margin-top: 10px;
+  }
+
+  .admin-toolbar {
+    align-items: stretch;
+  }
+
+  .admin-toolbar input,
+  .admin-toolbar select,
+  .admin-toolbar .admin-input,
+  .admin-toolbar .btn-dark,
+  .admin-toolbar .btn-lite,
+  .admin-actions .btn-dark,
+  .admin-actions .btn-lite {
+    width: 100%;
+  }
+
+  .admin-table-wrap {
+    margin-inline: -12px;
+    border-inline: 0;
+  }
+
+  .admin-ui table {
+    min-width: 680px;
+  }
+
+  .admin-card {
+    max-width: calc(100vw - 24px);
   }
 }

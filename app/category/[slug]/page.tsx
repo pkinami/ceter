@@ -48,7 +48,7 @@ export default async function CategorySlugPage({ params, searchParams }: { param
               <h1 className="text-2xl font-black text-ink">{searchQuery ? `${category.name}: "${searchQuery}"` : category.name}</h1>
               <p className="text-sm text-slate-500">{category.description ?? `${filteredProducts.length} products in this category.`}</p>
             </div>
-            <select className="h-10 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-900">
+            <select aria-label="Sort products" autoComplete="off" className="h-10 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-900">
               <option>Sort by featured</option>
               <option>Price low to high</option>
               <option>Price high to low</option>

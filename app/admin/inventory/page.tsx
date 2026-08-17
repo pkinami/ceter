@@ -14,8 +14,10 @@ export default async function InventoryPage({ searchParams }: { searchParams: Pr
     <>
       <PageHeader title="Inventory" copy="Stock quantity, status, reorder settings and movement log from PostgreSQL." />
       <form className="admin-toolbar" action="/admin/inventory">
-        <input className="admin-input min-w-64" name="q" defaultValue={searchParam(params.q) ?? ""} placeholder="Search inventory" />
-        <select className="admin-input" name="stock" defaultValue={searchParam(params.stock) ?? "all"}>
+        <label className="sr-only" htmlFor="inventory-search">Search inventory</label>
+        <input id="inventory-search" className="admin-input min-w-64" name="q" type="search" autoComplete="off" defaultValue={searchParam(params.q) ?? ""} placeholder="Search product, SKU, MPN, or slug" />
+        <label className="sr-only" htmlFor="inventory-stock">Stock filter</label>
+        <select id="inventory-stock" className="admin-input" name="stock" autoComplete="off" defaultValue={searchParam(params.stock) ?? "all"}>
           <option value="all">All stock</option>
           <option value="low">Low stock</option>
           <option value="backorder">Backorder</option>
@@ -31,9 +33,9 @@ export default async function InventoryPage({ searchParams }: { searchParams: Pr
             <td colSpan={3}>
               <form action={updateProductStockAction} className="flex flex-wrap gap-2">
                 <input type="hidden" name="id" value={product.id} />
-                <input className="admin-input w-24" type="number" min={0} name="stock_quantity" defaultValue={product.stock_quantity} aria-label="Stock quantity" />
-                <input className="admin-input w-24" type="number" min={0} name="reorder_level" defaultValue={product.reorder_level} aria-label="Reorder level" />
-                <input className="admin-input w-24" type="number" min={0} name="reorder_quantity" defaultValue={product.reorder_quantity} aria-label="Reorder quantity" />
+                <input className="admin-input w-24" type="number" autoComplete="off" min={0} name="stock_quantity" defaultValue={product.stock_quantity} aria-label="Stock quantity" />
+                <input className="admin-input w-24" type="number" autoComplete="off" min={0} name="reorder_level" defaultValue={product.reorder_level} aria-label="Reorder level" />
+                <input className="admin-input w-24" type="number" autoComplete="off" min={0} name="reorder_quantity" defaultValue={product.reorder_quantity} aria-label="Reorder quantity" />
                 <button className="btn-lite">Save</button>
               </form>
             </td>

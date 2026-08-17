@@ -45,19 +45,26 @@ export default async function CategoriesPage({ searchParams }: Props) {
           <input type="hidden" name="return_to" value="/admin/categories" />
           <input type="hidden" name="id" value={editing?.id ?? ""} />
           <input type="hidden" name="existing_image" value={editing?.image ?? ""} />
-          <input className="admin-input" name="name" placeholder="Name" defaultValue={editing?.name ?? ""} required />
-          <input className="admin-input" name="slug" placeholder="slug (auto-normalized)" defaultValue={editing?.slug ?? ""} />
-          <select className="admin-input" name="parent_id" defaultValue={editing?.parent_id ?? ""}>
+          <label className="sr-only" htmlFor="category-name">Category name</label>
+          <input id="category-name" className="admin-input" name="name" autoComplete="off" placeholder="Category name" defaultValue={editing?.name ?? ""} required />
+          <label className="sr-only" htmlFor="category-slug">Category slug</label>
+          <input id="category-slug" className="admin-input" name="slug" autoComplete="off" placeholder="slug (auto-normalized)" defaultValue={editing?.slug ?? ""} />
+          <label className="sr-only" htmlFor="category-parent">Parent category</label>
+          <select id="category-parent" className="admin-input" name="parent_id" autoComplete="off" defaultValue={editing?.parent_id ?? ""}>
             <option value="">Main category</option>
             {parentOptions.map(({ category }) => <option key={category.id} value={category.id}>{category.parent_id ? "Leaf under " : "Subcategory under "}{category.name}</option>)}
           </select>
-          <input className="admin-input" name="description" placeholder="Description" defaultValue={editing?.description ?? ""} />
-          <select className="admin-input" name="icon" defaultValue={editing?.icon ?? ""}>
+          <label className="sr-only" htmlFor="category-description">Category description</label>
+          <input id="category-description" className="admin-input" name="description" autoComplete="off" placeholder="Category description" defaultValue={editing?.description ?? ""} />
+          <label className="sr-only" htmlFor="category-icon">Category icon</label>
+          <select id="category-icon" className="admin-input" name="icon" autoComplete="off" defaultValue={editing?.icon ?? ""}>
             <option value="">No icon / child category</option>
             {Object.keys(categoryIconMap).map((icon) => <option key={icon} value={icon}>{icon}</option>)}
           </select>
-          <input className="admin-input" name="sort_order" type="number" min={0} placeholder="Sort order" defaultValue={editing?.sort_order ?? ""} />
-          <input className="admin-input md:col-span-2" name="image" placeholder="Optional category image URL or /public path" defaultValue={editing?.image ?? ""} />
+          <label className="sr-only" htmlFor="category-sort-order">Sort order</label>
+          <input id="category-sort-order" className="admin-input" name="sort_order" type="number" autoComplete="off" min={0} placeholder="Sort order" defaultValue={editing?.sort_order ?? ""} />
+          <label className="sr-only" htmlFor="category-image">Category image URL</label>
+          <input id="category-image" className="admin-input md:col-span-2" name="image" autoComplete="off" placeholder="Optional category image URL or /public path" defaultValue={editing?.image ?? ""} />
           <input className="admin-input" name="image_file" type="file" accept="image/*" />
           <div className="flex flex-wrap gap-2 md:col-span-3">
             <FormSubmitButton className="btn-dark" pendingText="Saving category...">{editing ? "Update Category" : "Save Category"}</FormSubmitButton>
@@ -68,7 +75,7 @@ export default async function CategoriesPage({ searchParams }: Props) {
       <form action="/admin/categories" className="admin-card flex flex-wrap items-end gap-3 p-4">
         <label className="min-w-72 flex-1 text-xs font-bold uppercase tracking-[0.14em] text-slate-500">
           Find categories
-          <input className="admin-input mt-2 w-full" name="q" placeholder="Search name, slug, description, or parent" defaultValue={params.q ?? ""} />
+          <input className="admin-input mt-2 w-full" name="q" type="search" autoComplete="off" placeholder="Search category name, slug, description, or parent" defaultValue={params.q ?? ""} />
         </label>
         <button className="btn-dark" type="submit">Search</button>
         {query ? <Link className="btn-lite" href="/admin/categories">Clear</Link> : null}
