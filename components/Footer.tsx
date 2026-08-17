@@ -13,15 +13,15 @@ const socials = [
 ] satisfies Array<{ label: string; icon: BrandIconName; href: string }>;
 
 const payments = [
-  { label: "M-Pesa", icon: "mpesa", className: "h-15 w-[80px]" },
-  { label: "Visa", icon: "visa", className: "h-15 w-[60px]" },
-  { label: "Mastercard", icon: "mastercard", className: "h-15 w-[50px]" },
+  { label: "M-Pesa", icon: "mpesa", className: "h-6 w-auto" },
+  { label: "Visa", icon: "visa", className: "h-6 w-auto" },
+  { label: "Mastercard", icon: "mastercard", className: "h-6 w-auto" },
 ] satisfies Array<{ label: string; icon: BrandIconName; className: string }>;
 
 const quickLinks = [
   { label: "Shop", href: "/category" },
   { label: "Service Quote", href: "/quote" },
-  { label: "About", href: "/about" },
+  { label: "About Us", href: "/about" },
   { label: "Contact", href: "mailto:info@cetertechnologies.com" }
 ];
 
@@ -63,18 +63,11 @@ export function Footer() {
               />
             </Link>
             <p className="mt-3 max-w-sm text-sm leading-6 text-slate-300">Photocopiers, printers, toners and inkjets, spare parts, and office print solutions in Nairobi.</p>
-            <div className="mt-5 flex flex-wrap items-center gap-3" aria-label="Social links">
+            <div className="mt-5 flex flex-wrap items-center gap-2.5" aria-label="Social links">
               {socials.map((social) => (
-                <a key={social.label} href={social.href} className="inline-flex h-9 w-9 items-center justify-center rounded-md text-slate-200 transition hover:-translate-y-0.5 hover:text-white" aria-label={social.label} title={social.label}>
-                  <BrandIcon name={social.icon} label={social.label} size={24} className="h-6 w-6" />
+                <a key={social.label} href={social.href} className="inline-flex h-8 w-8 items-center justify-center rounded-md text-slate-200 transition hover:-translate-y-0.5 hover:text-white" aria-label={social.label} title={social.label}>
+                  <BrandIcon name={social.icon} label={social.label} size={20} className="h-5 w-5" />
                 </a>
-              ))}
-            </div>
-            <div className="mt-5 flex flex-wrap items-center gap-x-5 gap-y-3 border-t border-white/10 pt-5" aria-label="Accepted payment methods">
-              {payments.map((payment) => (
-                <span key={payment.label} className="inline-flex h-9 items-center justify-center rounded bg-white px-2 shadow-sm" title={payment.label}>
-                  <BrandIcon name={payment.icon} label={payment.label} size={80} className={payment.className} />
-                </span>
               ))}
             </div>
           </div>
@@ -99,14 +92,25 @@ export function Footer() {
               <a href="mailto:info@cetertechnologies.com" className="flex items-center gap-2 hover:text-signal"><BrandIcon name="email" label="Email" size={18} className="h-4 w-4" /> info@cetertechnologies.com</a>
               <p className="flex items-center gap-2"><MapPin className="h-4 w-4 text-signal" /> Nairobi, Kenya</p>
             </div>
+            <div className="mt-6" aria-label="Accepted payment methods">
+              <h4 className="text-sm font-black uppercase text-white">Accepted Payment Methods</h4>
+              <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-3">
+                {payments.map((payment) => (
+                  <span key={payment.label} className="inline-flex h-7 items-center justify-center" title={payment.label}>
+                    <BrandIcon name={payment.icon} label={payment.label} size={58} className={payment.className} />
+                  </span>
+                ))}
+              </div>
+            </div>
           </div>
         </div>
       </section>
       <div className="border-t border-white/10">
         <div className="mx-auto flex max-w-7xl flex-col gap-3 px-4 py-5 text-sm text-slate-400 md:flex-row md:items-center md:justify-between">
-          <div className="flex flex-wrap gap-2">
-            <Link href="/privacy-policy" className="rounded-md border border-white/10 px-3 py-2 font-semibold text-slate-300 hover:border-signal hover:bg-white/5 hover:text-signal">Privacy Policy</Link>
-            <Link href="/terms-conditions" className="rounded-md border border-white/10 px-3 py-2 font-semibold text-slate-300 hover:border-signal hover:bg-white/5 hover:text-signal">Terms and Conditions</Link>
+          <div className="flex flex-wrap items-center gap-2">
+            <Link href="/privacy-policy" className="text-slate-300 hover:text-signal">Privacy Policy</Link>
+            <span className="text-slate-500">|</span>
+            <Link href="/terms-conditions" className="text-slate-300 hover:text-signal">Terms and Conditions</Link>
           </div>
           <p>&copy; 2026 Ceter Technologies Limited. All rights reserved.</p>
         </div>
