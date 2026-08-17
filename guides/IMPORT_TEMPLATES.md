@@ -26,7 +26,7 @@ Accepted optional values:
 - `cost_price_kes`, `supplier_lead_time_days`, `reorder_level`, `reorder_quantity`, `stock_quantity`: whole numbers. Blank `reorder_level`, `reorder_quantity`, and `stock_quantity` default to `0`.
 - `condition`: `new` or `refurbished`. Blank defaults to `new`.
 - `stock_status`: `in_stock`, `backorder`, or `out_of_stock`. Blank defaults to `in_stock`.
-- `images`: 1-3 public `http` or `https` image URLs separated by semicolons. During confirmed import the server downloads each image, validates status, content type and size, uploads it to Supabase Storage, and stores the resulting project-owned storage URL. Blank uses `/product-placeholder.svg`.
+- `images`: 1-3 public `http` or `https` image URLs separated by semicolons. During confirmed import the server downloads each image, validates status, content type and size, uploads it to Supabase Storage, and stores the resulting project-owned storage URL. Blank stores no product images.
 - `specs`: semicolon-separated `Key: Value` pairs, for example `Speed: 40ppm; Paper size: A4`.
 - `is_featured`: `true`/`false`, `yes`/`no`, `1`/`0`, or blank. Blank defaults to `false`.
 - `is_published`: `true`/`false`, `yes`/`no`, `1`/`0`, or blank. Blank defaults to `true`.
@@ -37,7 +37,7 @@ Template: `public/templates/ceter-categories-import-template-v2.xlsx`
 
 Required columns:
 
-`name`, `slug`, `parent_slug`, `description`, `icon`, `image`, `sort_order`
+`name`, `slug`, `parent_slug`, `description`, `icon`, `sort_order`
 
 Required values:
 
@@ -51,12 +51,12 @@ Hierarchy rules:
 - Supported depth is root > subcategory > sub-subcategory.
 - `parent_slug` cannot point to the same row and cannot point to a sub-subcategory.
 - Only siblings under the same parent are ordered together.
+- The application predefines these parent category slugs: `printers-and-photocopiers`, `toner-ink-and-consumables`, `printer-parts-and-accessories`, `barcode-pos-and-id-solutions`, and `office-equipment-and-services`.
 
 Accepted optional values:
 
 - `description`: plain category description.
-- `icon`: icon text or image URL matching the manual category form.
-- `image`: 1-3 URLs or paths separated by semicolons. The first image is stored as the category image.
+- `icon`: parent category icon identifier. Built-in icon identifiers are `Printer`, `Tags`, `Settings`, `Barcode`, and `Wrench`. Child categories can leave this blank.
 - `sort_order`: whole number used to order siblings. Blank defaults to `0`.
 
 ## Product Image Storage

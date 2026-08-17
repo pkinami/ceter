@@ -1,36 +1,39 @@
 import { cache } from "react";
-import { createClient } from "@/lib/supabase/server";
-import { getStaticCategoryBanners, getStaticHomepageBanners } from "@/lib/banner-assets";
-import { categoryAndDescendantKeys, flattenCategoryTree } from "@/lib/category-tree";
+import { normalizeBannerImageVariants, normalizePublicAssetUrl } from "@/lib/banner-schema";
+import { categoryAndDescendantKeys } from "@/lib/category-tree";
 import { prisma } from "@/lib/prisma";
 import { mapProduct } from "@/lib/product-mappers";
+import { PUBLIC_PRODUCT_WHERE } from "@/lib/seo";
 import type { Banner, Brand, Category, HomepageSection, Product, ProductRow, ServiceEntry } from "@/lib/types";
 
-const productSelect = [
-  "id",
-  "slug",
-  "name",
-  "description",
-  "category_id",
-  "brand_id",
-  "price_kes",
-  "condition",
-  "stock_status",
-  "stock_quantity",
-  "images",
-  "specs",
-  "is_featured",
-  "categories(id,name,slug)",
-  "brands(id,name,slug)",
-  "price_history(price_kes,effective_from,effective_to)"
-].join(",");
+async function prismaRead<T>(operation: () => Promise<T>): Promise<T> {
+  let lastError: unknown;
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      return await operation();
+    } catch (error) {
+      lastError = error;
+      if (!isTransientPrismaReadError(error) || attempt === 2) break;
+      await prisma.$disconnect().catch(() => undefined);
+      await new Promise((resolve) => setTimeout(resolve, 500 * (attempt + 1)));
+    }
+  }
+  throw lastError;
+}
+
+function isTransientPrismaReadError(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error);
+  const code = typeof error === "object" && error && "code" in error ? String(error.code) : "";
+  return code === "P2039" || /EAUTHTIMEOUT|timeout while waiting|timeout exceeded|Connection terminated|Can't reach database|ECONNRESET|ETIMEDOUT/i.test(message);
+}
 
 export const getCategories = cache(async function getCategories(): Promise<Category[]> {
-  const supabase = await createClient();
-  try {
-    const { data, error } = await supabase.from("categories").select("id,name,slug,description,icon,parent_id,sort_order").order("sort_order").order("name");
-    if (error) throw error;
-    return (data ?? []).map((category) => ({
+  const categories = await prismaRead(() => prisma.category.findMany({
+    select: { id: true, name: true, slug: true, description: true, icon: true, parent_id: true, sort_order: true },
+    orderBy: [{ sort_order: "asc" }, { name: "asc" }]
+  }));
+
+  return categories.map((category) => ({
       id: category.id,
       name: category.name,
       slug: category.slug,
@@ -38,39 +41,69 @@ export const getCategories = cache(async function getCategories(): Promise<Categ
       icon: category.icon,
       parentId: category.parent_id,
       sortOrder: category.sort_order ?? 0
-    }));
-  } catch {
-    return fallbackCategories;
-  }
+  }));
 });
 
 export const getBrands = cache(async function getBrands(): Promise<Brand[]> {
-  const supabase = await createClient();
-  try {
-    const { data, error } = await supabase.from("brands").select("id,name,slug,icon").order("name");
-    if (error) throw error;
-    return data ?? [];
-  } catch {
-    return [];
-  }
+  return prismaRead(() => prisma.brand.findMany({
+    select: { id: true, name: true, slug: true, icon: true },
+    orderBy: { name: "asc" }
+  }));
 });
 
-export const getProducts = cache(async function getProducts(options?: { featured?: boolean; category?: string | null; brand?: string | null; limit?: number }): Promise<Product[]> {
-  const supabase = await createClient();
-  let query = supabase.from("products").select(productSelect).eq("is_published", true).order("is_featured", { ascending: false }).order("created_at", { ascending: false });
-  if (options?.featured) query = query.eq("is_featured", true);
-  if (options?.limit) query = query.limit(options.limit);
+export const getProducts = cache(async function getProducts(options?: { featured?: boolean; category?: string | null; brand?: string | null; q?: string | null; limit?: number }): Promise<Product[]> {
+  const query = options?.q?.trim();
+  const data = await prismaRead(() => prisma.product.findMany({
+    where: {
+      ...PUBLIC_PRODUCT_WHERE,
+      is_featured: options?.featured ? true : undefined,
+      ...(query
+        ? {
+            OR: [
+              { name: { contains: query, mode: "insensitive" } },
+              { description: { contains: query, mode: "insensitive" } },
+              { sku: { contains: query, mode: "insensitive" } },
+              { mpn: { contains: query, mode: "insensitive" } },
+              { brand: { is: { name: { contains: query, mode: "insensitive" } } } },
+              { category: { is: { name: { contains: query, mode: "insensitive" } } } },
+              { category: { is: { slug: { contains: query, mode: "insensitive" } } } }
+            ]
+          }
+        : {})
+    },
+    include: {
+      category: { select: { id: true, name: true, slug: true } },
+      brand: { select: { id: true, name: true, slug: true } },
+      price_history: { select: { price_kes: true, effective_from: true, effective_to: true } }
+    },
+    orderBy: [{ is_featured: "desc" }, { created_at: "desc" }],
+    take: options?.limit
+  }));
 
-  let data: unknown[] | null;
-  try {
-    const result = await query;
-    if (result.error) throw result.error;
-    data = result.data;
-  } catch {
-    return [];
-  }
-
-  let products = ((data ?? []) as unknown as ProductRow[]).map(mapProduct);
+  let products = data.map((product) => mapProduct({
+    id: product.id,
+    slug: product.slug,
+    name: product.name,
+    description: product.description,
+    category_id: product.category_id,
+    brand_id: product.brand_id,
+    price_kes: product.price_kes,
+    condition: product.condition,
+    stock_status: product.stock_status,
+    stock_quantity: product.stock_quantity,
+    images: product.images,
+    specs: product.specs,
+    is_featured: product.is_featured,
+    show_offer_badge: product.show_offer_badge,
+    show_flash_sale_badge: product.show_flash_sale_badge,
+    categories: product.category,
+    brands: product.brand,
+    price_history: product.price_history.map((price) => ({
+      price_kes: price.price_kes,
+      effective_from: price.effective_from.toISOString(),
+      effective_to: price.effective_to?.toISOString() ?? null
+    }))
+  } satisfies ProductRow));
   if (options?.category) {
     const categories = await getCategories();
     products = filterProductsByCategory(products, categories, options.category);
@@ -83,14 +116,39 @@ export const getProducts = cache(async function getProducts(options?: { featured
 });
 
 export const getProductBySlug = cache(async function getProductBySlug(slug: string): Promise<Product | null> {
-  const supabase = await createClient();
-  try {
-    const { data, error } = await supabase.from("products").select(productSelect).eq("slug", slug).eq("is_published", true).maybeSingle();
-    if (error) throw error;
-    return data ? mapProduct(data as unknown as ProductRow) : null;
-  } catch {
-    return null;
-  }
+  const product = await prismaRead(() => prisma.product.findFirst({
+    where: { slug, ...PUBLIC_PRODUCT_WHERE },
+    include: {
+      category: { select: { id: true, name: true, slug: true } },
+      brand: { select: { id: true, name: true, slug: true } },
+      price_history: { select: { price_kes: true, effective_from: true, effective_to: true } }
+    }
+  }));
+  if (!product) return null;
+  return mapProduct({
+    id: product.id,
+    slug: product.slug,
+    name: product.name,
+    description: product.description,
+    category_id: product.category_id,
+    brand_id: product.brand_id,
+    price_kes: product.price_kes,
+    condition: product.condition,
+    stock_status: product.stock_status,
+    stock_quantity: product.stock_quantity,
+    images: product.images,
+    specs: product.specs,
+    is_featured: product.is_featured,
+    show_offer_badge: product.show_offer_badge,
+    show_flash_sale_badge: product.show_flash_sale_badge,
+    categories: product.category,
+    brands: product.brand,
+    price_history: product.price_history.map((price) => ({
+      price_kes: price.price_kes,
+      effective_from: price.effective_from.toISOString(),
+      effective_to: price.effective_to?.toISOString() ?? null
+    }))
+  });
 });
 
 export async function getRelatedProducts(product: Product): Promise<Product[]> {
@@ -99,24 +157,22 @@ export async function getRelatedProducts(product: Product): Promise<Product[]> {
 }
 
 export const getCategoryBySlug = cache(async function getCategoryBySlug(slug: string): Promise<Category | null> {
-  const supabase = await createClient();
-  try {
-    const { data, error } = await supabase.from("categories").select("id,name,slug,description,icon,parent_id,sort_order").eq("slug", slug).maybeSingle();
-    if (error) throw error;
-    return data
-      ? {
-          id: data.id,
-          name: data.name,
-          slug: data.slug,
-          description: data.description,
-          icon: data.icon,
-          parentId: data.parent_id,
-          sortOrder: data.sort_order ?? 0
-        }
-      : null;
-  } catch {
-    return fallbackCategories.find((category) => category.slug === slug) ?? null;
-  }
+  const category = await prismaRead(() => prisma.category.findUnique({
+    where: { slug },
+    select: { id: true, name: true, slug: true, description: true, icon: true, parent_id: true, sort_order: true }
+  }));
+
+  return category
+    ? {
+        id: category.id,
+        name: category.name,
+        slug: category.slug,
+        description: category.description,
+        icon: category.icon,
+        parentId: category.parent_id,
+        sortOrder: category.sort_order ?? 0
+      }
+    : null;
 });
 
 type HomepageBannerGroups = {
@@ -126,21 +182,88 @@ type HomepageBannerGroups = {
 };
 
 export async function getHomepageBanners(): Promise<HomepageBannerGroups> {
-  return getStaticHomepageBanners();
+  if (isProductionBuild()) return emptyHomepageBanners();
+  const banners = await prismaRead(() => prisma.banner.findMany({
+    where: { is_enabled: true },
+    include: { category: true },
+    orderBy: [{ placement: "asc" }, { sort_order: "asc" }, { title: "asc" }]
+  }));
+  if (!banners.length) return emptyHomepageBanners();
+  const main = banners.filter((banner) => banner.placement === "main").slice(0, 5).map(mapDbBanner);
+  const services = banners.filter((banner) => banner.placement === "services").map(mapDbBanner);
+
+  return {
+    main,
+    category: banners.filter((banner) => banner.placement === "category").reduce<Record<string, Banner[]>>((groups, banner) => {
+      const key = banner.category?.slug;
+      if (!key) return groups;
+      groups[key] = [...(groups[key] ?? []), mapDbBanner(banner)];
+      return groups;
+    }, {}),
+    services
+  };
 }
 
 export async function getCategoryBanners(categorySlug: string): Promise<Banner[]> {
-  return getStaticCategoryBanners(categorySlug);
+  if (isProductionBuild()) return [];
+  const banners = await prismaRead(() => prisma.banner.findMany({
+    where: { is_enabled: true, placement: "category", category: { slug: categorySlug } },
+    include: { category: true },
+    orderBy: [{ sort_order: "asc" }, { title: "asc" }]
+  }));
+  return banners.map(mapDbBanner);
+}
+
+type DbBanner = Awaited<ReturnType<typeof prisma.banner.findMany>>[number] & {
+  category?: { slug: string } | null;
+};
+
+function mapDbBanner(banner: DbBanner): Banner {
+  const images = resolveDbBannerImages(banner);
+
+  return {
+    id: banner.id,
+    title: banner.title,
+    kicker: banner.kicker,
+    body: banner.body,
+    alt: banner.title,
+    ctaLabel: banner.cta_label,
+    ctaHref: banner.cta_href,
+    secondaryCtaLabel: null,
+    secondaryCtaHref: null,
+    image: images.image,
+    laptopImage: images.laptopImage,
+    mobileImage: images.mobileImage,
+    imageVariants: normalizeBannerImageVariants("image_variants" in banner ? banner.image_variants : []),
+    placement: banner.placement,
+    categoryId: banner.category_id,
+    sortOrder: banner.sort_order
+  };
+}
+
+function resolveDbBannerImages(banner: DbBanner) {
+  return {
+    image: bannerAssetUrlOrNull(banner.image),
+    laptopImage: bannerAssetUrlOrNull("laptop_image" in banner && typeof banner.laptop_image === "string" ? banner.laptop_image : null),
+    mobileImage: bannerAssetUrlOrNull(banner.mobile_image)
+  };
+}
+
+function bannerAssetUrlOrNull(value: string | null | undefined) {
+  const normalized = normalizePublicAssetUrl(value);
+  if (!normalized) return null;
+  if (normalized.startsWith("/banners/") || /^https?:\/\//i.test(normalized)) return normalized;
+  return null;
 }
 
 export async function getServices(limit?: number): Promise<ServiceEntry[]> {
   if (isProductionBuild()) return [];
-  if (!(await hasPublicTable("service_entries"))) return fallbackServices.slice(0, limit);
-  const services = await prisma.serviceEntry.findMany({
+  if (!(await hasPublicTable("service_entries"))) return [];
+  const services = await prismaRead(() => prisma.serviceEntry.findMany({
     where: { is_enabled: true },
     orderBy: [{ sort_order: "asc" }, { title: "asc" }],
     take: limit
-  }).catch(() => []);
+  }));
 
   return services.map((service) => ({
     id: service.id,
@@ -156,11 +279,11 @@ export async function getServices(limit?: number): Promise<ServiceEntry[]> {
 export async function getHomepageSections(): Promise<HomepageSection[]> {
   if (isProductionBuild()) return [];
   if (!(await hasPublicTable("homepage_sections"))) return [];
-  const sections = await prisma.homepageSection.findMany({
+  const sections = await prismaRead(() => prisma.homepageSection.findMany({
     where: { is_enabled: true },
     include: { category: true },
     orderBy: [{ sort_order: "asc" }, { title: "asc" }]
-  }).catch(() => []);
+  }));
 
   return sections.map((section) => ({
     id: section.id,
@@ -191,7 +314,7 @@ function categorySortOrder(category: Record<string, unknown>) {
 }
 
 async function hasPublicTable(tableName: string) {
-  const [result] = await prisma.$queryRaw<Array<{ exists: boolean }>>`select to_regclass(${`public.${tableName}`}) is not null as exists`.catch(() => [{ exists: false }]);
+  const [result] = await prismaRead(() => prisma.$queryRaw<Array<{ exists: boolean }>>`select to_regclass(${`public.${tableName}`}) is not null as exists`);
   return Boolean(result?.exists);
 }
 
@@ -199,37 +322,9 @@ function isProductionBuild() {
   return process.env.NEXT_PHASE === "phase-production-build" || process.env.npm_lifecycle_event === "build";
 }
 
-const fallbackCategories: Category[] = flattenCategoryTree();
-
-const fallbackServices: ServiceEntry[] = [
-  {
-    id: "cctv-installation",
-    title: "CCTV Installation",
-    slug: "cctv-installation",
-    description: "Camera planning, installation and support for business premises.",
-    image: null,
-    priceKes: null,
-    showRequestQuote: true
-  },
-  {
-    id: "networking",
-    title: "Business Networking",
-    slug: "networking",
-    description: "Wi-Fi, switching and structured connectivity for growing teams.",
-    image: null,
-    priceKes: null,
-    showRequestQuote: true
-  },
-  {
-    id: "managed-it-services",
-    title: "Managed IT Services",
-    slug: "managed-it-services",
-    description: "Responsive maintenance and support for office technology.",
-    image: null,
-    priceKes: null,
-    showRequestQuote: true
-  }
-];
+function emptyHomepageBanners(): HomepageBannerGroups {
+  return { main: [], category: {}, services: [] };
+}
 
 export function filterProductsByCategory(products: Product[], categories: Category[], categoryValue: string | null | undefined) {
   if (!categoryValue) return products;

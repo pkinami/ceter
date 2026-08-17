@@ -1,30 +1,32 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import { Suspense } from "react";
 import { BannerCarousel } from "@/components/BannerCarousel";
 import { CategoryFilterPanel } from "@/components/CategoryFilterPanel";
 import { ProductGrid } from "@/components/ProductGrid";
 import { getBrands, getCategories, getCategoryBanners, getCategoryBySlug, getProducts } from "@/lib/data";
+import { JsonLd, breadcrumbJsonLd, categoryMetadata } from "@/lib/seo";
+import type { Category } from "@/lib/types";
+
+export const dynamic = "force-dynamic";
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug } = await params;
   const category = await getCategoryBySlug(slug);
-  return {
-    title: category ? `${category.name} | Ceter Technologies` : "Category",
-    description: category?.description ?? "Browse Ceter Technologies category products."
-  };
+  return category ? categoryMetadata(category) : { title: "Category" };
 }
 
-export default async function CategorySlugPage({ params, searchParams }: { params: Promise<{ slug: string }>; searchParams: Promise<{ brand?: string; condition?: string; stock?: string; maxPrice?: string }> }) {
+export default async function CategorySlugPage({ params, searchParams }: { params: Promise<{ slug: string }>; searchParams: Promise<{ brand?: string; condition?: string; stock?: string; maxPrice?: string; q?: string }> }) {
   const [{ slug }, query] = await Promise.all([params, searchParams]);
+  const searchQuery = query.q?.trim();
   const category = await getCategoryBySlug(slug);
   if (!category) notFound();
 
-  const [categories, brands, products, banners] = await Promise.all([
-    getCategories(),
-    getBrands(),
-    getProducts({ category: category.slug, brand: query.brand }),
-    getCategoryBanners(category.slug)
-  ]);
+  const categories = await getCategories();
+  const brands = await getBrands();
+  const products = await getProducts({ category: category.slug, brand: query.brand, q: searchQuery });
+  const banners = await getCategoryBanners(category.slug);
+  const breadcrumbs = categoryBreadcrumbs(category, categories);
   const filteredProducts = products.filter((product) => {
     if (query.condition && product.condition !== query.condition) return false;
     if (query.stock && product.stockStatus !== query.stock) return false;
@@ -34,13 +36,16 @@ export default async function CategorySlugPage({ params, searchParams }: { param
 
   return (
     <div className="mx-auto max-w-[1500px] px-4 py-6">
+      <JsonLd data={breadcrumbJsonLd(breadcrumbs)} />
       <div className="lg:flex lg:gap-5">
-        <CategoryFilterPanel categories={categories} brands={brands.map((brand) => brand.name)} />
+        <Suspense fallback={null}>
+          <CategoryFilterPanel categories={categories} brands={brands.map((brand) => brand.name)} />
+        </Suspense>
         <section className="min-w-0 flex-1 space-y-5">
           {banners.length ? <BannerCarousel banners={banners} variant="category" compact /> : null}
           <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
             <div>
-              <h1 className="text-2xl font-black text-ink">{category.name}</h1>
+              <h1 className="text-2xl font-black text-ink">{searchQuery ? `${category.name}: "${searchQuery}"` : category.name}</h1>
               <p className="text-sm text-slate-500">{category.description ?? `${filteredProducts.length} products in this category.`}</p>
             </div>
             <select className="h-10 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-900">
@@ -50,9 +55,23 @@ export default async function CategorySlugPage({ params, searchParams }: { param
               <option>Newest first</option>
             </select>
           </div>
-          <ProductGrid products={filteredProducts} />
+          <ProductGrid products={filteredProducts} emptyMessage={searchQuery ? `No products match "${searchQuery}" in ${category.name}.` : query.brand || query.condition || query.stock || query.maxPrice ? "No products match this selection." : "No products available yet."} />
         </section>
       </div>
     </div>
   );
+}
+
+function categoryBreadcrumbs(category: Category, categories: Category[]) {
+  const trail: Category[] = [];
+  let current: Category | undefined = category;
+  while (current) {
+    trail.unshift(current);
+    current = current.parentId ? categories.find((item) => item.id === current?.parentId) : undefined;
+  }
+  return [
+    { name: "Home", path: "/" },
+    { name: "Catalogue", path: "/category" },
+    ...trail.map((item) => ({ name: item.name, path: `/category/${item.slug}` }))
+  ];
 }

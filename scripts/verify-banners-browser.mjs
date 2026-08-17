@@ -2,7 +2,6 @@ import { spawn } from "node:child_process";
 import fs from "node:fs";
 import http from "node:http";
 import path from "node:path";
-import WebSocket from "ws";
 
 const root = process.cwd();
 const chromePath = "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe";
@@ -44,7 +43,8 @@ try {
 } finally {
   if (chrome) chrome.kill();
   server.kill();
-  fs.rmSync(chromeProfileDir, { recursive: true, force: true });
+  await new Promise((resolve) => setTimeout(resolve, 1000));
+  fs.rmSync(chromeProfileDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 500 });
 }
 
 async function inspectPage(url, width) {
@@ -52,8 +52,8 @@ async function inspectPage(url, width) {
   const ws = new WebSocket(tab.webSocketDebuggerUrl);
   let nextId = 1;
   const pending = new Map();
-  ws.on("message", (raw) => {
-    const message = JSON.parse(String(raw));
+  ws.addEventListener("message", (event) => {
+    const message = JSON.parse(String(event.data));
     if (message.id && pending.has(message.id)) {
       pending.get(message.id)(message);
       pending.delete(message.id);
@@ -61,18 +61,18 @@ async function inspectPage(url, width) {
   });
   await new Promise((resolve, reject) => {
     const timeout = setTimeout(() => reject(new Error(`Timed out opening DevTools websocket for ${url}`)), 10000);
-    ws.once("open", () => {
+    ws.addEventListener("open", () => {
       clearTimeout(timeout);
       resolve();
-    });
-    ws.once("error", reject);
+    }, { once: true });
+    ws.addEventListener("error", reject, { once: true });
   });
   const send = (method, params = {}) => new Promise((resolve, reject) => {
     const id = nextId++;
     const timeout = setTimeout(() => {
       pending.delete(id);
       reject(new Error(`Timed out waiting for ${method} on ${url}`));
-    }, 15000);
+    }, 45000);
     pending.set(id, (message) => {
       clearTimeout(timeout);
       resolve(message);

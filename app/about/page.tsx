@@ -1,11 +1,13 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Mail, MapPin, Phone, Wrench, PackageCheck, Printer } from "lucide-react";
+import { metadataForPage } from "@/lib/seo";
 
-export const metadata: Metadata = {
-  title: "About and Contact",
-  description: "About Ceter Technologies Limited and contact details for Nairobi office printing equipment supply."
-};
+export const metadata: Metadata = metadataForPage({
+  title: "About Ceter Technologies",
+  description: "Learn about Ceter Technologies, a Nairobi supplier of printers, photocopiers, toners, spare parts and office print support for Kenyan organizations.",
+  path: "/about"
+});
 
 export default function AboutPage() {
   return (

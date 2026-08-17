@@ -1,9 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { LogOut, UserRound } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { LogOut, UserPen, UserRound } from "lucide-react";
+import { usePathname, useRouter } from "next/navigation";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import type { User } from "@supabase/supabase-js";
 
 type Profile = { full_name: string | null; role: "customer" | "admin" | "owner" | "manager" | "sales" | "store" };
 
@@ -14,28 +16,54 @@ function initials(name?: string | null, email?: string | null) {
 
 export function AuthMenu() {
   const supabase = useMemo(() => createClient(), []);
+  const pathname = usePathname();
+  const router = useRouter();
   const [email, setEmail] = useState<string | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [open, setOpen] = useState(false);
+  const [initialized, setInitialized] = useState(false);
 
-  useEffect(() => {
-    async function load() {
-      const { data } = await supabase.auth.getUser();
-      setEmail(data.user?.email ?? null);
-      if (data.user) {
-        const { data: profileData } = await supabase.from("profiles").select("full_name,role").eq("id", data.user.id).maybeSingle();
-        setProfile(profileData as Profile | null);
-      }
+  const loadForUser = useCallback(async (user: User | null) => {
+    setEmail(user?.email ?? null);
+    if (!user) {
+      setProfile(null);
+      setInitialized(true);
+      return;
     }
-    load();
-
-    const { data } = supabase.auth.onAuthStateChange(() => load());
-    return () => data.subscription.unsubscribe();
+    const { data: profileData } = await supabase.from("profiles").select("full_name,role").eq("id", user.id).maybeSingle();
+    setProfile(profileData as Profile | null);
+    setInitialized(true);
   }, [supabase]);
 
+  const load = useCallback(async () => {
+    const { data } = await supabase.auth.getSession();
+    await loadForUser(data.session?.user ?? null);
+  }, [loadForUser, supabase]);
+
+  useEffect(() => {
+    load();
+    setOpen(false);
+  }, [load, pathname]);
+
+  useEffect(() => {
+    const { data } = supabase.auth.onAuthStateChange((_event, session) => {
+      void loadForUser(session?.user ?? null);
+      router.refresh();
+    });
+    return () => data.subscription.unsubscribe();
+  }, [loadForUser, router, supabase]);
+
   async function logout() {
+    setEmail(null);
+    setProfile(null);
+    setOpen(false);
     await supabase.auth.signOut();
-    window.location.href = "/";
+    router.push("/");
+    router.refresh();
+  }
+
+  if (!initialized) {
+    return <span className="h-10 w-20 rounded-md border border-slate-200 bg-slate-100" aria-hidden="true" />;
   }
 
   if (!email) {
@@ -57,7 +85,7 @@ export function AuthMenu() {
           <p className="truncate px-3 py-2 text-xs font-bold text-slate-500">{email}</p>
           <Link href="/account" className="flex items-center gap-2 rounded px-3 py-2 font-semibold text-ink hover:bg-teal-50"><UserRound className="h-4 w-4 text-signal" /> Account</Link>
           <Link href="/account#orders" className="block rounded px-3 py-2 font-semibold text-ink hover:bg-teal-50">Order history</Link>
-          {profile?.role && profile.role !== "customer" ? <Link href="/admin" className="block rounded px-3 py-2 font-semibold text-ink hover:bg-teal-50">Admin panel</Link> : null}
+          <Link href="/account/edit" className="flex items-center gap-2 rounded px-3 py-2 font-semibold text-ink hover:bg-teal-50"><UserPen className="h-4 w-4 text-signal" /> Edit Account</Link>
           <button onClick={logout} className="flex w-full items-center gap-2 rounded px-3 py-2 text-left font-semibold text-red-700 hover:bg-red-50"><LogOut className="h-4 w-4" /> Log out</button>
         </div>
       ) : null}

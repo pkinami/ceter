@@ -1,30 +1,26 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ArrowRight, BadgeCheck, Cloud, CreditCard, DatabaseBackup, Network, Printer, ScanLine, Server, Settings, ShieldCheck, Tags, Wrench } from "lucide-react";
+import { Suspense } from "react";
+import { ArrowRight, Cloud, DatabaseBackup, Network, Server, ShieldCheck, Wrench } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { BannerCarousel } from "@/components/BannerCarousel";
 import { CategoryTile } from "@/components/CategoryTile";
 import { ProductGrid } from "@/components/ProductGrid";
 import { Sidebar } from "@/components/Sidebar";
-import { getHeroPreloadImages } from "@/lib/banner-assets";
 import { formatKes } from "@/lib/utils";
 import { buildCategoryTree, categoryAndDescendantKeys } from "@/lib/category-tree";
+import { iconForCategory } from "@/lib/category-icons";
 import { getBrands, getCategories, getHomepageBanners, getHomepageSections, getProducts, getServices } from "@/lib/data";
+import { JsonLd, metadataForPage, organizationJsonLd } from "@/lib/seo";
 import type { Banner, Category, Product, ServiceEntry } from "@/lib/types";
 
-export const metadata: Metadata = {
-  title: "Ceter Technologies Storefront",
-  description: "Shop office equipment, consumables and IT services from Ceter Technologies Limited in Nairobi."
-};
+export const metadata: Metadata = metadataForPage({
+  title: "Printers, Photocopiers and Toners in Kenya",
+  description: "Shop printers in Kenya, photocopiers, toner cartridges, spare parts and printer repair services from Ceter Technologies in Nairobi.",
+  path: "/"
+});
 
-const categoryIconMap: Record<string, LucideIcon> = {
-  Printer,
-  ScanLine,
-  BadgeCheck,
-  Settings,
-  Tags,
-  CreditCard
-};
+export const dynamic = "force-dynamic";
 
 const serviceIconMap: Record<string, LucideIcon> = {
   "cctv-installation": ShieldCheck,
@@ -38,15 +34,12 @@ const serviceIconMap: Record<string, LucideIcon> = {
 };
 
 export default async function HomePage() {
-  const heroPreloads = getHeroPreloadImages();
-  const [categories, brands, products, banners, services, homepageSections] = await Promise.all([
-    getCategories(),
-    getBrands(),
-    getProducts(),
-    getHomepageBanners(),
-    getServices(8),
-    getHomepageSections()
-  ]);
+  const categories = await getCategories();
+  const brands = await getBrands();
+  const products = await getProducts();
+  const banners = await getHomepageBanners();
+  const services = await getServices(8);
+  const homepageSections = await getHomepageSections();
   const rootCategories = buildCategoryTree(categories);
 
   const categorySections = homepageSections
@@ -69,15 +62,14 @@ export default async function HomePage() {
   const sectionsToRender = categorySections.length ? categorySections : fallbackCategorySections;
   const servicesSection = homepageSections.find((section) => section.sectionType === "services");
   const latestSection = homepageSections.find((section) => section.sectionType === "latest_products");
-  const shouldShowDefaultCmsSections = homepageSections.length === 0;
   const latestProducts = [...products].sort((a, b) => b.name.localeCompare(a.name)).slice(0, latestSection?.productLimit ?? 8);
 
   return (
     <div className="mx-auto flex max-w-7xl gap-6 px-4 py-6">
-      {heroPreloads.map((preload) => (
-        <link key={preload.href} rel="preload" as="image" href={preload.href} imageSrcSet={preload.imageSrcSet} imageSizes={preload.imageSizes} fetchPriority="high" />
-      ))}
-      <Sidebar categories={categories} brands={brands.map((brand) => brand.name)} />
+      <Suspense fallback={null}>
+        <Sidebar categories={categories} brands={brands.map((brand) => brand.name)} />
+      </Suspense>
+      <JsonLd data={organizationJsonLd()} />
       <div className="min-w-0 flex-1 space-y-10">
         <BannerCarousel banners={banners.main} variant="main" />
 
@@ -87,8 +79,8 @@ export default async function HomePage() {
             <Link href="/category" className="inline-flex items-center gap-1 text-sm font-bold text-signal">All categories <ArrowRight className="h-4 w-4" /></Link>
           </div>
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-            {rootCategories.map((category) => {
-              const Icon = categoryIconMap[category.icon ?? ""] ?? Printer;
+            {rootCategories.length ? rootCategories.map((category) => {
+              const Icon = iconForCategory(category.icon, category.slug);
               return (
                 <CategoryTile
                   key={category.id}
@@ -98,7 +90,7 @@ export default async function HomePage() {
                   icon={Icon}
                 />
               );
-            })}
+            }) : <p className="rounded-lg border border-slate-300 bg-white p-6 text-sm font-semibold text-slate-600 sm:col-span-2 xl:col-span-3">No categories available yet.</p>}
           </div>
         </section>
 
@@ -109,19 +101,21 @@ export default async function HomePage() {
           </div>
         ))}
 
-        {servicesSection || shouldShowDefaultCmsSections ? (
-          <ServicesSection title={servicesSection?.title ?? "Ceter Services & Solutions"} services={services.slice(0, servicesSection?.productLimit ?? 8)} banners={banners.services} />
+        {!products.length ? <ProductGrid products={[]} emptyMessage="No products available yet." /> : null}
+
+        {servicesSection ? (
+          <ServicesSection title={servicesSection.title} services={services.slice(0, servicesSection.productLimit)} banners={banners.services} />
         ) : null}
 
-        {latestSection || shouldShowDefaultCmsSections ? <section>
+        {latestSection && products.length ? <section>
           <div className="mb-4 flex items-center justify-between gap-3">
             <div>
-              <h2 className="text-xl font-black text-ink">{latestSection?.title ?? "Latest Products"}</h2>
+              <h2 className="text-xl font-black text-ink">{latestSection.title}</h2>
               <p className="text-sm text-slate-500">Recently added equipment, consumables and parts.</p>
             </div>
             <Link href="/category" className="inline-flex items-center gap-1 text-sm font-bold text-signal">View catalog <ArrowRight className="h-4 w-4" /></Link>
           </div>
-          <ProductGrid products={latestProducts} />
+          <ProductGrid products={latestProducts} emptyMessage="No products available yet." />
         </section> : null}
       </div>
     </div>

@@ -3,15 +3,14 @@
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
-import { ChevronDown, CreditCard, Droplets, Package, Printer, ScanLine, Settings, Tags, X } from "lucide-react";
+import { ChevronDown, X } from "lucide-react";
 import { useState } from "react";
 import type { ReactNode } from "react";
 import { Tooltip } from "@/components/Tooltip";
 import { buildCategoryTree } from "@/lib/category-tree";
+import { iconForCategory } from "@/lib/category-icons";
 import type { Category } from "@/lib/types";
 import { cn } from "@/lib/utils";
-
-const categoryIcons = [Printer, ScanLine, Droplets, Settings, Tags, CreditCard];
 
 export function Sidebar({
   mobileOpen,
@@ -42,8 +41,8 @@ export function Sidebar({
 
   const content = (
     <nav className="space-y-2">
-      {categoryTree.map((category, index) => {
-        const Icon = categoryIcons[index] ?? Package;
+      {categoryTree.map((category) => {
+        const Icon = iconForCategory(category.icon, category.slug);
         return (
         <CategoryBranch
           key={category.id}

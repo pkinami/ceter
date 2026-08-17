@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { Minus, Plus, Trash2 } from "lucide-react";
+import { Minus, Package, Plus, Trash2 } from "lucide-react";
 import { useCart } from "@/components/CartProvider";
 import { formatKes } from "@/lib/utils";
 
@@ -32,7 +32,13 @@ export function CartView() {
           {items.map(({ product, quantity }) => (
             <div key={product.id} className="grid gap-4 p-4 sm:grid-cols-[96px_1fr_auto]">
               <div className="relative h-24 rounded-md bg-panel">
-                <Image src={product.image} alt={product.name} fill className="object-contain p-2" />
+                {product.image ? (
+                  <Image src={product.image} alt={product.name} fill className="object-contain p-2" />
+                ) : (
+                  <div className="flex h-full w-full items-center justify-center text-slate-500">
+                    <Package className="h-8 w-8" aria-hidden />
+                  </div>
+                )}
               </div>
               <div>
                 <p className="text-sm font-black text-ink">{product.name}</p>

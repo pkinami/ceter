@@ -7,7 +7,7 @@ import Link from "next/link";
 import { Tooltip } from "@/components/Tooltip";
 import { cn } from "@/lib/utils";
 import type { Banner } from "@/lib/types";
-import { getBannerFallbackUrl, getBannerSrcSet, normalizePublicAssetUrl, type BannerManifestEntry } from "@/lib/banner-schema";
+import { bannerVariantSrcSet, getBannerFallbackUrl, getBannerSrcSet, normalizePublicAssetUrl, type BannerManifestEntry } from "@/lib/banner-schema";
 
 type BannerVariant = "main" | "category" | "services";
 
@@ -15,7 +15,7 @@ const variantConfig = {
   main: {
     interval: 15000,
     duration: 0.85,
-    sectionClass: "aspect-[4/5] md:aspect-[16/9] lg:aspect-[8/3] min-h-[360px] lg:min-h-[480px]",
+    sectionClass: "aspect-[9/5] md:aspect-[2.33/1] xl:aspect-[32/9] min-h-[320px] md:min-h-[360px]",
     contentClass: "h-full px-5 py-8 sm:px-8 lg:px-12",
     titleClass: "text-3xl sm:text-5xl lg:text-6xl",
     bodyClass: "text-base sm:text-lg",
@@ -64,7 +64,7 @@ export function BannerCarousel({
   const requestIdRef = useRef(0);
   const reduceMotion = useReducedMotion();
   const config = variantConfig[variant];
-  const visibleBanners = useMemo(() => (banners.length ? banners : [fallbackBanner]), [banners]);
+  const visibleBanners = useMemo(() => banners, [banners]);
 
   const moveTo = useCallback(async (index: number, manual = false) => {
     const nextIndex = (index + visibleBanners.length) % visibleBanners.length;
@@ -110,12 +110,14 @@ export function BannerCarousel({
     if (info.offset.x < -50) move(1);
   }
 
+  if (!visibleBanners.length) return null;
+
   const transition = reduceMotion ? { duration: 0 } : { duration: config.duration, ease: [0.22, 1, 0.36, 1] };
-  const motionState = reduceMotion ? { initial: { opacity: 1 }, animate: { opacity: 1 } } : { initial: config.initial, animate: config.animate };
+  const motionState = reduceMotion ? { animate: { opacity: 1 } } : { animate: config.animate };
 
   return (
     <section
-      className={cn("relative isolate overflow-hidden rounded-lg border border-slate-300 bg-white shadow-industrial", config.sectionClass, className)}
+      className={cn("relative isolate overflow-hidden rounded-lg border border-slate-300 bg-ink shadow-industrial", config.sectionClass, className)}
       onMouseEnter={() => setPaused(true)}
       onMouseLeave={() => setPaused(false)}
     >
@@ -125,13 +127,14 @@ export function BannerCarousel({
           drag={index === active && !reduceMotion ? "x" : false}
           dragConstraints={{ left: 0, right: 0 }}
           onDragEnd={onDragEnd}
-          className={cn("absolute inset-0 overflow-hidden bg-ink text-white", index === active ? "z-10 cursor-grab" : "z-0 pointer-events-none")}
-          initial={motionState.initial}
+          className={cn("absolute inset-0 overflow-hidden bg-ink text-white will-change-opacity", index === active ? "z-10 cursor-grab" : "z-0 pointer-events-none")}
+          initial={false}
           animate={index === active ? motionState.animate : { opacity: 0 }}
           transition={transition}
           aria-hidden={index !== active}
         >
           <BannerImage banner={item} imageClass={config.imageClass} reduceMotion={Boolean(reduceMotion)} active={index === active} />
+          <div className="pointer-events-none absolute inset-0 z-10 bg-gradient-to-r from-ink/90 via-ink/50 to-ink/10" />
           <div className={cn("relative z-20 flex h-full max-w-4xl flex-col justify-center drop-shadow-[0_2px_10px_rgba(0,0,0,0.55)]", config.contentClass)}>
             {item.kicker ? <p className="text-xs font-bold uppercase tracking-normal text-teal-200 sm:text-sm">{item.kicker}</p> : null}
             <h1 className={cn("mt-3 max-w-3xl font-black leading-tight text-balance", config.titleClass)}>{item.title}</h1>
@@ -184,7 +187,10 @@ export function BannerCarousel({
 
 function BannerImage({ banner, imageClass, reduceMotion, active }: { banner: Banner; imageClass: string; reduceMotion: boolean; active: boolean }) {
   const manifestBanner = hasResponsiveAssets(banner) ? banner : null;
-  const fallbackImage = normalizePublicAssetUrl(manifestBanner ? getBannerFallbackUrl(manifestBanner) : banner.image);
+  const variantImages = banner.imageVariants ?? [];
+  const hasVariantImages = variantImages.length > 0;
+  const responsiveDbImages = !manifestBanner && banner.image && banner.laptopImage && banner.mobileImage;
+  const fallbackImage = normalizePublicAssetUrl(manifestBanner ? getBannerFallbackUrl(manifestBanner) : variantImages.find((variant) => variant.shape === "wide")?.url ?? variantImages[0]?.url ?? banner.image);
   const [imageMode, setImageMode] = useState<"responsive" | "fallback" | "hidden">("responsive");
 
   useEffect(() => {
@@ -197,12 +203,24 @@ function BannerImage({ banner, imageClass, reduceMotion, active }: { banner: Ban
   const priority = manifestBanner?.priority ?? "lazy";
 
   return (
-    <picture className="absolute inset-0 z-0 block h-full w-full overflow-hidden">
+    <picture className="absolute inset-0 z-0 block h-full w-full overflow-hidden bg-ink">
       {manifestBanner && useResponsiveSources ? (
         <>
           <source media={manifestBanner.assets.wide.media} srcSet={getBannerSrcSet(manifestBanner, "wide")} sizes={manifestBanner.assets.wide.sizes} type="image/webp" />
           <source media={manifestBanner.assets.mid.media} srcSet={getBannerSrcSet(manifestBanner, "mid")} sizes={manifestBanner.assets.mid.sizes} type="image/webp" />
           <source media={manifestBanner.assets.tall.media} srcSet={getBannerSrcSet(manifestBanner, "tall")} sizes={manifestBanner.assets.tall.sizes} type="image/webp" />
+        </>
+      ) : hasVariantImages ? (
+        <>
+          <source media="(min-aspect-ratio: 28/10)" srcSet={bannerVariantSrcSet(variantImages, "wide")} sizes="100vw" />
+          <source media="(min-aspect-ratio: 20/10)" srcSet={bannerVariantSrcSet(variantImages, "mid")} sizes="100vw" />
+          <source srcSet={bannerVariantSrcSet(variantImages, "tall") || bannerVariantSrcSet(variantImages, "mid") || bannerVariantSrcSet(variantImages, "wide")} sizes="100vw" />
+        </>
+      ) : responsiveDbImages ? (
+        <>
+          <source media="(min-width: 1024px)" srcSet={normalizePublicAssetUrl(banner.image) ?? ""} />
+          <source media="(min-width: 640px)" srcSet={normalizePublicAssetUrl(banner.laptopImage) ?? ""} />
+          <source srcSet={normalizePublicAssetUrl(banner.mobileImage) ?? ""} />
         </>
       ) : null}
       <motion.img
@@ -214,7 +232,7 @@ function BannerImage({ banner, imageClass, reduceMotion, active }: { banner: Ban
           const failedUrl = event.currentTarget.currentSrc || event.currentTarget.src;
           setImageMode(useResponsiveSources && failedUrl !== new URL(fallbackImage, window.location.href).href ? "fallback" : "hidden");
         }}
-        className={cn("absolute inset-0 h-full w-full object-cover object-center", imageClass)}
+        className={cn("absolute inset-0 h-full w-full transform-gpu object-cover object-center [backface-visibility:hidden] will-change-transform", imageClass)}
         loading={priority === "high" ? "eager" : "lazy"}
         fetchPriority={priority === "high" ? "high" : "auto"}
         decoding="async"
@@ -258,6 +276,14 @@ function getBannerImageUrls(banner: Banner) {
         if (url) urls.add(url);
       }
     }
+  } else {
+    for (const variant of banner.imageVariants ?? []) {
+      if (variant.url) urls.add(variant.url);
+    }
+    for (const url of [banner.image, banner.laptopImage, banner.mobileImage]) {
+      const normalized = normalizePublicAssetUrl(url);
+      if (normalized) urls.add(normalized);
+    }
   }
   return [...urls];
 }
@@ -265,20 +291,3 @@ function getBannerImageUrls(banner: Banner) {
 function hasResponsiveAssets(banner: Banner): banner is BannerManifestEntry {
   return "assets" in banner && Boolean((banner as BannerManifestEntry).assets?.wide);
 }
-
-const fallbackBanner: Banner = {
-  id: "fallback",
-  title: "Commercial technology for busy offices",
-  kicker: "Ceter Technologies Limited",
-  body: "Shop equipment, consumables and services for business operations.",
-  alt: "Ceter Technologies office equipment and business technology",
-  ctaLabel: "Browse catalog",
-  ctaHref: "/category",
-  secondaryCtaLabel: null,
-  secondaryCtaHref: null,
-  image: null,
-  mobileImage: null,
-  placement: "main",
-  categoryId: null,
-  sortOrder: 0
-};

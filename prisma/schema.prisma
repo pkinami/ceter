@@ -36,18 +36,18 @@ model CartItem {
 }
 
 model Category {
-  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  id          String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   name        String
-  slug        String    @unique
+  slug        String            @unique
   description String?
   icon        String?
   image       String?
-  parent_id   String?   @db.Uuid
-  sort_order  Int       @default(0)
-  created_at  DateTime  @default(now()) @db.Timestamptz(6)
+  parent_id   String?           @db.Uuid
+  sort_order  Int               @default(0)
+  created_at  DateTime          @default(now()) @db.Timestamptz(6)
   banners     Banner[]
-  parent      Category? @relation("CategoryChildren", fields: [parent_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
-  children    Category[] @relation("CategoryChildren")
+  parent      Category?         @relation("CategoryChildren", fields: [parent_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  children    Category[]        @relation("CategoryChildren")
   products    Product[]
   sections    HomepageSection[]
 
@@ -57,21 +57,23 @@ model Category {
 }
 
 model Banner {
-  id          String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  title       String
-  kicker      String?
-  body        String
-  cta_label   String?
-  cta_href    String?
-  image       String?
-  mobile_image String?
-  placement   BannerPlacement @default(main)
-  category_id String?        @db.Uuid
-  sort_order  Int            @default(0)
-  is_enabled  Boolean        @default(true)
-  created_at  DateTime       @default(now()) @db.Timestamptz(6)
-  updated_at  DateTime       @default(now()) @updatedAt @db.Timestamptz(6)
-  category    Category?      @relation(fields: [category_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  id             String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  title          String
+  kicker         String?
+  body           String
+  cta_label      String?
+  cta_href       String?
+  image          String?
+  laptop_image   String?
+  mobile_image   String?
+  image_variants Json            @default("[]") @db.JsonB
+  placement      BannerPlacement @default(main)
+  category_id    String?         @db.Uuid
+  sort_order     Int             @default(0)
+  is_enabled     Boolean         @default(true)
+  created_at     DateTime        @default(now()) @db.Timestamptz(6)
+  updated_at     DateTime        @default(now()) @updatedAt @db.Timestamptz(6)
+  category       Category?       @relation(fields: [category_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
 
   @@index([placement, is_enabled, sort_order])
   @@index([category_id, placement, is_enabled, sort_order])
@@ -80,16 +82,16 @@ model Banner {
 }
 
 model HomepageSection {
-  id          String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  title       String
-  section_type HomepageSectionType @default(category_products)
-  category_id String?             @db.Uuid
-  sort_order  Int                 @default(0)
-  product_limit Int               @default(8)
-  is_enabled  Boolean             @default(true)
-  created_at  DateTime            @default(now()) @db.Timestamptz(6)
-  updated_at  DateTime            @default(now()) @updatedAt @db.Timestamptz(6)
-  category    Category?           @relation(fields: [category_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  id            String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  title         String
+  section_type  HomepageSectionType @default(category_products)
+  category_id   String?             @db.Uuid
+  sort_order    Int                 @default(0)
+  product_limit Int                 @default(8)
+  is_enabled    Boolean             @default(true)
+  created_at    DateTime            @default(now()) @db.Timestamptz(6)
+  updated_at    DateTime            @default(now()) @updatedAt @db.Timestamptz(6)
+  category      Category?           @relation(fields: [category_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
 
   @@index([section_type, is_enabled, sort_order])
   @@index([category_id])
@@ -98,15 +100,15 @@ model HomepageSection {
 }
 
 model OrderItem {
-  id                    String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  order_id              String   @db.Uuid
-  product_id            String?  @db.Uuid
+  id                    String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  order_id              String          @db.Uuid
+  product_id            String?         @db.Uuid
   quantity              Int
   price_at_purchase_kes Int
   service_label         String?
   serials               ProductSerial[]
-  order                 Order    @relation(fields: [order_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
-  product               Product? @relation(fields: [product_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  order                 Order           @relation(fields: [order_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  product               Product?        @relation(fields: [product_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
 
   @@index([order_id])
   @@map("order_items")
@@ -114,16 +116,24 @@ model OrderItem {
 }
 
 model Order {
-  id             String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  user_id        String?        @db.Uuid
-  status         OrderStatus    @default(pending)
-  payment_method PaymentMethod?
-  total_kes      Int            @default(0)
-  created_at     DateTime       @default(now()) @db.Timestamptz(6)
-  order_items    OrderItem[]
-  payments        PaymentTransaction[]
-  profile        Profile?       @relation(fields: [user_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
-  serials        ProductSerial[]
+  id                    String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id               String?              @db.Uuid
+  status                OrderStatus          @default(pending)
+  payment_method        PaymentMethod?
+  fulfillment_method    FulfillmentMethod    @default(delivery)
+  delivery_region       DeliveryRegion?
+  delivery_fee_kes      Int                  @default(0)
+  delivery_name         String?
+  delivery_phone        String?
+  delivery_email        String?
+  delivery_location     String?
+  delivery_instructions String?
+  total_kes             Int                  @default(0)
+  created_at            DateTime             @default(now()) @db.Timestamptz(6)
+  order_items           OrderItem[]
+  payments              PaymentTransaction[]
+  profile               Profile?             @relation(fields: [user_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  serials               ProductSerial[]
 
   @@index([user_id])
   @@index([created_at])
@@ -132,40 +142,42 @@ model Order {
 }
 
 model Product {
-  id             String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  name           String
-  slug           String           @unique
-  description    String
-  mpn            String?
-  sku            String?
-  category_id    String?          @db.Uuid
-  brand_id       String?          @db.Uuid
-  price_kes      Int
-  cost_price_kes Int?
-  supplier_name  String?
-  supplier_lead_time_days Int?
-  reorder_level  Int              @default(0)
-  reorder_quantity Int            @default(0)
-  is_published   Boolean          @default(true)
-  condition      ProductCondition @default(new)
-  stock_status   StockStatus      @default(in_stock)
-  stock_quantity Int              @default(0)
-  images         Json             @default("[]") @db.JsonB
-  specs          Json             @default("{}") @db.JsonB
-  is_featured    Boolean          @default(false)
-  archived_at    DateTime?        @db.Timestamptz(6)
-  created_at     DateTime         @default(now()) @db.Timestamptz(6)
-  updated_at     DateTime         @default(now()) @updatedAt @db.Timestamptz(6)
-  cart_items     CartItem[]
-  order_items    OrderItem[]
-  quote_lines    QuoteLine[]
-  stock_movements StockMovement[]
-  price_history  PriceHistory[]
-  serials        ProductSerial[]
-  printer_compatibilities ProductCompatibility[] @relation("PrinterCompatibility")
+  id                         String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name                       String
+  slug                       String                 @unique
+  description                String
+  mpn                        String?
+  sku                        String?
+  category_id                String?                @db.Uuid
+  brand_id                   String?                @db.Uuid
+  price_kes                  Int
+  cost_price_kes             Int?
+  supplier_name              String?
+  supplier_lead_time_days    Int?
+  reorder_level              Int                    @default(0)
+  reorder_quantity           Int                    @default(0)
+  is_published               Boolean                @default(true)
+  condition                  ProductCondition       @default(new)
+  stock_status               StockStatus            @default(in_stock)
+  stock_quantity             Int                    @default(0)
+  images                     Json                   @default("[]") @db.JsonB
+  specs                      Json                   @default("{}") @db.JsonB
+  is_featured                Boolean                @default(false)
+  show_offer_badge           Boolean                @default(false)
+  show_flash_sale_badge      Boolean                @default(false)
+  archived_at                DateTime?              @db.Timestamptz(6)
+  created_at                 DateTime               @default(now()) @db.Timestamptz(6)
+  updated_at                 DateTime               @default(now()) @updatedAt @db.Timestamptz(6)
+  cart_items                 CartItem[]
+  order_items                OrderItem[]
+  quote_lines                QuoteLine[]
+  stock_movements            StockMovement[]
+  price_history              PriceHistory[]
+  serials                    ProductSerial[]
+  printer_compatibilities    ProductCompatibility[] @relation("PrinterCompatibility")
   consumable_compatibilities ProductCompatibility[] @relation("ConsumableCompatibility")
-  brand          Brand?           @relation(fields: [brand_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
-  category       Category?        @relation(fields: [category_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  brand                      Brand?                 @relation(fields: [brand_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  category                   Category?              @relation(fields: [category_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
 
   @@index([brand_id])
   @@index([category_id])
@@ -177,29 +189,31 @@ model Product {
   @@index([is_published, is_featured, created_at])
   @@index([updated_at])
   @@index([is_featured], map: "products_featured_idx")
+  @@index([show_offer_badge])
+  @@index([show_flash_sale_badge])
   @@map("products")
   @@schema("public")
 }
 
 model PaymentTransaction {
-  id                    String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  order_id              String         @db.Uuid
-  provider              PaymentProvider
-  method                PaymentMethod
-  status                PaymentStatus   @default(pending)
-  amount_kes            Int
-  merchant_reference    String         @unique
-  provider_reference    String?
-  checkout_request_id   String?        @unique
-  phone                 String?
-  redirect_url          String?
-  failure_reason        String?
-  raw_request           Json?          @db.JsonB
-  raw_response          Json?          @db.JsonB
-  verified_at           DateTime?      @db.Timestamptz(6)
-  created_at            DateTime       @default(now()) @db.Timestamptz(6)
-  updated_at            DateTime       @default(now()) @updatedAt @db.Timestamptz(6)
-  order                 Order          @relation(fields: [order_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  id                  String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  order_id            String          @db.Uuid
+  provider            PaymentProvider
+  method              PaymentMethod
+  status              PaymentStatus   @default(pending)
+  amount_kes          Int
+  merchant_reference  String          @unique
+  provider_reference  String?
+  checkout_request_id String?         @unique
+  phone               String?
+  redirect_url        String?
+  failure_reason      String?
+  raw_request         Json?           @db.JsonB
+  raw_response        Json?           @db.JsonB
+  verified_at         DateTime?       @db.Timestamptz(6)
+  created_at          DateTime        @default(now()) @db.Timestamptz(6)
+  updated_at          DateTime        @default(now()) @updatedAt @db.Timestamptz(6)
+  order               Order           @relation(fields: [order_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
   @@index([order_id, status])
   @@index([provider, status])
@@ -208,55 +222,70 @@ model PaymentTransaction {
 }
 
 model Profile {
-  id         String      @id @db.Uuid
-  full_name  String?
-  phone      String?
-  role       ProfileRole @default(customer)
-  created_at DateTime    @default(now()) @db.Timestamptz(6)
-  cart_items CartItem[]
-  orders     Order[]
-  stock_movements StockMovement[]
-  changed_prices  PriceHistory[] @relation("PriceChangedBy")
-  audit_logs      AuditLog[]
+  id                    String          @id @db.Uuid
+  full_name             String?
+  phone                 String?
+  email                 String?
+  delivery_region       DeliveryRegion?
+  delivery_location     String?
+  delivery_instructions String?
+  role                  ProfileRole     @default(customer)
+  created_at            DateTime        @default(now()) @db.Timestamptz(6)
+  cart_items            CartItem[]
+  orders                Order[]
+  stock_movements       StockMovement[]
+  changed_prices        PriceHistory[]  @relation("PriceChangedBy")
+  audit_logs            AuditLog[]
 
   @@map("profiles")
   @@schema("public")
 }
 
 model QuoteRequest {
-  id             String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  name           String
-  email          String
-  phone          String
-  service_needed String
-  message        String
-  status         QuoteStatus @default(new)
-  owner_id       String?     @db.Uuid
+  id               String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name             String
+  email            String
+  phone            String
+  service_needed   String
+  message          String
+  status           QuoteStatus @default(new)
+  owner_id         String?     @db.Uuid
   quoted_value_kes Int?
-  follow_up_at   DateTime?   @db.Timestamptz(6)
-  issued_at      DateTime?   @db.Timestamptz(6)
-  valid_until    DateTime?   @db.Timestamptz(6)
-  payment_terms  String?
-  created_at     DateTime    @default(now()) @db.Timestamptz(6)
-  lines          QuoteLine[]
+  follow_up_at     DateTime?   @db.Timestamptz(6)
+  issued_at        DateTime?   @db.Timestamptz(6)
+  valid_until      DateTime?   @db.Timestamptz(6)
+  payment_terms    String?
+  created_at       DateTime    @default(now()) @db.Timestamptz(6)
+  lines            QuoteLine[]
 
   @@index([created_at])
   @@map("quote_requests")
   @@schema("public")
 }
 
+model DeliveryFee {
+  id         String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  region     DeliveryRegion @unique
+  fee_kes    Int            @default(0)
+  is_enabled Boolean        @default(true)
+  updated_at DateTime       @default(now()) @updatedAt @db.Timestamptz(6)
+
+  @@map("delivery_fees")
+  @@schema("public")
+}
+
 model QuoteLine {
-  id          String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  quote_id    String       @db.Uuid
-  product_id  String?      @db.Uuid
-  description String
-  quantity    Int
+  id             String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  quote_id       String       @db.Uuid
+  product_id     String?      @db.Uuid
+  description    String
+  quantity       Int
   unit_price_kes Int
   unit_cost_kes  Int?
-  sort_order  Int          @default(0)
-  created_at  DateTime     @default(now()) @db.Timestamptz(6)
-  quote       QuoteRequest @relation(fields: [quote_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
-  product     Product?     @relation(fields: [product_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  sort_order     Int          @default(0)
+  created_at     DateTime     @default(now()) @db.Timestamptz(6)
+  quote          QuoteRequest @relation(fields: [quote_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  product        Product?     @relation(fields: [product_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
 
   @@index([quote_id])
   @@index([product_id])
@@ -265,13 +294,13 @@ model QuoteLine {
 }
 
 model ProductCompatibility {
-  id           String                    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  printer_id   String                    @db.Uuid
+  id            String                   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  printer_id    String                   @db.Uuid
   consumable_id String                   @db.Uuid
   relation_type ProductCompatibilityType
-  created_at   DateTime                  @default(now()) @db.Timestamptz(6)
-  printer      Product                   @relation("PrinterCompatibility", fields: [printer_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
-  consumable   Product                   @relation("ConsumableCompatibility", fields: [consumable_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  created_at    DateTime                 @default(now()) @db.Timestamptz(6)
+  printer       Product                  @relation("PrinterCompatibility", fields: [printer_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  consumable    Product                  @relation("ConsumableCompatibility", fields: [consumable_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
   @@unique([printer_id, consumable_id, relation_type])
   @@index([printer_id])
@@ -353,17 +382,17 @@ model AuditLog {
 }
 
 model ServiceEntry {
-  id                  String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  title               String
-  slug                String   @unique
-  description         String
-  image               String?
-  price_kes           Int?
-  show_request_quote  Boolean  @default(true)
-  sort_order          Int      @default(0)
-  is_enabled          Boolean  @default(true)
-  created_at          DateTime @default(now()) @db.Timestamptz(6)
-  updated_at          DateTime @default(now()) @updatedAt @db.Timestamptz(6)
+  id                 String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  title              String
+  slug               String   @unique
+  description        String
+  image              String?
+  price_kes          Int?
+  show_request_quote Boolean  @default(true)
+  sort_order         Int      @default(0)
+  is_enabled         Boolean  @default(true)
+  created_at         DateTime @default(now()) @db.Timestamptz(6)
+  updated_at         DateTime @default(now()) @updatedAt @db.Timestamptz(6)
 
   @@index([is_enabled, sort_order])
   @@map("service_entries")
@@ -394,8 +423,11 @@ enum HomepageSectionType {
 
 enum OrderStatus {
   pending
-  processing
   paid
+  processing
+  ready
+  dispatched
+  completed
   fulfilled
   cancelled
 
@@ -406,6 +438,7 @@ enum OrderStatus {
 enum PaymentMethod {
   mpesa
   card
+  pay_on_delivery
 
   @@map("payment_method")
   @@schema("public")
@@ -414,8 +447,26 @@ enum PaymentMethod {
 enum PaymentProvider {
   safaricom_daraja
   pesapal
+  manual_pay_on_delivery
 
   @@map("payment_provider")
+  @@schema("public")
+}
+
+enum FulfillmentMethod {
+  pickup
+  delivery
+
+  @@map("fulfillment_method")
+  @@schema("public")
+}
+
+enum DeliveryRegion {
+  within_nairobi
+  around_nairobi
+  countrywide
+
+  @@map("delivery_region")
   @@schema("public")
 }
 
@@ -454,6 +505,8 @@ enum ProfileRole {
 enum QuoteStatus {
   new
   contacted
+  quoted
+  won
   closed
 
   @@map("quote_status")

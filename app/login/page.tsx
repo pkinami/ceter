@@ -5,7 +5,8 @@ import { BrandIcon } from "@/components/BrandIcon";
 import { FormSubmitButton } from "@/components/FormSubmitButton";
 
 export const metadata = {
-  title: "Customer Login"
+  title: "Customer Login",
+  robots: { index: false, follow: false }
 };
 
 export default async function LoginPage({ searchParams }: { searchParams: Promise<{ error?: string; next?: string }> }) {
@@ -29,7 +30,6 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
         </label>
         <FormSubmitButton pendingText="Signing in..." className="mt-5 h-11 w-full rounded-md bg-signal px-5 text-sm font-bold text-white hover:bg-teal-700">Sign in</FormSubmitButton>
         <p className="mt-4 text-sm text-slate-600">New customer? <Link href="/signup" className="font-bold text-signal">Create an account</Link></p>
-        <p className="mt-2 text-sm text-slate-600">Staff member? <Link href="/admin/login" className="font-bold text-ink">Use admin login</Link></p>
       </form>
     </div>
   );

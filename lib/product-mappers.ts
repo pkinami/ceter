@@ -1,5 +1,6 @@
 import type { Product, ProductRow } from "@/lib/types";
 import { findPreviousPrice } from "@/lib/pricing";
+import { productImageRenderUrls } from "@/lib/product-image-urls";
 
 function asStringArray(value: unknown): string[] {
   return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
@@ -11,7 +12,7 @@ function asSpecs(value: unknown): Record<string, string> {
 }
 
 export function mapProduct(row: ProductRow): Product {
-  const images = asStringArray(row.images);
+  const images = productImageRenderUrls(asStringArray(row.images));
 
   return {
     id: row.id,
@@ -29,9 +30,11 @@ export function mapProduct(row: ProductRow): Product {
     stockStatus: row.stock_status,
     stockQuantity: row.stock_quantity,
     condition: row.condition,
-    image: images[0] ?? "/product-placeholder.svg",
-    images: images.length ? images : ["/product-placeholder.svg"],
+    image: images[0] ?? "",
+    images,
     specs: asSpecs(row.specs),
-    isFeatured: row.is_featured
+    isFeatured: row.is_featured,
+    showOfferBadge: Boolean(row.show_offer_badge),
+    showFlashSaleBadge: Boolean(row.show_flash_sale_badge)
   };
 }

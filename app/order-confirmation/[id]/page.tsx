@@ -2,13 +2,15 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { CheckCircle2, Clock, XCircle } from "lucide-react";
 import { BrandIcon } from "@/components/BrandIcon";
+import { deliveryRegionLabel } from "@/lib/delivery";
 import { prisma } from "@/lib/prisma";
 import { createClient } from "@/lib/supabase/server";
 import { formatKes } from "@/lib/utils";
 import { verifyPesapalByTrackingId } from "@/lib/payments";
 
 export const metadata = {
-  title: "Order confirmation"
+  title: "Order confirmation",
+  robots: { index: false, follow: false }
 };
 
 export default async function OrderConfirmationPage({
@@ -53,7 +55,7 @@ export default async function OrderConfirmationPage({
         </p>
         {payment ? (
           <div className="mt-4 inline-flex items-center gap-2 rounded-md border border-[#DDE8EE] bg-[#F7FCFB] px-3 py-2 text-sm font-semibold text-ink">
-            <BrandIcon name={paymentIcon} label={paymentIcon === "mpesa" ? "M-Pesa" : "Card"} size={paymentIcon === "mpesa" ? 46 : 30} className="h-6 w-auto" />
+            {payment.method === "pay_on_delivery" ? null : <BrandIcon name={paymentIcon} label={paymentIcon === "mpesa" ? "M-Pesa" : "Card"} size={paymentIcon === "mpesa" ? 46 : 30} className="h-6 w-auto" />}
             <span className="capitalize">{payment.method ?? "payment"}</span>
           </div>
         ) : null}
@@ -64,6 +66,12 @@ export default async function OrderConfirmationPage({
               <strong>{formatKes(item.price_at_purchase_kes * item.quantity)}</strong>
             </div>
           ))}
+          {order.delivery_fee_kes ? (
+            <div className="flex justify-between gap-3 p-3 text-sm">
+              <span>Delivery - {deliveryRegionLabel(order.delivery_region)}</span>
+              <strong>{formatKes(order.delivery_fee_kes)}</strong>
+            </div>
+          ) : null}
           <div className="flex justify-between gap-3 p-3 font-black">
             <span>Total</span>
             <span>{formatKes(order.total_kes)}</span>

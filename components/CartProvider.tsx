@@ -1,10 +1,9 @@
 "use client";
 
-import { createContext, ReactNode, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, ReactNode, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
-import { mapProduct } from "@/lib/product-mappers";
-import type { CartLine, Product, ProductRow } from "@/lib/types";
+import type { CartLine, Product } from "@/lib/types";
 
 type StoredCartLine = { productId: string; quantity: number };
 
@@ -20,7 +19,18 @@ type CartContextValue = {
 const CartContext = createContext<CartContextValue | null>(null);
 const storageKey = "ceter_guest_cart";
 const productsKey = "ceter_guest_cart_products";
-const productSelect = "*, categories(id,name,slug), brands(id,name,slug)";
+
+function maxPurchasableQuantity(product: Product) {
+  if (product.stockStatus === "backorder") return Number.POSITIVE_INFINITY;
+  if (product.stockStatus !== "in_stock") return 0;
+  return Math.max(0, product.stockQuantity);
+}
+
+function clampQuantity(product: Product, quantity: number) {
+  const max = maxPurchasableQuantity(product);
+  if (max === 0) return 0;
+  return Math.max(1, Math.min(Math.floor(quantity), max));
+}
 
 function readGuestCart(): StoredCartLine[] {
   if (typeof window === "undefined") return [];
@@ -52,25 +62,22 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const [items, setItems] = useState<CartLine[]>([]);
   const [userId, setUserId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const mutationRef = useRef<Promise<void>>(Promise.resolve());
+
+  const runMutation = useCallback(async (operation: () => Promise<void>) => {
+    const next = mutationRef.current.then(operation, operation);
+    mutationRef.current = next.catch(() => undefined);
+    await next;
+  }, []);
 
   const loadRemoteCart = useCallback(async (id: string) => {
-    const { data, error } = await supabase
-      .from("cart_items")
-      .select(`quantity, products(${productSelect})`)
-      .eq("user_id", id)
-      .order("updated_at", { ascending: false });
-
-    if (error) {
+    const response = await fetch("/api/cart", { cache: "no-store" });
+    if (!response.ok) {
       toast.error("Could not load saved cart");
       return [];
     }
-
-    return (data ?? [])
-      .map((row) => {
-        const productRow = Array.isArray(row.products) ? row.products[0] : row.products;
-        return productRow ? { product: mapProduct(productRow as ProductRow), quantity: Number(row.quantity) } : null;
-      })
-      .filter((item): item is CartLine => Boolean(item));
+    const data = await response.json() as { items?: CartLine[] };
+    return data.items ?? [];
   }, [supabase]);
 
   const mergeGuestCart = useCallback(async (id: string) => {
@@ -78,11 +85,12 @@ export function CartProvider({ children }: { children: ReactNode }) {
     const products = readGuestProducts();
     if (!stored.length) return;
 
-    await Promise.all(stored.map((item) => supabase.from("cart_items").upsert({
-      user_id: id,
-      product_id: item.productId,
-      quantity: item.quantity
-    }, { onConflict: "user_id,product_id" })));
+    const response = await fetch("/api/cart", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ items: stored.map((item) => ({ productId: item.productId, quantity: item.quantity })) })
+    });
+    if (!response.ok) throw new Error("Saved cart could not be updated.");
 
     window.localStorage.removeItem(storageKey);
     window.localStorage.removeItem(productsKey);
@@ -141,39 +149,69 @@ export function CartProvider({ children }: { children: ReactNode }) {
       writeGuestCart(nextItems);
       return;
     }
-    await Promise.all(nextItems.map((line) => supabase.from("cart_items").upsert({
-      user_id: userId,
-      product_id: line.product.id,
-      quantity: line.quantity
-    }, { onConflict: "user_id,product_id" })));
+    await runMutation(async () => {
+      const response = await fetch("/api/cart", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ items: nextItems.map((line) => ({ productId: line.product.id, quantity: line.quantity })) })
+      });
+      if (!response.ok) throw new Error("Saved cart could not be updated.");
+    });
   }
 
   async function addItem(product: Product, quantity = 1) {
     const nextItems = [...items];
     const existing = nextItems.find((item) => item.product.id === product.id);
-    if (existing) existing.quantity += quantity;
-    else nextItems.push({ product, quantity });
+    const requestedQuantity = (existing?.quantity ?? 0) + quantity;
+    const nextQuantity = clampQuantity(product, requestedQuantity);
+    if (nextQuantity === 0) {
+      toast.error("This product is out of stock");
+      return;
+    }
+    if (existing) existing.quantity = nextQuantity;
+    else nextItems.push({ product, quantity: nextQuantity });
+    if (Number.isFinite(maxPurchasableQuantity(product)) && nextQuantity < requestedQuantity) {
+      toast.error(`Only ${product.stockQuantity} unit${product.stockQuantity === 1 ? "" : "s"} available`);
+    }
     await persist(nextItems);
   }
 
   async function updateItem(productId: string, quantity: number) {
-    const nextItems = items.map((item) => item.product.id === productId ? { ...item, quantity: Math.max(1, quantity) } : item);
+    let capped = false;
+    const nextItems = items
+      .map((item) => {
+        if (item.product.id !== productId) return item;
+        const nextQuantity = clampQuantity(item.product, quantity);
+        capped = nextQuantity !== Math.max(1, Math.floor(quantity));
+        return nextQuantity > 0 ? { ...item, quantity: nextQuantity } : null;
+      })
+      .filter((item): item is CartLine => Boolean(item));
     await persist(nextItems);
-    toast.success("Quantity updated");
+    toast.success(capped ? "Quantity limited to available stock" : "Quantity updated");
   }
 
   async function removeItem(productId: string) {
     const nextItems = items.filter((item) => item.product.id !== productId);
-    setItems(nextItems);
-    if (userId) await supabase.from("cart_items").delete().eq("user_id", userId).eq("product_id", productId);
+    if (userId) {
+      await runMutation(async () => {
+        const response = await fetch(`/api/cart?productId=${encodeURIComponent(productId)}`, { method: "DELETE" });
+        if (!response.ok) throw new Error("Saved cart item could not be removed.");
+      });
+    }
     else writeGuestCart(nextItems);
+    setItems(nextItems);
     toast.error("Item removed");
   }
 
   async function clearCart() {
-    setItems([]);
-    if (userId) await supabase.from("cart_items").delete().eq("user_id", userId);
+    if (userId) {
+      await runMutation(async () => {
+        const response = await fetch("/api/cart", { method: "DELETE" });
+        if (!response.ok) throw new Error("Saved cart could not be cleared.");
+      });
+    }
     else writeGuestCart([]);
+    setItems([]);
   }
 
   return (

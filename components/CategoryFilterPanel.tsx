@@ -5,12 +5,11 @@ import type { ReactNode } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
-import { ChevronDown, CreditCard, Droplets, Package, Printer, ScanLine, Settings, SlidersHorizontal, Tags, X } from "lucide-react";
+import { ChevronDown, Package, SlidersHorizontal, X } from "lucide-react";
 import { buildCategoryTree } from "@/lib/category-tree";
+import { iconForCategory } from "@/lib/category-icons";
 import type { Category } from "@/lib/types";
 import { cn, formatKes } from "@/lib/utils";
-
-const categoryIcons = [Printer, ScanLine, Droplets, Settings, Tags, CreditCard];
 
 export function CategoryFilterPanel({ categories, brands }: { categories: Category[]; brands: string[] }) {
   const router = useRouter();
@@ -41,8 +40,8 @@ export function CategoryFilterPanel({ categories, brands }: { categories: Catego
           <Package className="h-4 w-4 text-signal" /> Categories
         </div>
         <nav className="mt-3 space-y-1">
-          {categoryTree.map((category, index) => {
-            const Icon = categoryIcons[index] ?? Package;
+          {categoryTree.map((category) => {
+            const Icon = iconForCategory(category.icon, category.slug);
             return (
               <CategoryBranch
                 key={category.id}

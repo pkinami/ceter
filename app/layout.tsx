@@ -4,15 +4,20 @@ import { Header } from "@/components/Header";
 import { NotificationSystem } from "@/components/NotificationSystem";
 import { Providers } from "@/components/Providers";
 import { SiteChrome } from "@/components/SiteChrome";
+import { SITE_LOGO_PATH, SITE_URL } from "@/lib/seo";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000"),
+  metadataBase: new URL(SITE_URL),
   title: {
-    default: "Ceter Technologies Limited | Office Printing Equipment Nairobi",
+    default: "Ceter Technologies Limited | Printers and Photocopiers in Nairobi",
     template: "%s | Ceter Technologies Limited"
   },
-  description: "Nairobi supplier of photocopiers, printers, toners, spare parts and office print services.",
+  description: "Shop printers, photocopiers, toners, spare parts and printer repair services from Ceter Technologies in Nairobi.",
+  alternates: { canonical: SITE_URL },
+  verification: {
+    google: process.env.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION || undefined
+  },
   icons: {
     icon: [
       { url: "/ceter-logo-pack/favicon/favicon.ico" },
@@ -26,13 +31,15 @@ export const metadata: Metadata = {
   openGraph: {
     title: "Ceter Technologies Limited",
     description: "Office printing equipment, consumables and IT services in Nairobi.",
-    images: [{ url: "/ceter-logo-pack/lockup/ceter-logo-horizontal-1200.png", width: 1200, height: 480, alt: "Ceter Technologies Limited" }]
+    url: SITE_URL,
+    siteName: "Ceter Technologies Limited",
+    images: [{ url: SITE_LOGO_PATH, width: 1200, height: 480, alt: "Ceter Technologies Limited" }]
   },
   twitter: {
     card: "summary_large_image",
     title: "Ceter Technologies Limited",
     description: "Office printing equipment, consumables and IT services in Nairobi.",
-    images: ["/ceter-logo-pack/lockup/ceter-logo-horizontal-1200.png"]
+    images: [SITE_LOGO_PATH]
   }
 };
 

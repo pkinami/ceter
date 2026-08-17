@@ -2,6 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 
 export async function middleware(request: NextRequest) {
+  if (request.nextUrl.hostname === "cetertechnologies.com") {
+    const url = request.nextUrl.clone();
+    url.hostname = "www.cetertechnologies.com";
+    return NextResponse.redirect(url, 308);
+  }
+
   const response = NextResponse.next({ request });
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const anonKey =

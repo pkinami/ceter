@@ -1,11 +1,11 @@
 import { redirect } from "next/navigation";
-import { updateProfileAction } from "@/app/actions";
-import { FormSubmitButton } from "@/components/FormSubmitButton";
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { formatKes } from "@/lib/utils";
 
 export const metadata = {
-  title: "Account"
+  title: "Order History",
+  robots: { index: false, follow: false }
 };
 
 type Order = {
@@ -26,41 +26,34 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
   const { data: userData } = await supabase.auth.getUser();
   if (!userData.user) redirect("/login");
 
-  const [{ data: profile }, { data: orders }] = await Promise.all([
-    supabase.from("profiles").select("full_name,phone,role").eq("id", userData.user.id).maybeSingle(),
-    supabase
-      .from("orders")
-      .select("id,status,total_kes,created_at,order_items(quantity,price_at_purchase_kes,products(name))")
-      .eq("user_id", userData.user.id)
-      .order("created_at", { ascending: false })
-  ]);
+  const { data: orders } = await supabase
+    .from("orders")
+    .select("id,status,total_kes,created_at,order_items(quantity,price_at_purchase_kes,products(name))")
+    .eq("user_id", userData.user.id)
+    .order("created_at", { ascending: false });
+
+  const orderList = (orders ?? []) as unknown as Order[];
 
   return (
-    <div className="mx-auto grid max-w-7xl gap-6 px-4 py-8 lg:grid-cols-[380px_1fr]">
-      <section className="h-fit rounded-lg border border-slate-300 bg-white p-5">
-        <h1 className="text-2xl font-black text-ink">Account</h1>
-        <p className="mt-1 text-sm text-slate-500">{userData.user.email}</p>
-        {params.error ? <p className="mt-4 rounded-md bg-red-50 p-3 text-sm font-semibold text-red-700">{params.error}</p> : null}
-        {params.success ? <p className="mt-4 rounded-md bg-teal-50 p-3 text-sm font-semibold text-teal-800">{params.success}</p> : null}
-        <form action={updateProfileAction} className="mt-5 space-y-4">
-          <label className="block text-sm font-bold text-slate-700">
-            Full name
-            <input name="full_name" defaultValue={profile?.full_name ?? ""} className="mt-2 h-11 w-full rounded-md border border-slate-300 px-3 text-sm focus:border-signal focus:outline-none" />
-          </label>
-          <label className="block text-sm font-bold text-slate-700">
-            Phone
-            <input name="phone" defaultValue={profile?.phone ?? ""} className="mt-2 h-11 w-full rounded-md border border-slate-300 px-3 text-sm focus:border-signal focus:outline-none" />
-          </label>
-          <FormSubmitButton pendingText="Saving..." className="h-11 rounded-md bg-signal px-5 text-sm font-bold text-white hover:bg-teal-700">Save profile</FormSubmitButton>
-        </form>
+    <div className="mx-auto max-w-7xl px-4 py-8">
+      <section className="mb-6 flex flex-col gap-4 border-b border-line pb-6 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <p className="text-xs font-black uppercase tracking-normal text-signal">Your Orders</p>
+          <h1 className="mt-1 text-3xl font-black text-ink">Order History</h1>
+          <p className="mt-2 text-sm text-slate-500">{userData.user.email ?? "Email unavailable"}</p>
+        </div>
+        <Link href="/account/edit" className="inline-flex h-11 items-center justify-center rounded-md border border-slate-300 px-4 text-sm font-bold text-ink hover:bg-slate-50">
+          Edit Account
+        </Link>
       </section>
       <section id="orders" className="rounded-lg border border-slate-300 bg-white">
+        {params.error ? <p className="mt-4 rounded-md bg-red-50 p-3 text-sm font-semibold text-red-700">{params.error}</p> : null}
+        {params.success ? <p className="mt-4 rounded-md bg-teal-50 p-3 text-sm font-semibold text-teal-800">{params.success}</p> : null}
         <div className="border-b border-line p-5">
-          <h2 className="text-xl font-black text-ink">Order history</h2>
-          <p className="text-sm text-slate-500">Pending orders are created before payment integration.</p>
+          <h2 className="text-xl font-black text-ink">Your Orders</h2>
         </div>
         <div className="divide-y divide-line">
-          {((orders ?? []) as unknown as Order[]).length ? ((orders ?? []) as unknown as Order[]).map((order) => (
+          {orderList.length ? orderList.map((order) => (
             <article key={order.id} className="p-5">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
@@ -81,7 +74,14 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
                 ))}
               </div>
             </article>
-          )) : <p className="p-5 text-sm font-semibold text-slate-500">No orders yet.</p>}
+          )) : (
+            <div className="p-8 text-center">
+              <p className="text-lg font-black text-ink">You have no orders yet</p>
+              <Link href="/category" className="mt-4 inline-flex h-11 items-center justify-center rounded-md bg-signal px-5 text-sm font-bold text-white hover:bg-teal-700">
+                Browse Products
+              </Link>
+            </div>
+          )}
         </div>
       </section>
     </div>

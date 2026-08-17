@@ -19,7 +19,7 @@ const poolConfig: PoolConfig = {
   connectionString,
   max: poolMax,
   idleTimeoutMillis: 10_000,
-  connectionTimeoutMillis: 10_000
+  connectionTimeoutMillis: toPositiveInteger(process.env.PRISMA_CONNECTION_TIMEOUT_MS, 60_000)
 };
 
 process.env.DATABASE_URL = connectionString;

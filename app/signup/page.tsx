@@ -4,7 +4,8 @@ import { signUpAction } from "@/app/actions";
 import { FormSubmitButton } from "@/components/FormSubmitButton";
 
 export const metadata = {
-  title: "Create account"
+  title: "Create account",
+  robots: { index: false, follow: false }
 };
 
 export default async function SignupPage({ searchParams }: { searchParams: Promise<{ error?: string }> }) {

@@ -45,6 +45,8 @@ export type Product = {
   images: string[];
   specs: Record<string, string>;
   isFeatured: boolean;
+  showOfferBadge: boolean;
+  showFlashSaleBadge: boolean;
 };
 
 export type ProductRow = {
@@ -61,6 +63,8 @@ export type ProductRow = {
   images: unknown;
   specs: unknown;
   is_featured: boolean;
+  show_offer_badge?: boolean;
+  show_flash_sale_badge?: boolean;
   price_history?: Array<{ price_kes: number; effective_from: string; effective_to: string | null }>;
   categories?: { id: string; name: string; slug: string } | null;
   brands?: { id: string; name: string; slug: string } | null;
@@ -82,10 +86,21 @@ export type Banner = {
   secondaryCtaLabel?: string | null;
   secondaryCtaHref?: string | null;
   image: string | null;
+  laptopImage?: string | null;
   mobileImage: string | null;
+  imageVariants?: BannerImageVariant[];
   placement: BannerPlacement;
   categoryId: string | null;
   sortOrder: number;
+};
+
+export type BannerImageVariant = {
+  slot: string;
+  url: string;
+  width: number;
+  height: number;
+  aspectRatio: string;
+  shape: "wide" | "mid" | "tall";
 };
 
 export type ServiceEntry = {

@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
-import type { PaymentStatus, Prisma } from "@prisma/client";
+import type { DeliveryRegion, FulfillmentMethod, PaymentStatus, Prisma, Product, StockStatus } from "@prisma/client";
+import { getDeliveryFee } from "@/lib/delivery";
 import { prisma } from "@/lib/prisma";
 
 const VAT_RATE = Number(process.env.VAT_RATE ?? process.env.NEXT_PUBLIC_VAT_RATE ?? 0.16);
@@ -12,17 +13,51 @@ type CheckoutCustomer = {
 };
 
 export type CheckoutInput = {
-  method: "mpesa" | "card";
+  method: "mpesa" | "card" | "pay_on_delivery";
   phone?: string;
   returnUrl?: string;
 };
 
+type CheckoutDeliveryInput = {
+  fulfillmentMethod: FulfillmentMethod;
+  delivery: {
+    name: string;
+    phone: string;
+    email: string;
+    region: DeliveryRegion | null;
+    location: string;
+    instructions: string;
+  } | null;
+};
+
+export function assertCheckoutProviderConfigured(method: "mpesa" | "card") {
+  if (method === "mpesa") {
+    if (!process.env.MPESA_CONSUMER_KEY || !process.env.MPESA_CONSUMER_SECRET || !process.env.MPESA_SHORTCODE || !process.env.MPESA_PASSKEY) {
+      throw new Error("M-Pesa checkout is not configured.");
+    }
+    return;
+  }
+
+  if (!process.env.PESAPAL_CONSUMER_KEY || !process.env.PESAPAL_CONSUMER_SECRET || !process.env.PESAPAL_IPN_ID) {
+    throw new Error("Card checkout is not configured.");
+  }
+}
+
 function siteUrl() {
-  return (process.env.NEXT_PUBLIC_SITE_URL ?? process.env.VERCEL_PROJECT_PRODUCTION_URL ?? "http://localhost:3000").replace(/\/$/, "");
+  const configured = process.env.NEXT_PUBLIC_SITE_URL ?? process.env.VERCEL_PROJECT_PRODUCTION_URL;
+  if (!configured && process.env.NODE_ENV === "production") {
+    throw new Error("NEXT_PUBLIC_SITE_URL or VERCEL_PROJECT_PRODUCTION_URL is required for production payment callbacks.");
+  }
+  return (configured ?? "http://localhost:3000").replace(/\/$/, "");
 }
 
 function json(value: unknown): Prisma.InputJsonValue {
   return value as Prisma.InputJsonValue;
+}
+
+function stockStatusAfterReserve(product: Product, quantity: number): StockStatus {
+  if (product.stock_status === "backorder") return "backorder";
+  return product.stock_quantity - quantity > 0 ? "in_stock" : "out_of_stock";
 }
 
 export function normalizeKenyanPhone(value: string) {
@@ -33,25 +68,72 @@ export function normalizeKenyanPhone(value: string) {
   throw new Error("Enter a valid Kenyan M-Pesa phone number.");
 }
 
-export async function createOrderFromCart(customer: CheckoutCustomer) {
+export async function createOrderFromCart(customer: CheckoutCustomer, checkout: CheckoutDeliveryInput = { fulfillmentMethod: "delivery", delivery: null }) {
   const cart = await prisma.cartItem.findMany({
     where: { user_id: customer.userId },
     include: { product: true }
   });
 
-  if (!cart.some((item) => item.product.is_published && !item.product.archived_at)) throw new Error("Your cart is empty.");
+  const activeCart = cart
+    .filter((item) => item.product.is_published && !item.product.archived_at)
+    .map((item) => ({ ...item, quantity: Math.max(1, item.quantity) }));
 
-  const subtotal = cart.reduce((sum, item) => {
-    if (!item.product.is_published || item.product.archived_at) return sum;
-    return sum + item.product.price_kes * Math.max(1, item.quantity);
-  }, 0);
-  const totalKes = Math.round(subtotal * (1 + VAT_RATE));
+  if (!activeCart.length) throw new Error("Your cart is empty.");
+
+  const unavailable = activeCart.find((item) => item.product.stock_status !== "backorder" && item.product.stock_quantity < item.quantity);
+  if (unavailable) {
+    throw new Error(`${unavailable.product.name} has only ${Math.max(0, unavailable.product.stock_quantity)} unit${unavailable.product.stock_quantity === 1 ? "" : "s"} available.`);
+  }
+
+  const subtotal = activeCart.reduce((sum, item) => sum + item.product.price_kes * item.quantity, 0);
+  const vatKes = Math.round(subtotal * VAT_RATE);
+  let deliveryFeeKes = 0;
+  if (checkout.fulfillmentMethod === "delivery") {
+    if (!checkout.delivery?.region) throw new Error("Choose a delivery region.");
+    if (!checkout.delivery.name) throw new Error("Enter the delivery contact name.");
+    if (!checkout.delivery.phone) throw new Error("Enter the delivery phone number.");
+    if (!checkout.delivery.email) throw new Error("Enter the delivery email.");
+    if (!checkout.delivery.location) throw new Error("Enter delivery location or address details.");
+    deliveryFeeKes = await getDeliveryFee(checkout.delivery.region);
+  }
+  const totalKes = subtotal + vatKes + deliveryFeeKes;
 
   return prisma.$transaction(async (tx) => {
+    if (checkout.fulfillmentMethod === "delivery" && checkout.delivery) {
+      await tx.profile.upsert({
+        where: { id: customer.userId },
+        update: {
+          full_name: checkout.delivery.name,
+          phone: checkout.delivery.phone,
+          email: checkout.delivery.email,
+          delivery_region: checkout.delivery.region,
+          delivery_location: checkout.delivery.location,
+          delivery_instructions: checkout.delivery.instructions || null
+        },
+        create: {
+          id: customer.userId,
+          full_name: checkout.delivery.name,
+          phone: checkout.delivery.phone,
+          email: checkout.delivery.email,
+          role: "customer",
+          delivery_region: checkout.delivery.region,
+          delivery_location: checkout.delivery.location,
+          delivery_instructions: checkout.delivery.instructions || null
+        }
+      });
+    }
     const order = await tx.order.create({
       data: {
         user_id: customer.userId,
         status: "pending",
+        fulfillment_method: checkout.fulfillmentMethod,
+        delivery_region: checkout.fulfillmentMethod === "delivery" ? checkout.delivery?.region ?? null : null,
+        delivery_fee_kes: deliveryFeeKes,
+        delivery_name: checkout.fulfillmentMethod === "delivery" ? checkout.delivery?.name ?? null : null,
+        delivery_phone: checkout.fulfillmentMethod === "delivery" ? checkout.delivery?.phone ?? null : null,
+        delivery_email: checkout.fulfillmentMethod === "delivery" ? checkout.delivery?.email ?? null : null,
+        delivery_location: checkout.fulfillmentMethod === "delivery" ? checkout.delivery?.location ?? null : null,
+        delivery_instructions: checkout.fulfillmentMethod === "delivery" ? checkout.delivery?.instructions || null : null,
         total_kes: totalKes,
         order_items: {
           create: cart
@@ -64,9 +146,46 @@ export async function createOrderFromCart(customer: CheckoutCustomer) {
         }
       }
     });
+    for (const item of activeCart) {
+      if (item.product.stock_status === "backorder") continue;
+      const updated = await tx.product.updateMany({
+        where: { id: item.product_id, stock_quantity: { gte: item.quantity } },
+        data: {
+          stock_quantity: { decrement: item.quantity },
+          stock_status: stockStatusAfterReserve(item.product, item.quantity)
+        }
+      });
+      if (updated.count !== 1) throw new Error(`${item.product.name} no longer has enough stock.`);
+      await tx.stockMovement.create({
+        data: {
+          product_id: item.product_id,
+          delta: -item.quantity,
+          reason: "SALE",
+          reference: `Order ${order.id}`
+        }
+      });
+    }
     await tx.cartItem.deleteMany({ where: { user_id: customer.userId } });
     return order;
   });
+}
+
+export async function createPayOnDeliveryPayment(orderId: string) {
+  const order = await prisma.order.findUnique({ where: { id: orderId } });
+  if (!order) throw new Error("Order not found.");
+  const merchantReference = `CT-POD-${order.id.slice(0, 8)}-${randomUUID().slice(0, 8)}`;
+  const payment = await prisma.paymentTransaction.create({
+    data: {
+      order_id: order.id,
+      provider: "manual_pay_on_delivery",
+      method: "pay_on_delivery",
+      status: "pending",
+      amount_kes: order.total_kes,
+      merchant_reference: merchantReference
+    }
+  });
+  await prisma.order.update({ where: { id: order.id }, data: { status: "processing", payment_method: "pay_on_delivery" } });
+  return payment;
 }
 
 export async function findReusablePayment(orderId: string, method: "mpesa" | "card") {

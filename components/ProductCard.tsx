@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { ShoppingCart } from "lucide-react";
+import { Flame, ShoppingCart, Zap } from "lucide-react";
 import type { Product } from "@/lib/types";
 import { AddToCartButton } from "@/components/AddToCartButton";
 import { QuickViewPopover } from "@/components/QuickViewPopover";
@@ -11,7 +11,7 @@ import { WhatsAppOrderButton } from "@/components/WhatsAppOrderButton";
 import { formatKes } from "@/lib/utils";
 
 export function ProductCard({ product }: { product: Product }) {
-  const hasImage = Boolean(product.image && product.image !== "/product-placeholder.svg");
+  const hasImage = Boolean(product.image);
   const placeholderLabel = (product.name || product.category || "Ceter").trim().charAt(0).toUpperCase();
 
   return (
@@ -21,16 +21,20 @@ export function ProductCard({ product }: { product: Product }) {
       transition={{ duration: 0.18 }}
     >
       <Link href={`/product/${product.slug}`} className="block">
-        <div className="relative aspect-[4/3] overflow-hidden rounded-md bg-panel">
+        <div className="relative aspect-[4/3] overflow-hidden rounded-md bg-white">
           {hasImage ? (
-            <Image src={product.image} alt={product.name} fill className="object-contain p-5" sizes="(max-width: 768px) 100vw, 25vw" />
+            <Image src={product.image} alt={product.name} fill className="object-contain object-center" sizes="(max-width: 768px) 100vw, 25vw" />
           ) : (
-            <div className="flex h-full w-full items-center justify-center bg-navy text-white">
-              <span className="grid h-16 w-16 place-items-center rounded-md border border-white/20 bg-white/10 text-3xl font-black">{placeholderLabel}</span>
+            <div className="flex h-full w-full items-center justify-center bg-white text-slate-400">
+              <span className="grid h-16 w-16 place-items-center rounded-md border border-slate-200 bg-slate-50 text-3xl font-black">{placeholderLabel}</span>
             </div>
           )}
-          <span className="absolute left-2 top-2 rounded-full bg-ink px-2.5 py-1 text-xs font-bold text-white shadow">New</span>
-          <span className="absolute right-2 top-2 rounded-full bg-white/95 px-2.5 py-1 text-xs font-bold text-slate-700 shadow">{product.condition}</span>
+          <div className="absolute left-2 top-2 flex flex-wrap gap-1.5">
+            {product.condition === "new" ? <span className="rounded-full bg-teal-600 px-2.5 py-1 text-xs font-black uppercase text-white">New</span> : null}
+            {product.showOfferBadge ? <span className="inline-flex items-center gap-1 rounded-full bg-orange-600 px-2.5 py-1 text-xs font-black uppercase text-white"><Flame className="h-3 w-3" aria-hidden /> Offer</span> : null}
+            {product.showFlashSaleBadge ? <span className="inline-flex items-center gap-1 rounded-full bg-red-600 px-2.5 py-1 text-xs font-black uppercase text-white"><Zap className="h-3 w-3" aria-hidden /> Flash Sale</span> : null}
+          </div>
+          {product.condition === "refurbished" ? <span className="absolute right-2 top-2 rounded-full border border-slate-200 bg-white/95 px-2.5 py-1 text-xs font-bold capitalize text-slate-700">{product.condition}</span> : null}
         </div>
         <div className="pt-3">
           <p className="text-xs font-bold uppercase text-signal">{product.brand}</p>

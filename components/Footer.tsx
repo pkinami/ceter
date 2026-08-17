@@ -5,23 +5,22 @@ import { BrandIcon, type BrandIconName } from "@/components/BrandIcon";
 
 const socials = [
   { label: "WhatsApp +254 707 143322", icon: "whatsapp", href: "https://wa.me/254707143322" },
-  { label: "Instagram @cetertechnologies", icon: "instagram", href: "#" },
-  { label: "X @cetertechnologies", icon: "x", href: "#" },
-  { label: "Facebook @cetertechnologies", icon: "facebook", href: "#" },
+  { label: "Instagram @cetertechnologies", icon: "instagram", href: "https://www.instagram.com/cetertechnologies/" },
+  { label: "X @cetertechnologies", icon: "x", href: "https://x.com/cetertechnologies" },
+  { label: "Facebook @cetertechnologies", icon: "facebook", href: "https://www.facebook.com/cetertechnologies/" },
+  { label: "TikTok @cetertechnologies", icon: "tiktok", href: "https://www.tiktok.com/@cetertechnologies" },
   { label: "Email info@cetertechnologies.com", icon: "email", href: "mailto:info@cetertechnologies.com" }
 ] satisfies Array<{ label: string; icon: BrandIconName; href: string }>;
 
 const payments = [
-  { label: "M-Pesa", icon: "mpesa" },
-  { label: "Visa", icon: "visa" },
-  { label: "Mastercard", icon: "mastercard" },
-  { label: "Debit and credit card", icon: "card" }
-] satisfies Array<{ label: string; icon: BrandIconName }>;
+  { label: "M-Pesa", icon: "mpesa", className: "h-15 w-[80px]" },
+  { label: "Visa", icon: "visa", className: "h-15 w-[60px]" },
+  { label: "Mastercard", icon: "mastercard", className: "h-15 w-[50px]" },
+] satisfies Array<{ label: string; icon: BrandIconName; className: string }>;
 
 const quickLinks = [
   { label: "Shop", href: "/category" },
   { label: "Service Quote", href: "/quote" },
-  { label: "Admin", href: "/admin" },
   { label: "About", href: "/about" },
   { label: "Contact", href: "mailto:info@cetertechnologies.com" }
 ];
@@ -73,8 +72,8 @@ export function Footer() {
             </div>
             <div className="mt-5 flex flex-wrap items-center gap-x-5 gap-y-3 border-t border-white/10 pt-5" aria-label="Accepted payment methods">
               {payments.map((payment) => (
-                <span key={payment.label} className="inline-flex h-8 items-center" title={payment.label}>
-                  <BrandIcon name={payment.icon} label={payment.label} size={64} className="max-h-7 w-auto" />
+                <span key={payment.label} className="inline-flex h-9 items-center justify-center rounded bg-white px-2 shadow-sm" title={payment.label}>
+                  <BrandIcon name={payment.icon} label={payment.label} size={80} className={payment.className} />
                 </span>
               ))}
             </div>
@@ -106,8 +105,8 @@ export function Footer() {
       <div className="border-t border-white/10">
         <div className="mx-auto flex max-w-7xl flex-col gap-3 px-4 py-5 text-sm text-slate-400 md:flex-row md:items-center md:justify-between">
           <div className="flex gap-4">
-            <Link href="#" className="hover:text-signal">Privacy Policy</Link>
-            <Link href="#" className="hover:text-signal">Terms and Conditions</Link>
+            <Link href="/privacy-policy" className="hover:text-signal">Privacy Policy</Link>
+            <Link href="/terms-conditions" className="hover:text-signal">Terms and Conditions</Link>
           </div>
           <p>&copy; 2026 Ceter Technologies Limited. All rights reserved.</p>
         </div>

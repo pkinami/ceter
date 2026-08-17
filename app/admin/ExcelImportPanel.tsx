@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
 import { Download, FileSpreadsheet, UploadCloud } from "lucide-react";
 import { AdminProgress, ProgressButton, type AdminProgressState } from "@/components/admin/AdminProgress";
 
@@ -19,7 +20,10 @@ type ImportResponse = {
   errorCount: number;
   rowLimit: number;
   importedCount?: number;
+  updatedCount?: number;
   skippedCount?: number;
+  failedCount?: number;
+  affectedSlugs?: string[];
   importErrors?: Array<{ rowNumber: number; errors: string[] }>;
   error?: string;
 };
@@ -46,7 +50,7 @@ const CONFIG = {
   categories: {
     title: "Category XLSX Upload",
     template: "/api/admin/excel-import?kind=categories",
-    columns: ["name", "slug", "parent_slug", "description", "icon", "image", "sort_order"]
+    columns: ["name", "slug", "parent_slug", "description", "icon", "sort_order"]
   }
 } satisfies Record<ImportKind, { title: string; template: string; columns: string[] }>;
 
@@ -67,6 +71,7 @@ function ImportCard({ kind }: { kind: ImportKind }) {
   const config = CONFIG[kind];
   const isPending = progress?.status === "running";
   const canImport = Boolean(file && result && result.errorCount === 0 && result.rows.length > 0);
+  const isComplete = typeof result?.importedCount === "number";
 
   const totals = useMemo(() => {
     const rows = result?.rows ?? [];
@@ -140,7 +145,7 @@ function ImportCard({ kind }: { kind: ImportKind }) {
         const finalResult = job.result;
         if (!finalResult) throw new Error("Import finished without a result.");
         setResult(finalResult);
-        setMessage(`Import finished. Imported: ${finalResult.importedCount ?? 0}. Skipped: ${finalResult.skippedCount ?? 0}.`);
+        setMessage("Import complete.");
         return;
       }
       if (job.status === "error") throw new Error(job.error ?? "Import failed.");
@@ -193,18 +198,52 @@ function ImportCard({ kind }: { kind: ImportKind }) {
       <div className="mt-3 rounded-md border border-line bg-white p-3 text-xs text-[#5B6B80]">
         <AdminProgress progress={progress} />
         <p className={progress ? "mt-2" : ""}>{message || "Select a template-formatted workbook to preview rows before importing."}</p>
-        {result && !result.error ? (
+        {result && !result.error && !isComplete ? (
           <p className="mt-1">
             Rows: {result.rows.length} | Creates: {totals.create} | Updates: {totals.update} | Errors: {result.errorCount}
-            {typeof result.importedCount === "number" ? ` | Imported: ${result.importedCount} | Skipped: ${result.skippedCount ?? 0}` : ""}
           </p>
         ) : null}
       </div>
 
-      {result?.importErrors?.length ? <ErrorReport title="Import errors" rows={result.importErrors} /> : null}
-      {result && !result.error ? <PreviewTable columns={config.columns} rows={result.rows} /> : null}
+      {isComplete && result ? <CompletionState kind={kind} result={result} onImportAnother={() => {
+        setFile(null);
+        setResult(null);
+        setMessage("");
+        setProgress(null);
+      }} /> : null}
+      {result?.importErrors?.length ? <ErrorReport title={isComplete ? "Validation and import errors" : "Import errors"} rows={result.importErrors} /> : null}
+      {result && !result.error && !isComplete ? <PreviewTable columns={config.columns} rows={result.rows} /> : null}
     </div>
   );
+}
+
+function CompletionState({ kind, result, onImportAnother }: { kind: ImportKind; result: ImportResponse; onImportAnother: () => void }) {
+  const failedCount = result.failedCount ?? result.importErrors?.length ?? 0;
+  const affected = result.affectedSlugs ?? [];
+  const affectedHref = kind === "products"
+    ? affected.length === 1 ? `/admin/products?q=${encodeURIComponent(affected[0])}` : "/admin/products?sort=newest"
+    : "/admin/categories";
+  return (
+    <div className="mt-3 rounded-md border border-green-200 bg-green-50 p-3">
+      <h3 className="text-sm font-black text-green-900">Import complete</h3>
+      <div className="mt-3 grid gap-2 text-xs text-green-900 sm:grid-cols-4">
+        <ResultMetric label="Imported" value={result.importedCount ?? 0} />
+        <ResultMetric label="Updated" value={result.updatedCount ?? 0} />
+        <ResultMetric label="Skipped" value={result.skippedCount ?? 0} />
+        <ResultMetric label="Failed" value={failedCount} />
+      </div>
+      <div className="mt-3 flex flex-wrap gap-2">
+        <Link href={kind === "products" ? "/admin/products" : "/admin/categories"} className="btn-dark">{kind === "products" ? "View Products" : "View Imported Categories"}</Link>
+        <button type="button" className="btn-lite" onClick={onImportAnother}>Import Another File</button>
+        <Link href={affectedHref} className="btn-lite">View Affected {kind === "products" ? "Products" : "Categories"}</Link>
+        <Link href="/admin" className="btn-lite">Return to Dashboard</Link>
+      </div>
+    </div>
+  );
+}
+
+function ResultMetric({ label, value }: { label: string; value: number }) {
+  return <div className="rounded-md border border-green-200 bg-white p-2"><div className="font-black">{value}</div><div>{label}</div></div>;
 }
 
 function uploadImport(formData: FormData, onUploadProgress: (percent: number) => void) {

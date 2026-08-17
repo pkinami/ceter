@@ -1,15 +1,39 @@
 "use client";
 
-import Link from "next/link";
 import Image from "next/image";
-import { useEffect, useMemo, useRef, useState, useTransition } from "react";
-import { Archive, BarChart3, Boxes, Check, FileText, LogOut, Menu, PackageSearch, Pencil, Search, Settings, ShoppingBag, Store, Trash2, UserCircle, X } from "lucide-react";
+import Link from "next/link";
+import { useMemo, useState, useTransition } from "react";
+import {
+  Archive,
+  Boxes,
+  Building2,
+  ChevronRight,
+  CreditCard,
+  FileBarChart,
+  FileSpreadsheet,
+  FileText,
+  Home,
+  ImageIcon,
+  LayoutDashboard,
+  LogOut,
+  Menu,
+  Package,
+  Pencil,
+  Search,
+  Settings,
+  ShieldCheck,
+  ShoppingBag,
+  Store,
+  Tags,
+  Trash2,
+  UploadCloud,
+  Users,
+  X
+} from "lucide-react";
 import { toast } from "sonner";
 import { signOutAction } from "@/app/actions";
+import { bulkProductAction, saveInventoryMatrixAction, updateQuoteStatusAction, type InventoryMatrixEdit } from "@/app/admin/actions";
 import { ExcelImportPanel } from "@/app/admin/ExcelImportPanel";
-import { bulkProductAction, saveInventoryMatrixAction, updateQuoteStatusAction, upsertProductAction, type InventoryMatrixEdit } from "@/app/admin/actions";
-import { AdminProgress, ProgressButton, type AdminProgressState } from "@/components/admin/AdminProgress";
-import { FormSubmitButton } from "@/components/FormSubmitButton";
 import { formatKes, formatNumber } from "@/lib/utils";
 
 type ProductRow = {
@@ -83,707 +107,529 @@ type Props = {
   brands: Array<{ id: string; name: string; slug: string }>;
 };
 
-type View = "dashboard" | "catalogue" | "inventory" | "quotes" | "orders";
-type DirtyCell = { id: string; field: "mpn" | "stock_quantity" | "price_kes" | "cost_price_kes"; value: string | number | null; original: string | number | null; updatedAt: string };
+type Section =
+  | "dashboard"
+  | "products"
+  | "categories"
+  | "brands"
+  | "imports"
+  | "pricing"
+  | "inventory"
+  | "orders"
+  | "quotes"
+  | "customers"
+  | "payments"
+  | "banners"
+  | "reports"
+  | "settings"
+  | "users";
 
-const nav = [
-  { view: "dashboard" as const, label: "Dashboard", icon: BarChart3 },
-  { view: "catalogue" as const, label: "Catalogue", icon: PackageSearch },
-  { view: "inventory" as const, label: "Inventory", icon: Boxes },
-  { view: "quotes" as const, label: "Quotes & tenders", icon: FileText },
-  { view: "orders" as const, label: "Orders", icon: ShoppingBag }
-];
-
-const viewCopy: Record<View, string> = {
-  dashboard: "Overview",
-  catalogue: "Product operations",
-  inventory: "Stock matrix",
-  quotes: "Sales pipeline",
-  orders: "Fulfilment"
+type DirtyCell = {
+  id: string;
+  field: "stock_quantity" | "price_kes" | "cost_price_kes" | "mpn";
+  value: string | number | null;
+  original: string | number | null;
+  updatedAt: string;
 };
 
+const navGroups: Array<{ label: string; items: Array<{ key: Section; label: string; icon: React.ComponentType<{ className?: string }> }> }> = [
+  { label: "Overview", items: [{ key: "dashboard", label: "Dashboard", icon: LayoutDashboard }] },
+  {
+    label: "Catalogue",
+    items: [
+      { key: "products", label: "Products", icon: Package },
+      { key: "categories", label: "Categories", icon: Tags },
+      { key: "brands", label: "Brands", icon: Building2 },
+      { key: "imports", label: "Import Centre", icon: UploadCloud }
+    ]
+  },
+  {
+    label: "Operations",
+    items: [
+      { key: "pricing", label: "Pricing & Cost", icon: FileSpreadsheet },
+      { key: "inventory", label: "Inventory", icon: Boxes }
+    ]
+  },
+  {
+    label: "Sales",
+    items: [
+      { key: "orders", label: "Orders", icon: ShoppingBag },
+      { key: "quotes", label: "Quotes & Tenders", icon: FileText },
+      { key: "customers", label: "Customers", icon: Users },
+      { key: "payments", label: "Payments", icon: CreditCard }
+    ]
+  },
+  {
+    label: "Store",
+    items: [
+      { key: "banners", label: "Banners & Storefront", icon: ImageIcon },
+      { key: "reports", label: "Reports", icon: FileBarChart },
+      { key: "settings", label: "Store Settings", icon: Settings },
+      { key: "users", label: "Users & Roles", icon: ShieldCheck }
+    ]
+  }
+];
+
 export function AdminConsole({ session, products, quotes, orders, movements, vatRate, categories, brands }: Props) {
-  const [view, setView] = useState<View>("dashboard");
-  const [drawer, setDrawer] = useState(false);
-  const [sidebarExpanded, setSidebarExpanded] = useState(false);
-  const [rows, setRows] = useState(products);
-  const [selected, setSelected] = useState(products[0]?.id ?? "");
-  const [dirty, setDirty] = useState<Record<string, DirtyCell>>({});
-  const [status, setStatus] = useState<Record<string, "ok" | "err">>({});
-  const [filter, setFilter] = useState("");
+  const [section, setSection] = useState<Section>("dashboard");
   const [query, setQuery] = useState("");
-  const [catalogueSelectedRows, setCatalogueSelectedRows] = useState<string[]>([]);
-  const [catalogueSelectAllMatching, setCatalogueSelectAllMatching] = useState(false);
-  const [catalogueLastSelectedId, setCatalogueLastSelectedId] = useState<string | null>(null);
-  const [inventorySelectedRows, setInventorySelectedRows] = useState<string[]>([]);
-  const [inventorySelectAllMatching, setInventorySelectAllMatching] = useState(false);
-  const [inventoryLastSelectedId, setInventoryLastSelectedId] = useState<string | null>(null);
-  const [saveProgress, setSaveProgress] = useState<AdminProgressState | null>(null);
-  const [isPending, startTransition] = useTransition();
-  const selectedProduct = rows.find((row) => row.id === selected) ?? rows[0] ?? null;
-  const sidebarOpen = drawer || sidebarExpanded;
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const [hovered, setHovered] = useState(false);
+  const [autoCollapse, setAutoCollapse] = useState(true);
+  const [drawerProduct, setDrawerProduct] = useState<ProductRow | null>(null);
+  const [rows, setRows] = useState(products);
+  const [selected, setSelected] = useState<string[]>([]);
+  const [dirty, setDirty] = useState<Record<string, DirtyCell>>({});
+  const [pending, startTransition] = useTransition();
 
-  const lowStock = rows.filter((row) => row.reorder_level > 0 && row.stock_quantity <= row.reorder_level);
-  const quotesWaiting = quotes.filter((quote) => quote.status === "new" || quote.status === "contacted");
-  const fulfilOrders = orders.filter((order) => order.status === "paid" || order.status === "processing");
-  const gaps = rows.filter((row) => row.images.length === 0 || row.cost_price_kes == null || !row.mpn);
-  const filteredRows = useMemo(() => {
-    const scoped = filter === "low" ? lowStock : filter === "out" ? rows.filter((row) => row.stock_quantity === 0) : filter === "zero-cost" ? rows.filter((row) => row.cost_price_kes == null || row.cost_price_kes === 0) : filter === "missing-images" ? rows.filter((row) => row.images.length === 0) : filter === "missing-mpn" ? rows.filter((row) => !row.mpn) : filter === "archived" ? rows.filter((row) => row.archived_at) : rows.filter((row) => !row.archived_at);
-    return query.trim() ? scoped.filter((row) => [row.name, row.brand, row.category, row.mpn, row.sku, row.slug].some((value) => String(value ?? "").toLowerCase().includes(query.trim().toLowerCase()))) : scoped;
-  }, [filter, lowStock, query, rows]);
+  const filteredProducts = useMemo(() => {
+    const term = query.trim().toLowerCase();
+    return rows.filter((row) => {
+      if (row.archived_at && section !== "products") return false;
+      if (!term) return true;
+      return [row.name, row.sku, row.mpn, row.slug, row.brand, row.category].some((value) => String(value ?? "").toLowerCase().includes(term));
+    });
+  }, [query, rows, section]);
 
-  useEffect(() => {
-    const handler = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        if (drawer) setDrawer(false);
-        if (view === "catalogue" && catalogueSelectedRows.length) {
-          setCatalogueSelectedRows([]);
-          setCatalogueSelectAllMatching(false);
-        }
-        if (view === "inventory" && inventorySelectedRows.length) {
-          setInventorySelectedRows([]);
-          setInventorySelectAllMatching(false);
-        }
-      }
-    };
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
-  }, [catalogueSelectedRows.length, drawer, inventorySelectedRows.length, view]);
+  const stats = useMemo(() => buildStats(rows, orders, quotes), [orders, quotes, rows]);
+  const expanded = mobileOpen || !autoCollapse || hovered;
 
-  useEffect(() => {
-    setCatalogueSelectedRows([]);
-    setCatalogueSelectAllMatching(false);
-    setCatalogueLastSelectedId(null);
-    setInventorySelectedRows([]);
-    setInventorySelectAllMatching(false);
-    setInventoryLastSelectedId(null);
-  }, [filter, query]);
-
-  useEffect(() => {
-    const handler = (event: BeforeUnloadEvent) => {
-      if (Object.keys(dirty).length === 0) return;
-      event.preventDefault();
-      event.returnValue = "";
-    };
-    window.addEventListener("beforeunload", handler);
-    return () => window.removeEventListener("beforeunload", handler);
-  }, [dirty]);
-
-  function go(next: View, nextFilter = "") {
-    if (Object.keys(dirty).length > 0 && !window.confirm("You have unsaved inventory changes. Leave without saving?")) return;
-    setView(next);
-    setFilter(nextFilter);
-    setDrawer(false);
+  function navigate(next: Section) {
+    setSection(next);
+    setMobileOpen(false);
+    setSelected([]);
   }
 
   function updateCell(row: ProductRow, field: DirtyCell["field"], raw: string) {
-    const value = field === "mpn" ? raw.trim() || null : raw === "" && field === "cost_price_kes" ? null : Number(raw);
-    const original = row[field] as string | number | null;
+    const value = field === "mpn" ? raw.trim() || null : raw === "" && field === "cost_price_kes" ? null : Number(raw.replace(/,/g, ""));
+    if (typeof value === "number" && !Number.isFinite(value)) return;
     const key = `${row.id}:${field}`;
+    const original = row[field] as string | number | null;
     setDirty((current) => {
       const next = { ...current };
-      if (value === original || (typeof value === "number" && Number.isNaN(value))) delete next[key];
+      if (value === original) delete next[key];
       else next[key] = { id: row.id, field, value, original, updatedAt: row.updated_at };
       return next;
     });
-    setRows((current) => current.map((item) => item.id === row.id ? { ...item, [field]: typeof value === "number" && Number.isNaN(value) ? original : value } : item));
-    setStatus((current) => ({ ...current, [row.id]: undefined as never }));
+    setRows((current) => current.map((item) => (item.id === row.id ? { ...item, [field]: value } : item)));
   }
 
-  function discard() {
-    setRows(products);
-    setDirty({});
-    setStatus({});
-    toast.warning("Changes discarded", { description: "The table is back to the saved values." });
-  }
-
-  function save() {
-    if (isPending) return;
+  function saveMatrix() {
     const grouped = new Map<string, InventoryMatrixEdit>();
     for (const cell of Object.values(dirty)) {
-      const edit = grouped.get(cell.id) ?? { id: cell.id, updatedAt: cell.updatedAt, note: "Inventory matrix" };
+      const edit = grouped.get(cell.id) ?? { id: cell.id, updatedAt: cell.updatedAt, note: section === "pricing" ? "Pricing workspace" : "Inventory workspace" };
       edit[cell.field] = cell.value as never;
       grouped.set(cell.id, edit);
     }
     const edits = [...grouped.values()];
-    setSaveProgress({ label: "Saving...", stage: "Saving inventory changes", status: "running" });
+    if (!edits.length) return;
     startTransition(async () => {
       try {
         const result = await saveInventoryMatrixAction(edits);
-        setStatus(Object.fromEntries([...result.ok.map((item) => [item.id, "ok"] as const), ...result.failed.map((item) => [item.id, "err"] as const)]));
+        setDirty({});
         setRows((current) => current.map((row) => {
           const saved = result.ok.find((item) => item.id === row.id);
-          return saved ? { ...row, ...saved, updated_at: saved.updatedAt } : products.find((item) => item.id === row.id) ?? row;
+          return saved ? { ...row, ...saved, updated_at: saved.updatedAt } : row;
         }));
-        setDirty((current) => Object.fromEntries(Object.entries(current).filter(([, cell]) => result.failed.some((item) => item.id === cell.id))));
-        if (result.failed.length) {
-          setSaveProgress({ label: `Saved ${result.ok.length} of ${edits.length}`, stage: "Some rows failed", status: "error" });
-          toast.error(`Saved ${result.ok.length} of ${edits.length} changes`, { description: result.failed.map((item) => `${productCode(rows.find((row) => row.id === item.id))}: ${item.reason}`).join("; ") });
-        } else {
-          setSaveProgress({ label: `Saved ${result.ok.length} change${result.ok.length === 1 ? "" : "s"}`, stage: "Complete", percent: 100, status: "success" });
-          toast.success(`Saved ${result.ok.length} change${result.ok.length === 1 ? "" : "s"}`, { description: "Stock movements, price history and audit entries were recorded." });
-        }
+        if (result.failed.length) toast.error(`Saved ${result.ok.length} of ${edits.length}`, { description: result.failed.map((item) => item.reason).join("; ") });
+        else toast.success(`Saved ${result.ok.length} catalogue update${result.ok.length === 1 ? "" : "s"}`);
       } catch (error) {
-        const text = error instanceof Error ? error.message : "Inventory save failed.";
-        setSaveProgress({ label: "Save failed", stage: text, status: "error" });
-        toast.error(text);
+        toast.error(error instanceof Error ? error.message : "Save failed.");
+      }
+    });
+  }
+
+  function runBulk(action: "publish" | "unpublish" | "delete") {
+    if (!selected.length) return;
+    const label = action === "publish" ? "publish" : action === "unpublish" ? "unpublish" : "archive/delete";
+    if (!window.confirm(`Confirm ${label} for ${selected.length} selected product(s).`)) return;
+    startTransition(async () => {
+      try {
+        const result = await bulkProductAction(selected, action);
+        if (action === "delete") {
+          const ids = new Set(selected);
+          setRows((current) => current.filter((row) => !ids.has(row.id)));
+        } else {
+          const is_published = action === "publish";
+          const ids = new Set(selected);
+          setRows((current) => current.map((row) => (ids.has(row.id) ? { ...row, is_published, archived_at: is_published ? null : row.archived_at } : row)));
+        }
+        setSelected([]);
+        toast.success(`Updated ${result.updated + result.archived + result.deleted} product(s)`);
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : "Bulk action failed.");
       }
     });
   }
 
   return (
-    <div className="min-h-screen bg-[#F6F8FA] text-ink">
-      <header className="sticky top-0 z-40 flex h-[58px] items-center gap-3 border-b border-[#DDE8EE] bg-white/95 px-3 shadow-[0_1px_0_rgba(20,184,166,0.08)] backdrop-blur lg:px-5">
-        <button className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-line text-[#33445A] hover:border-[#BFDAD8] hover:bg-[#ECFAF8] min-[860px]:hidden" onClick={() => setDrawer(true)} aria-label="Open menu"><Menu className="h-4 w-4" /></button>
-        <Link href="/admin" aria-label="Ceter admin dashboard" className="inline-flex shrink-0 items-center rounded-md focus:outline-none focus:ring-2 focus:ring-accent/25">
-          <Image src="/ceter-logo-pack/lockup/ceter-logo-horizontal.svg" alt="Ceter Technologies Limited" width={172} height={42} className="h-9 w-auto" priority />
+    <div className={`admin-ui ${autoCollapse ? "admin-auto-collapse" : "admin-pinned"}`}>
+      <Topbar session={session} query={query} setQuery={setQuery} onMenu={() => setMobileOpen(true)} stats={stats} autoCollapse={autoCollapse} setAutoCollapse={setAutoCollapse} />
+      {mobileOpen ? <button className="admin-mobile-overlay" aria-label="Close navigation" onClick={() => setMobileOpen(false)} /> : null}
+      <Sidebar expanded={expanded} active={section} onNavigate={navigate} onHover={setHovered} mobileOpen={mobileOpen} autoCollapse={autoCollapse} />
+      <main className="admin-main">
+        <div className="admin-page">
+          {section === "dashboard" ? <Dashboard stats={stats} products={rows} orders={orders} quotes={quotes} movements={movements} go={navigate} /> : null}
+          {section === "products" ? <ProductsPage rows={filteredProducts} selected={selected} setSelected={setSelected} open={setDrawerProduct} pending={pending} runBulk={runBulk} /> : null}
+          {section === "categories" ? <CategoriesPage rows={rows} categories={categories} /> : null}
+          {section === "brands" ? <BrandsPage rows={rows} brands={brands} openProducts={(brand) => { setQuery(brand); setSection("products"); }} /> : null}
+          {section === "imports" ? <ImportCentre /> : null}
+          {section === "pricing" ? <PricingPage rows={filteredProducts} dirty={dirty} updateCell={updateCell} save={saveMatrix} pending={pending} /> : null}
+          {section === "inventory" ? <InventoryPage rows={filteredProducts} dirty={dirty} updateCell={updateCell} save={saveMatrix} pending={pending} /> : null}
+          {section === "orders" ? <OrdersPage orders={orders} /> : null}
+          {section === "quotes" ? <QuotesPage quotes={quotes} /> : null}
+          {section === "customers" ? <CustomersPage orders={orders} quotes={quotes} /> : null}
+          {section === "payments" ? <PaymentsPage orders={orders} /> : null}
+          {section === "banners" ? <BannersPage /> : null}
+          {section === "reports" ? <ReportsPage stats={stats} rows={rows} vatRate={vatRate} /> : null}
+          {section === "settings" ? <SettingsPage /> : null}
+          {section === "users" ? <UsersPage session={session} /> : null}
+        </div>
+      </main>
+      <ProductDrawer product={drawerProduct} categories={categories} brands={brands} onClose={() => setDrawerProduct(null)} />
+    </div>
+  );
+}
+
+function Topbar({ session, query, setQuery, onMenu, stats, autoCollapse, setAutoCollapse }: { session: Props["session"]; query: string; setQuery: (value: string) => void; onMenu: () => void; stats: ReturnType<typeof buildStats>; autoCollapse: boolean; setAutoCollapse: (value: boolean) => void }) {
+  return (
+    <header className="admin-topbar">
+      <div className="admin-logo-zone">
+        <button className="admin-btn admin-icon-btn admin-mobile-menu" onClick={onMenu} aria-label="Open admin navigation"><Menu className="h-4 w-4" /></button>
+        <Link href="/admin" className="admin-logo-link">
+          <Image src="/ceter-logo-pack/lockup/ceter-logo-horizontal-reversed.svg" alt="Ceter Technologies" width={210} height={48} priority />
         </Link>
-        <div className="hidden min-w-0 text-sm text-slate-500 md:block">
-          <button onClick={() => go("dashboard")} className="font-medium text-slate-600 hover:text-ink">Admin</button>
-          <span className="px-2 text-slate-300">/</span>
-          <span className="font-medium text-ink">{viewCopy[view]}</span>
+      </div>
+      <div className="admin-global-zone">
+        <div className="admin-global-search">
+          <Search className="admin-search-symbol" />
+          <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search products, SKU, MPN, brands..." />
         </div>
-        <label className="relative max-w-[440px] flex-1 md:ml-2">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#4E6478]/60" />
-          <input value={query} onChange={(event) => setQuery(event.target.value)} className="h-9 w-full rounded-md border border-[#CAD8E3] bg-[#F7FAFB] pl-9 pr-3 text-[13px] focus:border-[#14B8A6] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#14B8A6]/15" placeholder="Search products, MPN, brand..." onKeyDown={(event) => { if (event.key === "Enter") go("catalogue"); }} />
+        <div className="admin-top-spacer" />
+        <label className="admin-collapse-option" title="Auto hide/collapse sidebar on hover">
+          <span>Auto collapse</span>
+          <input type="checkbox" checked={autoCollapse} onChange={(event) => setAutoCollapse(event.target.checked)} />
+          <span className={`admin-toggle ${autoCollapse ? "on" : ""}`} />
         </label>
-        <div className="ml-auto hidden gap-1.5 sm:flex">
-          <TopIndicator count={lowStock.length} label="low stock" onClick={() => go("inventory", "low")} tone="crit" />
-          <TopIndicator count={quotesWaiting.length} label="quotes" onClick={() => go("quotes")} tone="warn" />
-          <TopIndicator count={fulfilOrders.length} label="fulfil" onClick={() => go("orders")} tone="mute" />
-        </div>
-        <div title={session.email ?? "Admin"} className="grid h-8 w-8 shrink-0 place-items-center rounded-full border border-[#BFDAD8] bg-[#F1FBF9] text-[11px] font-semibold text-ink">{initials(session.name ?? session.email ?? "Admin")}</div>
-      </header>
-      <div className="flex min-h-[calc(100vh-58px)]">
-        {drawer ? <button className="fixed inset-0 z-40 bg-[#071426]/40 min-[860px]:hidden" aria-label="Close menu backdrop" onClick={() => setDrawer(false)} /> : null}
-        <aside
-          onMouseEnter={() => setSidebarExpanded(true)}
-          onMouseLeave={() => setSidebarExpanded(false)}
-          className={`fixed inset-y-0 left-0 z-50 flex w-[236px] flex-col border-r border-[#DDE8EE] bg-white text-[#33445A] shadow-xl shadow-slate-900/8 transition-[width,transform] duration-200 ease-out min-[860px]:sticky min-[860px]:top-[58px] min-[860px]:h-[calc(100vh-58px)] min-[860px]:translate-x-0 min-[860px]:shadow-none ${drawer ? "max-[859px]:translate-x-0" : "max-[859px]:-translate-x-full"} ${sidebarExpanded ? "min-[860px]:w-[236px]" : "min-[860px]:w-[64px]"}`}
-        >
-          <div className="flex h-[58px] items-center gap-2 border-b border-[#E7EEF3] px-3 min-[860px]:hidden">
-            <span className="min-w-0 flex-1 truncate text-[12px] font-semibold text-[#33445A]">Admin workspace</span>
-            <button className="ml-auto rounded-md p-2 text-slate-500 hover:bg-[#ECFAF8] focus:outline-none focus:ring-2 focus:ring-accent/25" onClick={() => setDrawer(false)} aria-label="Close menu"><X className="h-4 w-4" /></button>
-          </div>
-          <nav className="flex-1 overflow-hidden px-2 py-3 hover:overflow-auto">
-            <p className={`px-2 pb-2 text-[11px] font-medium text-slate-500 transition-opacity ${sidebarOpen ? "opacity-100" : "min-[860px]:opacity-0"}`}>Project</p>
-            {nav.map((item) => {
+        <div className="admin-top-chip">{formatNumber(stats.backorder)} backorder</div>
+        <div className="admin-top-chip">{formatNumber(stats.published)} published</div>
+        <Link href="/" className="admin-top-chip admin-store-link"><Home className="h-3.5 w-3.5" /> Storefront</Link>
+        <div className="admin-top-account" title={session.email ?? "Admin"}><div className="admin-top-avatar">{initials(session.name ?? session.email ?? "Admin")}</div><span>{session.name ?? "Admin"}</span></div>
+      </div>
+    </header>
+  );
+}
+
+function Sidebar({ expanded, active, onNavigate, onHover, mobileOpen, autoCollapse }: { expanded: boolean; active: Section; onNavigate: (section: Section) => void; onHover: (value: boolean) => void; mobileOpen: boolean; autoCollapse: boolean }) {
+  return (
+    <aside onMouseEnter={() => autoCollapse && onHover(true)} onMouseLeave={() => autoCollapse && onHover(false)} className={`admin-sidebar ${expanded ? "expanded" : ""} ${mobileOpen ? "mobile-open" : ""}`}>
+      <nav className="admin-sidebar-scroll">
+        {navGroups.map((group) => (
+          <div key={group.label} className="admin-nav-group">
+            <div className="admin-nav-group-label">{group.label}</div>
+            {group.items.map((item) => {
               const Icon = item.icon;
-              const active = view === item.view;
-              const count = item.view === "catalogue" ? gaps.length : item.view === "inventory" ? lowStock.length : item.view === "quotes" ? quotesWaiting.length : item.view === "orders" ? fulfilOrders.length : null;
+              const current = active === item.key;
               return (
-                <button key={item.view} onClick={() => go(item.view)} title={!sidebarOpen ? item.label : undefined} aria-label={item.label} aria-current={active ? "page" : undefined} className={`group relative mb-1 flex h-9 w-full items-center gap-2 overflow-hidden rounded-md px-2 text-left text-[13px] font-medium focus:outline-none focus:ring-2 focus:ring-accent/25 ${sidebarOpen ? "" : "min-[860px]:justify-center"} ${active ? "border border-[#BFE8E3] bg-[#EAF8F6] text-ink shadow-[inset_2px_0_0_#14B8A6]" : "border border-transparent text-[#4B5C70] hover:border-[#D5ECE9] hover:bg-[#F2FAF9] hover:text-ink"}`}>
-                  <Icon className={`h-4 w-4 shrink-0 ${active ? "text-[#0F766E]" : "text-[#60748A] group-hover:text-[#0F766E]"}`} /> {sidebarOpen ? <span className="truncate">{item.label}</span> : <span className="sr-only">{item.label}</span>}
-                  {count ? !sidebarOpen ? <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-accent ring-2 ring-white" /> : <span className="ml-auto rounded-full border border-[#CFE9E5] bg-white px-1.5 py-0.5 font-mono text-[10px] text-[#38625E]">{count > 99 ? "99+" : count}</span> : null}
+                <button key={item.key} onClick={() => onNavigate(item.key)} title={expanded ? undefined : item.label} className={`admin-nav-item ${current ? "active" : ""}`}>
+                  <span className="admin-nav-icon"><Icon /></span>
+                  <span className="admin-nav-label">{item.label}</span>
                 </button>
               );
             })}
-          </nav>
-          <div className="border-t border-[#E7EEF3] px-2 py-3">
-            <SidebarAction collapsed={!sidebarOpen} icon={Store} label="View storefront" href="/" external />
-            <SidebarAction collapsed={!sidebarOpen} icon={Settings} label="Settings" disabled />
-            <SidebarAction collapsed={!sidebarOpen} icon={UserCircle} label={session.name ?? session.email ?? "Admin Account"} disabled />
-            <form action={signOutAction}>
-              <SidebarAction collapsed={!sidebarOpen} icon={LogOut} label="Logout" submit danger />
-            </form>
           </div>
-        </aside>
-
-        <div className="min-w-0 flex-1">
-          <main className="w-full max-w-[1500px] px-3 py-4 pb-24 lg:px-5">
-            {view === "dashboard" ? <Dashboard rows={rows} quotes={quotes} orders={orders} movements={movements} go={go} setSelected={setSelected} /> : null}
-            {view === "catalogue" ? <Catalogue rows={filteredRows} allRows={rows} selected={selectedProduct} setSelected={setSelected} categories={categories} brands={brands} query={query} setQuery={setQuery} selectedRows={catalogueSelectedRows} setSelectedRows={setCatalogueSelectedRows} selectAllMatching={catalogueSelectAllMatching} setSelectAllMatching={setCatalogueSelectAllMatching} lastSelectedId={catalogueLastSelectedId} setLastSelectedId={setCatalogueLastSelectedId} /> : null}
-            {view === "inventory" ? <Inventory rows={filteredRows} filter={filter} setFilter={setFilter} dirty={dirty} status={status} updateCell={updateCell} selectedRows={inventorySelectedRows} setSelectedRows={setInventorySelectedRows} selectAllMatching={inventorySelectAllMatching} setSelectAllMatching={setInventorySelectAllMatching} lastSelectedId={inventoryLastSelectedId} setLastSelectedId={setInventoryLastSelectedId} /> : null}
-            {view === "quotes" ? <Quotes quotes={quotes} products={rows} vatRate={vatRate} /> : null}
-            {view === "orders" ? <Orders orders={orders} /> : null}
-          </main>
-        </div>
-      </div>
-
-      <div className={`fixed bottom-5 z-50 rounded-lg border border-[#223654] bg-[#0B1E39] px-4 py-3 text-white shadow-2xl transition-transform left-4 right-4 min-[860px]:left-[80px] min-[860px]:right-5 ${Object.keys(dirty).length && view === "inventory" ? "translate-y-0" : "translate-y-40"}`} role="status" aria-live="polite">
-        <div className="flex items-center gap-3">
-          <span><span className="font-mono font-semibold">{Object.keys(dirty).length}</span> unsaved changes</span>
-          <span className="flex-1" />
-          <button onClick={discard} disabled={isPending} className="min-h-9 rounded-lg border border-white/30 px-3 text-sm font-semibold disabled:opacity-60">Discard</button>
-          <ProgressButton onClick={save} progress={isPending ? saveProgress : null} className="min-h-9 rounded-lg border border-[#14B8A6] bg-[#14B8A6] px-3 text-sm font-semibold text-[#04241f] disabled:opacity-60">Save changes</ProgressButton>
-        </div>
-        <div className="mt-2"><AdminProgress progress={saveProgress} compact /></div>
-      </div>
-    </div>
-  );
-}
-
-function Dashboard({ rows, quotes, orders, movements, go, setSelected }: { rows: ProductRow[]; quotes: QuoteRow[]; orders: OrderRow[]; movements: MovementRow[]; go: (view: View, filter?: string) => void; setSelected: (id: string) => void }) {
-  const restock = rows.filter((row) => row.reorder_level > 0 && row.stock_quantity <= row.reorder_level).sort((a, b) => (a.supplier_name ?? "Unassigned").localeCompare(b.supplier_name ?? "Unassigned"));
-  const quoteQueue = quotes.filter((q) => q.status !== "closed");
-  const fulfilQueue = orders.filter((order) => order.status === "paid" || order.status === "processing");
-  const gaps = rows.filter((row) => row.images.length === 0 || row.cost_price_kes == null || row.reorder_level <= 0 || !row.supplier_name || !row.mpn);
-  return <><ViewHead title="Dashboard" copy="Operations first: restock, quotes, fulfilment, catalogue gaps, then sales." />
-    <div className="grid gap-3">
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <Kpi label="Products monitored" value={formatNumber(rows.length)} />
-        <Kpi label="Sales this month" value={formatKes(orders.reduce((sum, item) => sum + item.total, 0))} />
-        <Kpi label="Quotes issued" value={String(quotes.length)} />
-        <Kpi label="Average margin" value={margin(rows)} />
-      </div>
-      <div className="grid items-start gap-3 xl:grid-cols-2">
-        <Card title="Restock list" tag={`${restock.length} lines`}>
-          {restock.length ? restock.slice(0, 5).map((row) => <ListRow key={row.id} title={row.name} sub={`${row.supplier_name ?? "Supplier not set"} | ${formatNumber(row.stock_quantity)} in stock | reorder ${formatNumber(row.reorder_quantity || row.reorder_level)}`} action={!row.supplier_name ? <button onClick={() => { setSelected(row.id); go("catalogue"); }} className="btn-lite min-h-8 text-xs">Set reorder level</button> : undefined} />) : <Empty title="No restock needed" copy="Products above reorder level stay out of this list." action={<button onClick={() => go("inventory", "low")} className="btn-lite">Review inventory</button>} />}
-        </Card>
-        <Card title="Quotes waiting on us" tag={`${quoteQueue.length} open`}>
-          {quoteQueue.length ? quoteQueue.slice(0, 5).map((quote) => <ListRow key={quote.id} title={quote.client} sub={quote.need} action={<Badge tone={quote.followUpAt && new Date(quote.followUpAt) < new Date() ? "crit" : "mute"}>{quote.followUpAt && new Date(quote.followUpAt) < new Date() ? "Overdue" : quote.status}</Badge>} />) : <Empty title="No quotes waiting" copy="New enquiries from the storefront appear here." action={<button onClick={() => go("quotes")} className="btn-dark">New quote</button>} />}
-        </Card>
-      </div>
-      <div className="grid items-start gap-3 xl:grid-cols-3">
-        <Card title="Orders to fulfil" tag={`${fulfilQueue.length} active`}>
-          {fulfilQueue.length ? fulfilQueue.slice(0, 4).map((order) => <ListRow key={order.id} title={order.ref} sub={order.client} action={<button onClick={() => go("orders")} className="btn-lite min-h-8 text-xs">Open</button>} />) : <Empty title="No orders to fulfil" copy="Paid and processing orders appear here." action={<button onClick={() => go("orders")} className="btn-lite">View orders</button>} />}
-        </Card>
-        <Card title="Catalogue gaps" tag={`${gaps.length} issues`}>
-          {gaps.length ? <>{gaps.slice(0, 4).map((row) => <ListRow key={row.id} title={row.name} sub={gapText(row)} action={<button onClick={() => { setSelected(row.id); go("catalogue"); }} className="btn-lite min-h-8 text-xs">Fix</button>} />)}{gaps.length > 4 ? <div className="border-t border-[#EDF1F6] px-4 py-2 text-right"><button onClick={() => go("catalogue")} className="text-xs font-semibold text-[#0F766E]">View all</button></div> : null}</> : <Empty title="No catalogue gaps" copy="Missing product data and configuration issues appear here." action={<button onClick={() => go("catalogue")} className="btn-lite">Open catalogue</button>} />}
-        </Card>
-        <Card title="Recent stock movements" tag="Latest">
-          {movements.length ? movements.map((movement) => <ListRow key={movement.id} title={`${movement.product} | ${movement.delta > 0 ? "+" : ""}${movement.delta}`} sub={`${movement.reason} | ${movement.reference ?? "No reference"} | ${movement.user}`} action={<span className="font-mono text-xs text-[#5B6B80]">{movement.createdAt}</span>} />) : <Empty title="No movements yet" copy="Stock edits will appear here once the matrix is used." action={<button onClick={() => go("inventory")} className="btn-lite">Open matrix</button>} />}
-        </Card>
-      </div>
-    </div>
-  </>;
-}
-
-function Catalogue({ rows, allRows, selected, setSelected, categories, brands, query, setQuery, selectedRows, setSelectedRows, selectAllMatching, setSelectAllMatching, lastSelectedId, setLastSelectedId }: { rows: ProductRow[]; allRows: ProductRow[]; selected: ProductRow | null; setSelected: (id: string) => void; categories: Array<{ id: string; name: string; slug: string }>; brands: Array<{ id: string; name: string; slug: string }>; query: string; setQuery: (value: string) => void; selectedRows: string[]; setSelectedRows: React.Dispatch<React.SetStateAction<string[]>>; selectAllMatching: boolean; setSelectAllMatching: (value: boolean) => void; lastSelectedId: string | null; setLastSelectedId: (value: string | null) => void }) {
-  const [showImport, setShowImport] = useState(false);
-  const [showAdd, setShowAdd] = useState(false);
-  const [editing, setEditing] = useState<ProductRow | null>(null);
-  const [operationProgress, setOperationProgress] = useState<AdminProgressState | null>(null);
-  const busy = operationProgress?.status === "running";
-  const visibleRows = rows;
-
-  function toggleRow(id: string, event: React.ChangeEvent<HTMLInputElement>) {
-    const ids = visibleRows.map((row) => row.id);
-    if (event.nativeEvent instanceof MouseEvent && event.nativeEvent.shiftKey && lastSelectedId) {
-      const start = ids.indexOf(lastSelectedId);
-      const end = ids.indexOf(id);
-      if (start >= 0 && end >= 0) {
-        const range = ids.slice(Math.min(start, end), Math.max(start, end) + 1);
-        setSelectedRows((current) => [...new Set([...current, ...range])]);
-        return;
-      }
-    }
-    setLastSelectedId(id);
-    setSelectedRows((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id]);
-  }
-
-  function togglePage(checked: boolean) {
-    const pageIds = visibleRows.map((row) => row.id);
-    setSelectedRows((current) => checked ? [...new Set([...current, ...pageIds])] : current.filter((id) => !pageIds.includes(id)));
-  }
-
-  async function runBulk(action: "delete" | "publish" | "unpublish" | "set-category" | "set-price" | "set-stock" | "export") {
-    if (busy) return;
-    const ids = selectAllMatching ? visibleRows.map((row) => row.id) : selectedRows;
-    if (!ids.length) return;
-    if (action === "export") {
-      setOperationProgress({ label: "Exporting", stage: "Preparing CSV", percent: 20, status: "running" });
-      exportSelected(ids, allRows);
-      setOperationProgress({ label: "Export ready", stage: "Complete", percent: 100, status: "success" });
-      return;
-    }
-    const value = bulkValue(action, categories);
-    if (value === false) return;
-    const message = action === "delete"
-      ? `This will inspect ${ids.length} selected product(s). Referenced products will be archived and hidden; unreferenced products may be permanently deleted. Continue?`
-      : `${bulkLabel(action)} ${ids.length} selected product(s)?`;
-    if (!window.confirm(message)) return;
-    setOperationProgress({ label: bulkRunningLabel(action), stage: `${bulkRunningLabel(action)} ${ids.length} product${ids.length === 1 ? "" : "s"}`, status: "running" });
-    try {
-      const result = await bulkProductAction(ids, action, value);
-      if (action === "delete") {
-        setOperationProgress({ label: "Delete complete", stage: `Archived ${result.archived}, deleted ${result.deleted}`, percent: 100, status: result.failed.length ? "error" : "success" });
-        toast.success(`Archived ${result.archived}, deleted ${result.deleted}${result.failed.length ? ` - ${result.failed.length} could not be changed` : ""}`, { description: result.failed.map((item) => item.reason).join("; ") || "Undo window: publish archived products again from the Archived filter." });
-        setRowsAfterBulk(result);
-      } else {
-        setOperationProgress({ label: `${bulkLabel(action)} complete`, stage: `Updated ${result.updated} product${result.updated === 1 ? "" : "s"}`, percent: 100, status: result.failed.length ? "error" : "success" });
-        toast.success(`${bulkLabel(action)} ${result.updated} product${result.updated === 1 ? "" : "s"}`);
-      }
-      setSelectedRows([]);
-      setSelectAllMatching(false);
-    } catch (error) {
-      const text = error instanceof Error ? error.message : "Bulk action failed.";
-      setOperationProgress({ label: "Action failed", stage: text, status: "error" });
-      toast.error(text);
-    }
-  }
-
-  async function deleteRow(row: ProductRow) {
-    if (busy) return;
-    if (!window.confirm(`Delete or archive ${row.name}? Products referenced by orders, quotes, stock movements or serials will be archived instead of removed.`)) return;
-    setOperationProgress({ label: "Deleting...", stage: row.name, status: "running" });
-    try {
-      const result = await bulkProductAction([row.id], "delete");
-      setOperationProgress({ label: "Delete complete", stage: `Archived ${result.archived}, deleted ${result.deleted}`, percent: 100, status: result.failed.length ? "error" : "success" });
-      toast.success(`Archived ${result.archived}, deleted ${result.deleted}`);
-      window.location.reload();
-    } catch (error) {
-      const text = error instanceof Error ? error.message : "Delete failed.";
-      setOperationProgress({ label: "Delete failed", stage: text, status: "error" });
-      toast.error(text);
-    }
-  }
-
-  function setRowsAfterBulk(result: { archived: number; deleted: number }) {
-    if (result.deleted) window.location.reload();
-    else if (result.archived) window.location.reload();
-  }
-
-  return <><ViewHead title="Catalogue" copy="Manage standalone products for storefront sale." actions={<><button type="button" onClick={() => setShowImport((current) => !current)} disabled={busy} className={showImport ? "btn-dark" : "btn-lite"}>{showImport ? "Close import" : "Import XLSX"}</button><button type="button" onClick={() => setShowAdd(true)} disabled={busy} className="btn-dark">Add Product</button></>} />
-    {showAdd ? <ProductDialog categories={categories} brands={brands} onClose={() => setShowAdd(false)} /> : null}
-    {editing ? <ProductDialog product={editing} categories={categories} brands={brands} onClose={() => setEditing(null)} /> : null}
-    {showImport ? <Card title="XLSX import" tag="Preview before commit"><div className="p-3"><ExcelImportPanel /></div></Card> : null}
-    <div className="mb-3"><AdminProgress progress={operationProgress} /></div>
-    <SelectionActionBar selectedCount={selectAllMatching ? visibleRows.length : selectedRows.length} totalCount={visibleRows.length} selectAllMatching={selectAllMatching} disabled={busy} onSelectAllMatching={() => setSelectAllMatching(true)} onClear={() => { setSelectedRows([]); setSelectAllMatching(false); }} onAction={runBulk} />
-    <div className="grid min-w-0 gap-3">
-      <Card title={`All products`} tag={`${visibleRows.length} of ${allRows.length} items`}>
-        <div className="sticky top-0 z-20 border-b border-[#EDF1F6] bg-white p-3">
-          <input value={query} onChange={(event) => setQuery(event.target.value)} className="admin-input w-full max-w-md" placeholder="Filter catalogue table" />
-        </div>
-        <div className="max-h-[calc(100vh-260px)] overflow-auto"><table className="min-w-[1080px] w-full table-fixed border-collapse text-[13px]"><colgroup><col className="w-10" /><col className="w-[27%]" /><col className="w-[12%]" /><col className="w-[14%]" /><col className="w-[17%]" /><col className="w-[10%]" /><col className="w-[8%]" /><col className="w-[7%]" /><col className="w-[5%]" /></colgroup><thead><tr><SelectTh rows={visibleRows} selectedRows={selectedRows} onToggle={togglePage} /><Th>Product</Th><Th>Brand</Th><Th>MPN/SKU</Th><Th>Category</Th><Th right>Price</Th><Th right>Stock</Th><Th>Published</Th><Th /></tr></thead><tbody>
-          {visibleRows.map((row) => <tr key={row.id} onClick={() => setSelected(row.id)} className={`cursor-pointer border-b border-[#EDF1F6] hover:bg-[#F7FCFB] ${selected?.id === row.id ? "bg-[#EAF8F6] shadow-[inset_2px_0_0_#14B8A6]" : ""}`}>
-            <SelectTd row={row} selected={selectedRows.includes(row.id) || selectAllMatching} onChange={toggleRow} />
-            <Td><div className="line-clamp-2 font-medium leading-snug">{row.name}</div>{row.archived_at ? <div className="mt-1"><Badge tone="mute">Archived</Badge></div> : null}</Td><Td>{row.brand}</Td><Td mono>{productCode(row)}</Td><Td><span className="line-clamp-2">{row.category}</span></Td><Td right mono nowrap>{formatNumber(row.price_kes)}</Td><Td right mono nowrap>{formatNumber(row.stock_quantity)}</Td><Td>{row.is_published && !row.archived_at ? <Badge tone="ok">Published</Badge> : <Badge tone="mute">Draft</Badge>}</Td><Td right nowrap><button type="button" onClick={(event) => { event.stopPropagation(); setEditing(row); }} className="btn-lite mr-1 min-h-8 px-2" aria-label={`Edit ${row.name}`}><Pencil className="h-3.5 w-3.5" /></button><button type="button" onClick={(event) => { event.stopPropagation(); deleteRow(row); }} className="btn-lite min-h-8 px-2 text-red-600" aria-label={`Delete or archive ${row.name}`}><Trash2 className="h-3.5 w-3.5" /></button></Td>
-          </tr>)}
-          {!visibleRows.length ? <tr><td colSpan={9}><Empty title="No products match" copy="Clear the search or import catalogue items." /></td></tr> : null}
-        </tbody></table></div>
-      </Card>
-    </div>
-  </>;
-}
-
-function ProductDialog({ product, categories, brands, onClose }: { product?: ProductRow; categories: Array<{ id: string; name: string }>; brands: Array<{ id: string; name: string }>; onClose: () => void }) {
-  const editing = Boolean(product);
-  const categoryId = product?.category_id ?? "";
-  const brandId = product?.brand_id ?? "";
-  return (
-    <div className="fixed inset-0 z-[70] grid place-items-center bg-[#071426]/55 p-4" role="dialog" aria-modal="true" aria-label={editing ? "Edit product" : "Add product"}>
-      <div className="max-h-[90vh] w-full max-w-3xl overflow-auto rounded-[10px] border border-[#DDE4EC] bg-white shadow-2xl">
-        <div className="flex items-center gap-3 border-b border-[#EDF1F6] px-4 py-3">
-          <h2 className="text-[15px] font-semibold">{editing ? "Edit product" : "Add product manually"}</h2>
-          <button type="button" onClick={onClose} className="btn-lite ml-auto min-h-8 px-2" aria-label="Close add product"><X className="h-4 w-4" /></button>
-        </div>
-        <form action={upsertProductAction} className="grid gap-3 p-4 md:grid-cols-2">
-          {product ? <input type="hidden" name="id" value={product.id} /> : null}
-          <input name="name" required defaultValue={product?.name ?? ""} className="admin-input" placeholder="Product name" />
-          <input name="slug" required defaultValue={product?.slug ?? ""} className="admin-input" placeholder="slug-used-in-url" />
-          <input name="mpn" defaultValue={product?.mpn ?? ""} className="admin-input font-mono tabular-nums" placeholder="MPN / model" />
-          <input name="sku" defaultValue={product?.sku ?? ""} className="admin-input font-mono tabular-nums" placeholder="SKU" />
-          <select name="category_id" defaultValue={categoryId} className="admin-input"><option value="">Category</option>{categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</select>
-          <select name="brand_id" defaultValue={brandId} className="admin-input"><option value="">Brand</option>{brands.map((brand) => <option key={brand.id} value={brand.id}>{brand.name}</option>)}</select>
-          <input name="price_kes" required type="number" min="0" defaultValue={product?.price_kes ?? ""} className="admin-input font-mono tabular-nums" placeholder="Price KSh" />
-          <input name="cost_price_kes" type="number" min="0" defaultValue={product?.cost_price_kes ?? ""} className="admin-input font-mono tabular-nums" placeholder="Cost KSh" />
-          <input name="stock_quantity" required type="number" min="0" defaultValue={product?.stock_quantity ?? ""} className="admin-input font-mono tabular-nums" placeholder="Stock quantity" />
-          <select name="stock_status" defaultValue={product?.stock_status ?? "in_stock"} className="admin-input"><option value="in_stock">In stock</option><option value="backorder">Backorder</option><option value="out_of_stock">Out of stock</option></select>
-          <select name="condition" defaultValue={product?.condition ?? "new"} className="admin-input"><option value="new">New</option><option value="refurbished">Refurbished</option></select>
-          <input name="supplier_name" defaultValue={product?.supplier_name ?? ""} className="admin-input" placeholder="Supplier" />
-          <input name="reorder_level" type="number" min="0" defaultValue={product?.reorder_level ?? ""} className="admin-input font-mono tabular-nums" placeholder="Reorder level" />
-          <input name="reorder_quantity" type="number" min="0" defaultValue={product?.reorder_quantity ?? ""} className="admin-input font-mono tabular-nums" placeholder="Reorder quantity" />
-          <textarea name="description" required defaultValue={product?.description ?? ""} className="admin-input h-24 md:col-span-2" placeholder="Description" />
-          <label className="grid gap-1 text-xs font-semibold text-[#33445A] md:col-span-2">
-            Primary image upload
-            <input name="primary_image_file" type="file" accept="image/*" className="admin-input h-auto py-2" />
-          </label>
-          <textarea name="images" defaultValue={product?.images.join("\n") ?? ""} className="admin-input h-24 md:col-span-2" placeholder="Image URLs, one per line" />
-          <textarea name="specs" defaultValue={product?.specs ?? ""} className="admin-input h-24 md:col-span-2" placeholder="Specs, one per line: Paper size: A4" />
-          <label className="flex items-center gap-2 text-sm font-semibold text-[#33445A]"><input name="is_published" type="checkbox" defaultChecked={product?.is_published ?? true} /> Published</label>
-          <label className="flex items-center gap-2 text-sm font-semibold text-[#33445A]"><input name="is_featured" type="checkbox" defaultChecked={product?.is_featured ?? false} /> Featured</label>
-          <div className="flex justify-end gap-2 border-t border-[#EDF1F6] pt-3 md:col-span-2">
-            <button type="button" onClick={onClose} className="btn-lite">Cancel</button>
-            <FormSubmitButton pendingText="Uploading image and saving..." className="btn-dark">{editing ? "Save product" : "Create product"}</FormSubmitButton>
-          </div>
+        ))}
+        <form action={signOutAction} className="admin-nav-logout">
+          <button className="admin-nav-item danger">
+            <span className="admin-nav-icon"><LogOut /></span>
+            <span className="admin-nav-label">Logout</span>
+          </button>
         </form>
-      </div>
-    </div>
+      </nav>
+    </aside>
   );
 }
 
-function Inventory({ rows, filter, setFilter, dirty, status, updateCell, selectedRows, setSelectedRows, selectAllMatching, setSelectAllMatching, lastSelectedId, setLastSelectedId }: { rows: ProductRow[]; filter: string; setFilter: (value: string) => void; dirty: Record<string, DirtyCell>; status: Record<string, "ok" | "err">; updateCell: (row: ProductRow, field: DirtyCell["field"], raw: string) => void; selectedRows: string[]; setSelectedRows: React.Dispatch<React.SetStateAction<string[]>>; selectAllMatching: boolean; setSelectAllMatching: (value: boolean) => void; lastSelectedId: string | null; setLastSelectedId: (value: string | null) => void }) {
-  const [operationProgress, setOperationProgress] = useState<AdminProgressState | null>(null);
-  const busy = operationProgress?.status === "running";
-
-  function exportRows() {
-    if (busy) return;
-    setOperationProgress({ label: "Exporting", stage: "Preparing inventory CSV", percent: 25, status: "running" });
-    const csv = ["Product,MPN,SKU,Stock,Price,Cost,Status", ...rows.map((row) => [row.name, row.mpn ?? "", row.sku ?? "", row.stock_quantity, row.price_kes, row.cost_price_kes ?? "", row.stock_status].map((value) => `"${String(value).replace(/"/g, '""')}"`).join(","))].join("\n");
-    const url = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = "ceter-inventory.csv";
-    link.click();
-    URL.revokeObjectURL(url);
-    setOperationProgress({ label: "Export ready", stage: "Complete", percent: 100, status: "success" });
-  }
-
-  function toggleRow(id: string, event: React.ChangeEvent<HTMLInputElement>) {
-    const ids = rows.map((row) => row.id);
-    if (event.nativeEvent instanceof MouseEvent && event.nativeEvent.shiftKey && lastSelectedId) {
-      const start = ids.indexOf(lastSelectedId);
-      const end = ids.indexOf(id);
-      if (start >= 0 && end >= 0) {
-        setSelectedRows((current) => [...new Set([...current, ...ids.slice(Math.min(start, end), Math.max(start, end) + 1)])]);
-        return;
-      }
-    }
-    setLastSelectedId(id);
-    setSelectedRows((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id]);
-  }
-
-  async function runBulk(action: "delete" | "publish" | "unpublish" | "set-category" | "set-price" | "set-stock" | "export") {
-    if (busy) return;
-    const ids = selectAllMatching ? rows.map((row) => row.id) : selectedRows;
-    if (!ids.length) return;
-    if (action === "export") {
-      setOperationProgress({ label: "Exporting", stage: "Preparing selected CSV", percent: 25, status: "running" });
-      exportSelected(ids, rows);
-      setOperationProgress({ label: "Export ready", stage: "Complete", percent: 100, status: "success" });
-      return;
-    }
-    const value = bulkValue(action);
-    if (value === false) return;
-    const message = action === "delete"
-      ? `This will inspect ${ids.length} selected product(s). Referenced products will be archived and hidden; unreferenced products may be permanently deleted. Continue?`
-      : `${bulkLabel(action)} ${ids.length} selected product(s)?`;
-    if (!window.confirm(message)) return;
-    setOperationProgress({ label: bulkRunningLabel(action), stage: `${bulkRunningLabel(action)} ${ids.length} product${ids.length === 1 ? "" : "s"}`, status: "running" });
-    try {
-      const result = await bulkProductAction(ids, action, value);
-      if (action === "delete") {
-        setOperationProgress({ label: "Delete complete", stage: `Archived ${result.archived}, deleted ${result.deleted}`, percent: 100, status: result.failed.length ? "error" : "success" });
-        toast.success(`Archived ${result.archived}, deleted ${result.deleted}${result.failed.length ? ` - ${result.failed.length} could not be changed` : ""}`);
-      } else {
-        setOperationProgress({ label: `${bulkLabel(action)} complete`, stage: `Updated ${result.updated} product${result.updated === 1 ? "" : "s"}`, percent: 100, status: result.failed.length ? "error" : "success" });
-        toast.success(`${bulkLabel(action)} ${result.updated} product${result.updated === 1 ? "" : "s"}`);
-      }
-      setSelectedRows([]);
-      setSelectAllMatching(false);
-      window.location.reload();
-    } catch (error) {
-      const text = error instanceof Error ? error.message : "Bulk action failed.";
-      setOperationProgress({ label: "Action failed", stage: text, status: "error" });
-      toast.error(text);
-    }
-  }
-
-  const filters = [
-    ["out", "Out of stock"],
-    ["zero-cost", "Zero cost"],
-    ["missing-mpn", "Missing MPN"],
-    ["missing-images", "Missing images"],
-    ["archived", "Archived"]
-  ] as const;
-  return <><ViewHead title="Inventory" copy="Edit stock and prices straight in the table. Tab across, Enter moves down, Esc reverts a cell." actions={<><button onClick={() => setFilter(filter === "low" ? "" : "low")} disabled={busy} className={filter === "low" ? "btn-dark" : "btn-lite"}>Low stock</button><ProgressButton onClick={exportRows} progress={busy ? operationProgress : null} className="btn-lite">Export</ProgressButton></>} />
-    <AdminProgress progress={operationProgress} />
-    <SelectionActionBar selectedCount={selectAllMatching ? rows.length : selectedRows.length} totalCount={rows.length} selectAllMatching={selectAllMatching} disabled={busy} onSelectAllMatching={() => setSelectAllMatching(true)} onClear={() => { setSelectedRows([]); setSelectAllMatching(false); }} onAction={runBulk} />
-    <Card title="Stock and pricing" tag={`${rows.length} rows | every change is logged against your name`}>
-      <div className="flex flex-wrap gap-1.5 border-b border-[#EDF1F6] bg-white p-3 text-xs">
-        <button onClick={() => setFilter("")} disabled={busy} className={!filter ? "btn-dark min-h-8 text-xs" : "btn-lite min-h-8 text-xs"}>Active</button>
-        {filters.map(([value, label]) => <button key={value} disabled={busy} onClick={() => setFilter(value)} className={filter === value ? "btn-dark min-h-8 text-xs" : "btn-lite min-h-8 text-xs"}>{label}</button>)}
-      </div>
-      <MissingMpnNotice count={rows.filter((row) => !row.mpn).length} onClick={() => setFilter("missing-mpn")} />
-      <div className="max-h-[calc(100vh-230px)] overflow-auto"><table className="min-w-[1080px] w-full table-fixed border-collapse text-[13px]"><colgroup><col className="w-10" /><col className="w-[32%]" /><col className="w-[15%]" /><col className="w-[10%]" /><col className="w-[12%]" /><col className="w-[12%]" /><col className="w-[9%]" /><col className="w-[10%]" /></colgroup><thead><tr><SelectTh rows={rows} selectedRows={selectedRows} onToggle={(checked) => setSelectedRows((current) => checked ? [...new Set([...current, ...rows.map((row) => row.id)])] : current.filter((id) => !rows.some((row) => row.id === id)))} /><Th sticky>Product</Th><Th>MPN</Th><Th right>Stock</Th><Th right>Price (KSh)</Th><Th right>Cost (KSh)</Th><Th right>Margin</Th><Th>Status</Th></tr></thead><tbody>
-        {rows.map((row) => {
-          const isDirty = Object.keys(dirty).some((key) => key.startsWith(`${row.id}:`));
-          return <tr key={row.id} className={`border-b border-[#EDF1F6] hover:bg-[#F7FCFB] ${selectedRows.includes(row.id) || selectAllMatching ? "bg-[#EAF8F6] shadow-[inset_2px_0_0_#14B8A6]" : ""} ${isDirty ? "bg-[#FFF8E8]" : ""} ${status[row.id] === "ok" ? "bg-[#E7F6EE]" : ""} ${status[row.id] === "err" ? "bg-[#FDECEC]" : ""}`}>
-            <SelectTd row={row} selected={selectedRows.includes(row.id) || selectAllMatching} onChange={toggleRow} />
-            <Td sticky><div className="line-clamp-2 font-medium leading-snug">{row.name}</div><div className="text-xs text-[#5B6B80]">{row.brand} | {row.category}</div></Td>
-            <EditTd row={row} field="mpn" dirty={dirty} updateCell={updateCell} />
-            <EditTd row={row} field="stock_quantity" dirty={dirty} updateCell={updateCell} />
-            <EditTd row={row} field="price_kes" dirty={dirty} updateCell={updateCell} />
-            <EditTd row={row} field="cost_price_kes" dirty={dirty} updateCell={updateCell} nullable /><Td right mono nowrap>{row.cost_price_kes && row.price_kes ? `${Math.round((1 - row.cost_price_kes / row.price_kes) * 1000) / 10}%` : "-"}</Td>
-            <Td><StockBadge row={row} /></Td>
-          </tr>;
-        })}
-        {!rows.length ? <tr><td colSpan={8}><Empty title="No inventory rows" copy="Clear the filters or import catalogue items to populate the matrix." /></td></tr> : null}
-      </tbody></table></div>
-    </Card>
-  </>;
-}
-
-function Quotes({ quotes, products, vatRate }: { quotes: QuoteRow[]; products: ProductRow[]; vatRate: number }) {
-  const [lines, setLines] = useState<Array<{ id: string; qty: number; price: number }>>([]);
-  const [pendingQuote, setPendingQuote] = useState("");
-  const [progress, setProgress] = useState<AdminProgressState | null>(null);
-  const subtotal = lines.reduce((sum, line) => sum + line.qty * line.price, 0);
-  const vat = Math.round(subtotal * vatRate);
-  const cost = lines.reduce((sum, line) => sum + line.qty * (products.find((product) => product.id === line.id)?.cost_price_kes ?? 0), 0);
-  const stages = ["new", "contacted", "quoted", "won", "closed"];
-
-  async function updateQuote(quote: QuoteRow, status: string) {
-    if (pendingQuote) return;
-    setPendingQuote(quote.id);
-    setProgress({ label: "Saving...", stage: `Updating ${quote.ref}`, status: "running" });
-    try {
-      const formData = new FormData();
-      formData.set("id", quote.id);
-      formData.set("status", status);
-      await updateQuoteStatusAction(formData);
-      setProgress({ label: "Quote updated", stage: "Complete", percent: 100, status: "success" });
-      toast.success("Quote status updated", { description: `${quote.ref} is now ${status}.` });
-      window.location.reload();
-    } catch (error) {
-      const text = error instanceof Error ? error.message : "Could not update quote.";
-      setProgress({ label: "Quote update failed", stage: text, status: "error" });
-      toast.error(text);
-    } finally {
-      setPendingQuote("");
-    }
-  }
-
-  return <><ViewHead title="Quotes & tenders" copy="Every enquiry has an owner and a follow-up date. Prices are frozen onto the quote when issued." />
-    <div className="mb-3"><AdminProgress progress={progress} /></div>
-    <div className="mb-3 grid gap-2 sm:grid-cols-5">{stages.map((stage) => <button key={stage} className="rounded-md border border-[#DDE8EE] bg-white p-3 text-left hover:border-[#CFE9E5] hover:bg-[#F7FCFB]"><div className="font-mono text-lg font-semibold">{quotes.filter((q) => q.status === stage).length}</div><div className="text-xs capitalize text-[#5B6B80]">{stage}</div></button>)}</div>
-    <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_340px]"><Card title="Enquiries" tag={`${quotes.length} total`}>{quotes.length ? <div className="max-h-[calc(100vh-275px)] overflow-auto"><table className="min-w-[860px] w-full text-[13px]"><thead><tr><Th>Ref</Th><Th>Client</Th><Th>Requirement</Th><Th>Owner</Th><Th right>Value (KSh)</Th><Th>Follow-up</Th><Th>Action</Th></tr></thead><tbody>{quotes.map((q) => <tr key={q.id} className="border-b border-[#EDF1F6] hover:bg-[#F7FCFB]"><Td mono>{q.ref}</Td><Td>{q.client}</Td><Td><span className="line-clamp-2">{q.need}</span></Td><Td>{q.owner || <Badge tone="warn">Unassigned</Badge>}</Td><Td right mono>{q.value ? formatNumber(q.value) : "-"}</Td><Td><Badge tone={q.followUpAt && new Date(q.followUpAt) < new Date() ? "crit" : "mute"}>{q.followUpAt && new Date(q.followUpAt) < new Date() ? "Overdue" : q.status}</Badge></Td><Td><QuoteStatusAction quote={q} pending={pendingQuote === q.id ? progress : null} disabled={Boolean(pendingQuote) && pendingQuote !== q.id} onUpdate={updateQuote} /></Td></tr>)}</tbody></table></div> : <Empty title="No open enquiries" copy="Storefront quote requests and tender leads appear here." action={<button className="btn-dark">New quote</button>} />}</Card>
-      <div className="xl:sticky xl:top-[74px] xl:self-start"><Card title="Quotation builder" tag="Draft"><div className="max-h-56 overflow-auto border-b border-[#EDF1F6]">{products.slice(0, 7).map((product) => <button key={product.id} onClick={() => setLines((current) => current.some((line) => line.id === product.id) ? current.map((line) => line.id === product.id ? { ...line, qty: line.qty + 1 } : line) : [...current, { id: product.id, qty: 1, price: product.price_kes }])} className="flex w-full items-center gap-2 border-b border-[#EDF1F6] px-3 py-2 text-left hover:bg-[#E6FAF7]"><span className="min-w-0 flex-1"><span className="block truncate text-[13px] font-medium">{product.name}</span><span className="font-mono text-xs text-[#5B6B80]">{productCode(product)} | {formatNumber(product.stock_quantity)} in stock</span></span><span className="font-mono text-xs tabular-nums">{formatNumber(product.price_kes)}</span></button>)}</div>
-        {lines.length ? <div><table className="w-full text-xs"><tbody>{lines.map((line) => { const product = products.find((item) => item.id === line.id); return <tr key={line.id} className="border-b border-[#EDF1F6]"><Td>{product?.name}</Td><Td right mono>{line.qty}</Td><Td right mono nowrap>{formatNumber(line.price)}</Td></tr>; })}</tbody></table><div className="border-t border-[#DDE4EC] p-4 text-sm"><Total label="Subtotal" value={subtotal} /><Total label={`VAT ${Math.round(vatRate * 100)}%`} value={vat} /><div className="flex justify-between py-1"><span className="text-[#5B6B80]">Margin</span><span className="font-mono text-[#0F7B4F]">{subtotal ? `${Math.round((1 - cost / subtotal) * 1000) / 10}%` : "0%"}</span></div><Total label="Total" value={subtotal + vat} big /></div></div> : <Empty title="No lines yet" copy="Search above and click a product to build the quotation." action={<button className="btn-lite">Add custom line</button>} />}</Card></div></div>
-  </>;
-}
-
-function Orders({ orders }: { orders: OrderRow[] }) {
-  const [pending, setPending] = useState("");
-  const [progress, setProgress] = useState<AdminProgressState | null>(null);
-  const [selectedOrderId, setSelectedOrderId] = useState(orders[0]?.id ?? "");
-  const selectedOrder = orders.find((order) => order.id === selectedOrderId) ?? orders[0] ?? null;
-  function fulfil(order: OrderRow) {
-    if (pending) return;
-    setPending(order.id);
-    setProgress({ label: "Processing...", stage: `Fulfilling ${order.ref}`, status: "running" });
-    fetch("/api/admin/orders/status", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ id: order.id, status: "fulfilled" }) })
-      .then(async (response) => {
-        const data = await response.json();
-        if (!response.ok) throw new Error(data.error ?? "Could not fulfil order.");
-        setProgress({ label: "Order fulfilled", stage: "Complete", percent: 100, status: "success" });
-        toast.success("Order fulfilled");
-        window.location.reload();
-      })
-      .catch((error) => {
-        const text = error instanceof Error ? error.message : "Could not fulfil order.";
-        setProgress({ label: "Fulfilment failed", stage: text, status: "error" });
-        toast.error(text);
-      })
-      .finally(() => setPending(""));
-  }
-  return <><ViewHead title="Orders" copy="Stock leaves the books at fulfilment, not at checkout. Equipment lines get serial numbers here." />
-    <div className="mb-3"><AdminProgress progress={progress} /></div>
-    <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_340px]">
-      <Card title="Orders" tag={`${orders.length} total`}>{orders.length ? <div className="max-h-[calc(100vh-220px)] overflow-auto"><table className="min-w-[760px] w-full text-[13px]"><thead><tr><Th>Ref</Th><Th>Client</Th><Th right>Lines</Th><Th right>Total (KSh)</Th><Th>Payment</Th><Th>Fulfilment</Th><Th>Status</Th><Th /></tr></thead><tbody>{orders.map((order) => <tr key={order.id} onClick={() => setSelectedOrderId(order.id)} className={`cursor-pointer border-b border-[#EDF1F6] hover:bg-[#F7FCFB] ${selectedOrder?.id === order.id ? "bg-[#EAF8F6] shadow-[inset_2px_0_0_#14B8A6]" : ""}`}><Td mono>{order.ref}</Td><Td>{order.client}</Td><Td right mono>{order.lines}</Td><Td right mono>{formatNumber(order.total)}</Td><Td><Badge tone={order.status === "paid" || order.status === "processing" || order.status === "fulfilled" ? "ok" : "warn"}>{order.status === "pending" ? "pending" : "paid"}</Badge></Td><Td><Badge tone={order.status === "fulfilled" ? "ok" : order.status === "paid" || order.status === "processing" ? "teal" : "mute"}>{order.status === "fulfilled" ? "fulfilled" : order.needsSerials ? "serials needed" : "open"}</Badge></Td><Td><Badge tone={order.status === "fulfilled" ? "ok" : order.status === "paid" || order.status === "processing" ? "teal" : "warn"}>{order.status}</Badge></Td><Td right>{order.status === "fulfilled" || order.needsSerials ? null : <ProgressButton onClick={(event) => { event.stopPropagation(); fulfil(order); }} disabled={Boolean(pending) && pending !== order.id} progress={pending === order.id ? progress : null} className="btn-lite min-h-8 text-xs">Fulfil</ProgressButton>}</Td></tr>)}</tbody></table></div> : <Empty title="No open orders" copy="Paid storefront orders appear here for fulfilment." action={<Link href="/" className="btn-lite">View storefront</Link>} />}</Card>
-      <div className="xl:sticky xl:top-[74px] xl:self-start">
-        <Card title="Order detail" tag={selectedOrder?.ref}>{selectedOrder ? <div>
-          <ListRow title={selectedOrder.client} sub={`Created ${new Date(selectedOrder.createdAt).toLocaleDateString("en-KE")}`} action={<Badge tone={selectedOrder.status === "fulfilled" ? "ok" : "teal"}>{selectedOrder.status}</Badge>} />
-          <div className="grid grid-cols-2 gap-2 border-b border-[#EDF1F6] p-3 text-sm">
-            <div><div className="text-xs text-[#5B6B80]">Payment</div><Badge tone={selectedOrder.status === "pending" ? "warn" : "ok"}>{selectedOrder.status === "pending" ? "Pending" : "Paid"}</Badge></div>
-            <div><div className="text-xs text-[#5B6B80]">Fulfilment</div><Badge tone={selectedOrder.status === "fulfilled" ? "ok" : "mute"}>{selectedOrder.status === "fulfilled" ? "Done" : "Open"}</Badge></div>
-            <div><div className="text-xs text-[#5B6B80]">Lines</div><div className="font-mono">{selectedOrder.lines}</div></div>
-            <div><div className="text-xs text-[#5B6B80]">Total</div><div className="font-mono">{formatKes(selectedOrder.total)}</div></div>
+function Dashboard({ stats, products, orders, quotes, movements, go }: { stats: ReturnType<typeof buildStats>; products: ProductRow[]; orders: OrderRow[]; quotes: QuoteRow[]; movements: MovementRow[]; go: (section: Section) => void }) {
+  const gaps = products.filter((row) => !row.mpn || !row.cost_price_kes || !row.images.length || row.stock_quantity <= row.reorder_level);
+  return (
+    <>
+      <PageHeader title="Dashboard" copy="Upload, verify, publish, then maintain price, stock and sales operations." />
+      <MetricGrid>
+        <MetricCard label="Products" value={formatNumber(stats.products)} note={`${formatNumber(stats.published)} published`} />
+        <MetricCard label="Stock Value" value={formatKes(stats.sellingValue)} note={`${formatKes(stats.costValue)} cost basis`} />
+        <MetricCard label="Potential Margin" value={formatKes(stats.marginValue)} note={`${stats.marginPercent}% blended`} />
+        <MetricCard label="Action Queue" value={formatNumber(gaps.length)} note="Catalogue records needing review" />
+      </MetricGrid>
+      <div className="admin-grid-2">
+        <Card title="Primary Admin Flow">
+          <div className="admin-quick-grid">
+            {[
+              ["Upload", "Import Centre", "imports"],
+              ["Verify", "Products", "products"],
+              ["Publish", "Products", "products"],
+              ["Maintain", "Pricing & Inventory", "pricing"]
+            ].map(([title, label, target]) => (
+              <button key={title} onClick={() => go(target as Section)} className="admin-quick-action">
+                <strong>{title}</strong>
+                <span>{label}<ChevronRight className="h-3 w-3" /></span>
+              </button>
+            ))}
           </div>
-          <ListRow title="Serial numbers" sub={selectedOrder.needsSerials ? "Equipment serials must be completed before closing." : "No serials required for this order."} action={selectedOrder.needsSerials ? <input className="h-8 w-36 rounded-md border border-line px-2 text-xs" placeholder="Scan serial" /> : <Badge tone="mute">Not tracked</Badge>} />
-          {selectedOrder.status === "fulfilled" || selectedOrder.needsSerials ? null : <div className="p-3"><ProgressButton onClick={() => fulfil(selectedOrder)} disabled={Boolean(pending) && pending !== selectedOrder.id} progress={pending === selectedOrder.id ? progress : null} className="btn-dark w-full">Mark fulfilled</ProgressButton></div>}
-        </div> : <Empty title="No order selected" copy="Select an order from the table to inspect fulfilment state." />}</Card>
+        </Card>
+        <Card title="Operations Snapshot">
+          <div className="divide-y divide-[#edf1f6]">
+            <ListRow title="Orders to process" value={orders.filter((order) => ["paid", "processing"].includes(order.status)).length} />
+            <ListRow title="Open quotes" value={quotes.filter((quote) => quote.status !== "closed").length} />
+            <ListRow title="Low stock" value={stats.lowStock} />
+            <ListRow title="Backorders" value={stats.backorder} />
+          </div>
+        </Card>
       </div>
-    </div>
-  </>;
+      <Card title="Recent Stock Activity">
+        {movements.length ? <DataTable headers={["Product", "Change", "Reason", "User", "Time"]} rows={movements.map((item) => [item.product, item.delta > 0 ? `+${item.delta}` : String(item.delta), item.reason, item.user, item.createdAt])} /> : <EmptyState title="No stock movements yet" copy="Stock changes will appear here after imports and inventory edits." />}
+      </Card>
+    </>
+  );
 }
 
-function QuoteStatusAction({ quote, pending, disabled, onUpdate }: { quote: QuoteRow; pending: AdminProgressState | null; disabled?: boolean; onUpdate: (quote: QuoteRow, status: string) => void }) {
-  const next = quote.status === "new" ? "contacted" : quote.status === "contacted" ? "quoted" : quote.status === "quoted" ? "won" : "closed";
-  const label = quote.status === "won" || quote.status === "closed" ? "Close" : `Mark ${next}`;
-  return <ProgressButton onClick={() => onUpdate(quote, next)} disabled={disabled || quote.status === "closed"} progress={pending} className="btn-lite min-h-8 whitespace-nowrap text-xs">{label}</ProgressButton>;
+function ProductsPage({ rows, selected, setSelected, open, pending, runBulk }: { rows: ProductRow[]; selected: string[]; setSelected: (ids: string[]) => void; open: (row: ProductRow) => void; pending: boolean; runBulk: (action: "publish" | "unpublish" | "delete") => void }) {
+  return (
+    <>
+      <PageHeader title="Products" copy="Independent listings. Publish only requires complete product information, not accessory or compatibility records." actions={<Link href="#new-product" className="btn-dark"><Package className="h-4 w-4" /> New product</Link>} />
+      <FilterBar resultCount={rows.length} />
+      {selected.length ? <BulkBar count={selected.length} pending={pending} publish={() => runBulk("publish")} unpublish={() => runBulk("unpublish")} remove={() => runBulk("delete")} clear={() => setSelected([])} /> : null}
+      <div className="admin-card">
+        <div className="admin-table-wrap">
+          <table className="w-full min-w-[1080px] text-left text-[13px]">
+            <thead><tr><Th><input type="checkbox" checked={rows.length > 0 && selected.length === rows.length} onChange={(event) => setSelected(event.target.checked ? rows.map((row) => row.id) : [])} /></Th><Th>Product</Th><Th>SKU / MPN</Th><Th>Category</Th><Th>Brand</Th><Th right>Cost</Th><Th right>Selling Price</Th><Th right>Margin</Th><Th right>Stock</Th><Th>Status</Th><Th /></tr></thead>
+            <tbody>{rows.map((row) => <tr key={row.id} className="border-t border-[#edf1f6] hover:bg-[#f8fcfc]">
+              <Td><input type="checkbox" checked={selected.includes(row.id)} onChange={(event) => setSelected(event.target.checked ? [...selected, row.id] : selected.filter((id) => id !== row.id))} /></Td>
+              <Td><button onClick={() => open(row)} className="max-w-[320px] text-left font-semibold text-[#0b1e39] hover:text-[#0f766e]">{row.name}<span className="block truncate text-xs font-normal text-[#60748a]">{row.slug}</span></button></Td>
+              <Td mono>{row.sku || "-"}<span className="block text-xs text-[#60748a]">{row.mpn || "-"}</span></Td>
+              <Td>{row.category}</Td><Td>{row.brand}</Td><Td right mono>{row.cost_price_kes ? formatNumber(row.cost_price_kes) : "-"}</Td><Td right mono>{formatNumber(row.price_kes)}</Td><Td right mono>{marginPercent(row)}%</Td><Td right mono>{formatNumber(row.stock_quantity)}</Td><Td><StatusBadge row={row} /></Td><Td right><button onClick={() => open(row)} className="btn-lite min-h-8 px-2 text-xs"><Pencil className="h-3.5 w-3.5" /> Edit</button></Td>
+            </tr>)}</tbody>
+          </table>
+        </div>
+      </div>
+    </>
+  );
 }
 
-function SidebarAction({ collapsed, icon: Icon, label, href, external, submit, disabled, danger }: { collapsed: boolean; icon: React.ComponentType<{ className?: string }>; label: string; href?: string; external?: boolean; submit?: boolean; disabled?: boolean; danger?: boolean }) {
-  const className = `mb-0.5 flex h-9 w-full items-center gap-2 overflow-hidden rounded-md border border-transparent px-2 text-left text-[13px] font-medium focus:outline-none focus:ring-2 focus:ring-accent/25 ${collapsed ? "min-[860px]:justify-center" : ""} ${danger ? "text-red-600 hover:border-red-100 hover:bg-red-50" : disabled ? "cursor-not-allowed text-slate-400" : "text-[#4B5C70] hover:border-[#D5ECE9] hover:bg-[#F2FAF9] hover:text-ink"}`;
-  const content = <><Icon className="h-4 w-4 shrink-0" />{collapsed ? <span className="sr-only">{label}</span> : <span className="truncate">{label}</span>}</>;
-  if (href) return <a href={href} target={external ? "_blank" : undefined} rel={external ? "noreferrer" : undefined} title={collapsed ? label : undefined} className={className}>{content}</a>;
-  return <button type={submit ? "submit" : "button"} disabled={disabled} title={collapsed ? label : undefined} className={className}>{content}</button>;
+function CategoriesPage({ rows, categories }: { rows: ProductRow[]; categories: Props["categories"] }) {
+  const metrics = categories.map((category) => {
+    const products = rows.filter((row) => row.category_id === category.id || row.category === category.name);
+    return { ...category, products };
+  });
+  return <><PageHeader title="Categories" copy="Three-level Ceter hierarchy with live product, published and stock counts." /><div className="admin-entity-grid">{metrics.map((category) => <Card key={category.id} title={category.name} tag={category.slug}><div className="admin-list-metric-grid"><ListMetric label="Products" value={category.products.length} /><ListMetric label="Published" value={category.products.filter((row) => row.is_published).length} /><ListMetric label="Stock units" value={category.products.reduce((sum, row) => sum + row.stock_quantity, 0)} /><ListMetric label="Stock value" value={formatKes(category.products.reduce((sum, row) => sum + row.stock_quantity * (row.cost_price_kes ?? 0), 0))} /></div></Card>)}</div></>;
 }
-function TopIndicator({ count, label, tone, onClick }: { count: number; label: string; tone: "crit" | "warn" | "mute"; onClick: () => void }) {
-  const toneClass = tone === "crit" ? "border-red-100 bg-red-50/70 text-red-700 hover:bg-red-50" : tone === "warn" ? "border-amber-100 bg-amber-50/70 text-amber-700 hover:bg-amber-50" : "border-[#CFE9E5] bg-[#F1FBF9] text-[#38625E] hover:bg-[#E6F7F5]";
-  return <button onClick={onClick} className={`inline-flex h-8 items-center gap-1.5 rounded-md border px-2.5 text-xs font-medium ${toneClass}`}><span className="font-mono tabular-nums">{count}</span>{label}</button>;
+
+function BrandsPage({ rows, brands, openProducts }: { rows: ProductRow[]; brands: Props["brands"]; openProducts: (brand: string) => void }) {
+  return <><PageHeader title="Brands" copy="Brand-level stock, backorder and inventory value visibility." /><div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">{brands.map((brand) => {
+    const products = rows.filter((row) => row.brand_id === brand.id || row.brand === brand.name);
+    return <button key={brand.id} onClick={() => openProducts(brand.name)} className="admin-entity-card admin-card"><div className="flex items-center justify-between gap-3"><strong>{brand.name}</strong><span className="admin-pill teal">{products.length} products</span></div><div className="admin-list-metric-grid mt-3"><ListMetric label="In stock" value={products.filter((row) => row.stock_status === "in_stock").length} /><ListMetric label="Backorder" value={products.filter((row) => row.stock_status === "backorder").length} /><ListMetric label="Stock units" value={products.reduce((sum, row) => sum + row.stock_quantity, 0)} /><ListMetric label="Inventory value" value={formatKes(products.reduce((sum, row) => sum + row.stock_quantity * (row.cost_price_kes ?? 0), 0))} /></div></button>;
+  })}</div></>;
 }
-function ViewHead({ title, copy, actions }: { title: string; copy: string; actions?: React.ReactNode }) { return <div className="mb-4 flex flex-wrap items-end gap-3"><div><h1 className="m-0 text-[20px] font-semibold tracking-normal">{title}</h1><p className="mt-1 text-[13px] text-[#5B6B80]">{copy}</p></div><div className="flex-1" />{actions ? <div className="flex flex-wrap gap-2">{actions}</div> : null}</div>; }
-function Card({ title, tag, children }: { title: string; tag?: string; children: React.ReactNode }) { return <section className="mb-3 overflow-hidden rounded-md border border-[#DDE8EE] bg-white shadow-[0_1px_2px_rgba(11,30,57,0.04)]"><h2 className="flex min-h-10 items-center gap-2 border-b border-[#E7EEF3] bg-[#FBFDFD] px-3 py-2 text-[13px] font-semibold shadow-[inset_2px_0_0_rgba(20,184,166,0.18)]">{title}{tag ? <span className="ml-auto rounded-full bg-[#F1FBF9] px-2 py-0.5 text-[11.5px] font-medium text-[#38625E]">{tag}</span> : null}</h2>{children}</section>; }
-function Empty({ title, copy, action }: { title: string; copy: string; action?: React.ReactNode }) { return <div className="px-4 py-7 text-center text-sm text-[#5B6B80]"><b className="mb-1 block text-[#0B1E39]">{title}</b><span className="block">{copy}</span>{action ? <div className="mt-3">{action}</div> : null}</div>; }
-function ListRow({ title, sub, action }: { title: React.ReactNode; sub: React.ReactNode; action?: React.ReactNode }) { return <div className="flex min-h-12 items-center gap-3 border-b border-[#EDF1F6] px-3 py-2 last:border-b-0 hover:bg-[#F7FCFB]"><div className="min-w-0 flex-1"><div className="truncate text-[13px] font-medium">{title}</div><div className="truncate text-xs text-[#5B6B80]">{sub}</div></div>{action}</div>; }
-function Kpi({ label, value }: { label: string; value: string }) { return <div className="rounded-md border border-[#DDE8EE] bg-white p-3 shadow-[inset_0_1px_0_rgba(20,184,166,0.06)]"><div className="font-mono text-xl font-semibold tabular-nums text-[#0B1E39]">{value}</div><div className="mt-1 text-xs text-[#5B6B80]">{label}</div></div>; }
-function Th({ children, right, sticky }: { children?: React.ReactNode; right?: boolean; sticky?: boolean }) { return <th className={`sticky top-0 z-30 border-b border-[#DDE8EE] bg-[#F4F8F8] px-3 py-2 text-[10.5px] font-semibold uppercase tracking-normal text-[#52677B] shadow-[0_1px_0_#DDE8EE] ${sticky ? "left-0 z-40" : ""} ${right ? "text-right" : "text-left"}`}>{children}</th>; }
-function Td({ children, right, mono, nowrap, sticky }: { children?: React.ReactNode; right?: boolean; mono?: boolean; nowrap?: boolean; sticky?: boolean }) { return <td className={`px-3 py-2 align-middle ${sticky ? "sticky left-0 z-10 bg-inherit shadow-[1px_0_0_#EDF1F6]" : ""} ${right ? "text-right" : ""} ${mono ? "font-mono tabular-nums" : ""} ${nowrap ? "whitespace-nowrap" : ""}`}>{children}</td>; }
-function EditTd({ row, field, dirty, updateCell, nullable }: { row: ProductRow; field: DirtyCell["field"]; dirty: Record<string, DirtyCell>; updateCell: (row: ProductRow, field: DirtyCell["field"], raw: string) => void; nullable?: boolean }) { const [focused, setFocused] = useState(false); const key = `${row.id}:${field}`; const value = row[field]; const text = field === "mpn"; const displayValue = text || focused ? value ?? "" : value == null ? "" : formatNumber(Number(value)); return <td className="px-3 py-1 text-right"><input value={displayValue} type="text" inputMode={text ? "text" : "numeric"} onChange={(event) => updateCell(row, field, text ? event.target.value : event.target.value.replace(/,/g, ""))} onFocus={(event) => { setFocused(true); requestAnimationFrame(() => event.currentTarget.select()); }} onBlur={() => setFocused(false)} onKeyDown={(event) => { if (event.key === "Escape") updateCell(row, field, String(dirty[key]?.original ?? value ?? "")); if (event.key === "Enter") { event.preventDefault(); const inputs = [...document.querySelectorAll<HTMLInputElement>(`input[data-field="${field}"]`)]; inputs[inputs.indexOf(event.currentTarget) + 1]?.focus(); } }} data-field={field} aria-label={`${field} for ${productCode(row)}`} className={`w-full min-w-24 rounded-md border px-2 py-1.5 ${text ? "text-left placeholder:text-slate-400" : "text-right font-mono tabular-nums"} focus:border-[#14B8A6] focus:outline-none focus:ring-2 focus:ring-[#14B8A6]/20 ${dirty[key] ? "border-[#EBD9A6] bg-[#FFF9E8]" : "border-transparent bg-transparent hover:border-[#DDE4EC]"}`} placeholder={nullable ? "-" : text ? "???" : undefined} /></td>; }
-function MissingMpnNotice({ count, onClick }: { count: number; onClick: () => void }) {
-  if (!count) return null;
-  return <div className="flex flex-wrap items-center gap-2 border-b border-[#EDF1F6] bg-[#FBFDFF] px-3 py-2 text-xs text-[#5B6B80]"><b className="text-[#0B1E39]">{count} products missing a part number</b><button onClick={onClick} className="font-semibold text-[#0F766E]">Filter</button></div>;
+
+function ImportCentre() {
+  return <><PageHeader title="Import Centre" copy="Choose XLSX, parse, validate, preview, confirm, import, store images and publish." /><ExcelImportPanel /></>;
 }
-function SelectTh({ rows, selectedRows, onToggle }: { rows: ProductRow[]; selectedRows: string[]; onToggle: (checked: boolean) => void }) {
-  const ref = useRef<HTMLInputElement>(null);
-  const pageIds = rows.map((row) => row.id);
-  const selectedOnPage = pageIds.filter((id) => selectedRows.includes(id)).length;
-  const checked = rows.length > 0 && selectedOnPage === rows.length;
-  useEffect(() => {
-    if (ref.current) ref.current.indeterminate = selectedOnPage > 0 && selectedOnPage < rows.length;
-  }, [rows.length, selectedOnPage]);
-  return <th className="sticky top-0 z-30 w-10 border-b border-[#DDE8EE] bg-[#F4F8F8] px-3 py-2 shadow-sm"><input ref={ref} type="checkbox" checked={checked} onChange={(event) => onToggle(event.target.checked)} aria-label="Select all rows on this page" className="h-4 w-4 rounded border-slate-300 accent-[#14B8A6]" /></th>;
+
+function PricingPage({ rows, dirty, updateCell, save, pending }: MatrixProps) {
+  return <MatrixPage title="Pricing & Cost" copy="Spreadsheet-style cost, price and margin maintenance." rows={rows} dirty={dirty} updateCell={updateCell} save={save} pending={pending} fields={["cost_price_kes", "price_kes"]} />;
 }
-function SelectTd({ row, selected, onChange }: { row: ProductRow; selected: boolean; onChange: (id: string, event: React.ChangeEvent<HTMLInputElement>) => void }) {
-  return <td className="w-10 px-3 py-2" onClick={(event) => event.stopPropagation()}><input type="checkbox" checked={selected} onChange={(event) => onChange(row.id, event)} aria-label={`Select ${row.name}`} className="h-4 w-4 rounded border-slate-300 accent-[#14B8A6]" /></td>;
+
+function InventoryPage({ rows, dirty, updateCell, save, pending }: MatrixProps) {
+  return <MatrixPage title="Inventory" copy="Practical stock workspace for quantities, reorder thresholds and backorders." rows={rows} dirty={dirty} updateCell={updateCell} save={save} pending={pending} fields={["stock_quantity", "mpn"]} />;
 }
-function SelectionActionBar({ selectedCount, totalCount, selectAllMatching, disabled, onSelectAllMatching, onClear, onAction }: { selectedCount: number; totalCount: number; selectAllMatching: boolean; disabled?: boolean; onSelectAllMatching: () => void; onClear: () => void; onAction: (action: "delete" | "publish" | "unpublish" | "set-category" | "set-price" | "set-stock" | "export") => void }) {
-  const visible = selectedCount > 0;
-  const buttonClass = "rounded-md border border-white/25 px-2.5 py-1.5 text-xs font-semibold hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60";
-  return <div className={`fixed bottom-5 z-50 rounded-[8px] border border-[#223654] bg-[#0B1E39] px-3 py-2 text-white shadow-2xl transition-transform left-4 right-4 lg:left-[80px] lg:right-6 ${visible ? "translate-y-0" : "pointer-events-none translate-y-40"}`} role="region" aria-label="Bulk actions">
-    <div className="flex min-h-10 flex-wrap items-center gap-2">
-      <span className="mr-2 text-sm font-semibold"><span className="font-mono">{selectedCount}</span> selected</span>
-      {!selectAllMatching && selectedCount < totalCount ? <button disabled={disabled} className={buttonClass} onClick={onSelectAllMatching}>Select all {totalCount} matching this filter</button> : null}
-      <button disabled={disabled} className={buttonClass} onClick={() => onAction("publish")}><Check className="mr-1 inline h-3.5 w-3.5" />Publish</button>
-      <button disabled={disabled} className={buttonClass} onClick={() => onAction("unpublish")}><Archive className="mr-1 inline h-3.5 w-3.5" />Unpublish</button>
-      <button disabled={disabled} className="rounded-md border border-red-300/60 bg-red-500/15 px-2.5 py-1.5 text-xs font-semibold hover:bg-red-500/25 disabled:cursor-not-allowed disabled:opacity-60" onClick={() => onAction("delete")}><Trash2 className="mr-1 inline h-3.5 w-3.5" />Delete selected</button>
-      <button disabled={disabled} className={buttonClass} onClick={() => onAction("set-category")}>Set category</button>
-      <button disabled={disabled} className={buttonClass} onClick={() => onAction("set-price")}>Adjust price</button>
-      <button disabled={disabled} className={buttonClass} onClick={() => onAction("set-stock")}>Set stock</button>
-      <button disabled={disabled} className={buttonClass} onClick={() => onAction("export")}>Export selected</button>
-      <button disabled={disabled} className="ml-auto rounded-md border border-white/25 px-2.5 py-1.5 text-xs font-semibold hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60" onClick={onClear}>Clear selection</button>
-    </div>
-  </div>;
+
+type MatrixProps = { rows: ProductRow[]; dirty: Record<string, DirtyCell>; updateCell: (row: ProductRow, field: DirtyCell["field"], raw: string) => void; save: () => void; pending: boolean };
+
+function MatrixPage({ title, copy, rows, dirty, updateCell, save, pending, fields }: MatrixProps & { title: string; copy: string; fields: Array<DirtyCell["field"]> }) {
+  return (
+    <>
+      <PageHeader title={title} copy={copy} actions={<button disabled={!Object.keys(dirty).length || pending} onClick={save} className="btn-dark">{pending ? "Saving..." : `Save ${Object.keys(dirty).length} changes`}</button>} />
+      <div className="admin-card">
+        <div className="admin-table-wrap">
+          <table className="w-full min-w-[980px] text-left text-[13px]">
+            <thead><tr><Th>Product</Th><Th>SKU / MPN</Th><Th>Brand</Th><Th right>Cost Price</Th><Th right>Selling Price</Th><Th right>Margin</Th><Th right>Stock</Th><Th>Status</Th></tr></thead>
+            <tbody>{rows.map((row) => <tr key={row.id} className="border-t border-[#edf1f6] hover:bg-[#f8fcfc]"><Td><strong>{row.name}</strong><span className="block text-xs text-[#60748a]">{row.category}</span></Td><Td mono>{row.sku || "-"}{fields.includes("mpn") ? <input className={inputClass(dirty[`${row.id}:mpn`])} value={row.mpn ?? ""} onChange={(event) => updateCell(row, "mpn", event.target.value)} /> : <span className="block text-xs text-[#60748a]">{row.mpn || "-"}</span>}</Td><Td>{row.brand}</Td><Td right>{fields.includes("cost_price_kes") ? <EditInput row={row} field="cost_price_kes" dirty={dirty} updateCell={updateCell} /> : formatNumber(row.cost_price_kes ?? 0)}</Td><Td right>{fields.includes("price_kes") ? <EditInput row={row} field="price_kes" dirty={dirty} updateCell={updateCell} /> : formatNumber(row.price_kes)}</Td><Td right mono>{marginPercent(row)}%</Td><Td right>{fields.includes("stock_quantity") ? <EditInput row={row} field="stock_quantity" dirty={dirty} updateCell={updateCell} /> : formatNumber(row.stock_quantity)}</Td><Td><StatusBadge row={row} /></Td></tr>)}</tbody>
+          </table>
+        </div>
+      </div>
+    </>
+  );
 }
-function Badge({ tone, children }: { tone: "ok" | "warn" | "crit" | "mute" | "teal"; children: React.ReactNode }) { const classes = { ok: "border-green-100 bg-green-50 text-green-700", warn: "border-amber-100 bg-amber-50 text-amber-700", crit: "border-red-100 bg-red-50 text-red-700", mute: "border-slate-200 bg-slate-100 text-slate-600", teal: "border-[#CFE9E5] bg-[#EAF8F6] text-[#0F766E]" }; return <span className={`inline-flex items-center gap-1 rounded border px-2 py-1 text-[11.5px] font-semibold ${classes[tone]}`}>{children}</span>; }
-function StockBadge({ row }: { row: ProductRow }) { if (row.stock_quantity <= 0) return <Badge tone="crit">Out of stock</Badge>; if (row.stock_quantity <= row.reorder_level) return <Badge tone="crit">Restock now</Badge>; if (row.reorder_level > 0 && row.stock_quantity <= row.reorder_level * 1.6) return <Badge tone="warn">Getting low</Badge>; return <Badge tone="ok">In stock</Badge>; }
-function Total({ label, value, big }: { label: string; value: number; big?: boolean }) { return <div className={`flex justify-between py-1 ${big ? "mt-2 border-t border-[#DDE4EC] pt-3 text-base font-semibold" : ""}`}><span className="text-[#5B6B80]">{label}</span><span className="font-mono">{formatKes(value)}</span></div>; }
-function initials(value: string) { return value.split(/\s|@/).filter(Boolean).slice(0, 2).map((part) => part[0]?.toUpperCase()).join("") || "AD"; }
-function productCode(row?: { mpn: string | null; sku: string | null } | null) { return row?.mpn || row?.sku || "???"; }
-function gapText(row: ProductRow) { if (!row.mpn) return "Missing part number"; if (row.reorder_level <= 0) return "Reorder level not configured"; if (!row.supplier_name) return "Supplier not configured"; if (row.images.length === 0) return "No images"; if (row.cost_price_kes == null) return "No cost price"; return "Review product data"; }
-function margin(rows: ProductRow[]) { const priced = rows.filter((row) => row.price_kes > 0 && row.cost_price_kes); if (!priced.length) return "0%"; return `${Math.round(priced.reduce((sum, row) => sum + (1 - (row.cost_price_kes ?? 0) / row.price_kes), 0) / priced.length * 1000) / 10}%`; }
-function bulkLabel(action: "delete" | "publish" | "unpublish" | "set-category" | "set-price" | "set-stock") {
-  return action === "publish" ? "Publish" : action === "unpublish" ? "Unpublish" : action === "set-category" ? "Set category for" : action === "set-price" ? "Adjust price for" : action === "set-stock" ? "Set stock for" : "Delete";
+
+function OrdersPage({ orders }: { orders: OrderRow[] }) {
+  return <><PageHeader title="Orders" copy="Simple fulfilment queue: New, Paid, Processing, Ready, Dispatched, Completed or Cancelled." /><DataTable headers={["Order", "Customer", "Lines", "Total", "Status", "Created"]} rows={orders.map((order) => [order.ref, order.client, order.lines, formatKes(order.total), order.status, new Date(order.createdAt).toLocaleDateString("en-KE")])} empty="No real orders yet." /></>;
 }
-function bulkRunningLabel(action: "delete" | "publish" | "unpublish" | "set-category" | "set-price" | "set-stock") {
-  return action === "publish" ? "Publishing..." : action === "unpublish" ? "Unpublishing..." : action === "set-category" ? "Saving..." : action === "set-price" ? "Saving..." : action === "set-stock" ? "Updating inventory..." : "Deleting...";
-}
-function bulkValue(action: string, categories?: Array<{ id: string; name: string }>): string | number | null | false {
-  if (action === "set-price") {
-    const value = window.prompt("New price in KSh");
-    return value == null ? false : Number(value);
+
+function QuotesPage({ quotes }: { quotes: QuoteRow[] }) {
+  const [pendingId, setPendingId] = useState("");
+  function update(quote: QuoteRow, status: string) {
+    const formData = new FormData();
+    formData.set("id", quote.id);
+    formData.set("status", status);
+    setPendingId(quote.id);
+    updateQuoteStatusAction(formData).then(() => toast.success("Quote status updated")).catch((error) => toast.error(error instanceof Error ? error.message : "Quote update failed.")).finally(() => setPendingId(""));
   }
-  if (action === "set-stock") {
-    const value = window.prompt("New stock quantity");
-    return value == null ? false : Number(value);
-  }
-  if (action === "set-category") {
-    const options = categories?.map((category) => `${category.id} - ${category.name}`).join("\n") ?? "";
-    const value = window.prompt(`Paste the category id to apply:\n${options}`);
-    return value == null ? false : value.trim() || null;
-  }
-  return null;
+  return <><PageHeader title="Quotes & Tenders" copy="Pipeline from New to Contacted, Quoted, Won and Closed." /><div className="overflow-hidden rounded-md border border-[#dde8ee] bg-white"><table className="w-full min-w-[820px] text-left text-[13px]"><thead><tr><Th>Quote</Th><Th>Customer</Th><Th>Need</Th><Th right>Value</Th><Th>Status</Th><Th /></tr></thead><tbody>{quotes.map((quote) => <tr key={quote.id} className="border-t border-[#edf1f6]"><Td mono>{quote.ref}</Td><Td>{quote.client}</Td><Td>{quote.need}</Td><Td right mono>{quote.value ? formatKes(quote.value) : "-"}</Td><Td><Badge>{quote.status}</Badge></Td><Td right><button disabled={pendingId === quote.id} className="btn-lite min-h-8 text-xs" onClick={() => update(quote, nextQuoteStatus(quote.status))}>{pendingId === quote.id ? "Saving..." : `Mark ${nextQuoteStatus(quote.status)}`}</button></Td></tr>)}</tbody></table></div></>;
 }
-function exportSelected(ids: string[], rows: ProductRow[]) {
-  const selected = rows.filter((row) => ids.includes(row.id));
-  const csv = ["Product,MPN,SKU,Category,Stock,Price,Cost,Published,Archived", ...selected.map((row) => [row.name, row.mpn ?? "", row.sku ?? "", row.category, row.stock_quantity, row.price_kes, row.cost_price_kes ?? "", row.is_published, row.archived_at ? "yes" : "no"].map((value) => `"${String(value).replace(/"/g, '""')}"`).join(","))].join("\n");
-  const url = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = "ceter-selected-products.csv";
-  link.click();
-  URL.revokeObjectURL(url);
+
+function CustomersPage({ orders, quotes }: { orders: OrderRow[]; quotes: QuoteRow[] }) {
+  const names = [...new Set([...orders.map((order) => order.client), ...quotes.map((quote) => quote.client)].filter(Boolean))];
+  return <><PageHeader title="Customers" copy="Directory built only from real order and quote activity currently available." /><DataTable headers={["Customer", "Orders", "Quotes", "Recorded spend"]} rows={names.map((name) => [name, orders.filter((order) => order.client === name).length, quotes.filter((quote) => quote.client === name).length, formatKes(orders.filter((order) => order.client === name).reduce((sum, order) => sum + order.total, 0))])} empty="No real customer activity yet." /></>;
+}
+
+function PaymentsPage({ orders }: { orders: OrderRow[] }) {
+  const paid = orders.filter((order) => order.status !== "pending");
+  return <><PageHeader title="Payments" copy="Payment reconciliation stays server-side and never exposes provider secrets." /><DataTable headers={["Order", "Customer", "Provider", "Amount", "Status"]} rows={paid.map((order) => [order.ref, order.client, "Configured gateway", formatKes(order.total), order.status === "paid" ? "paid" : "processing"])} empty="No payment transactions to reconcile yet." /></>;
+}
+
+function BannersPage() {
+  return <><PageHeader title="Banners & Storefront" copy="Simple CMS-style management for images, title, copy, CTA, active state and display order." /><EmptyState title="Static banner assets retained" copy="The current storefront banner system is preserved. Database-backed editing can be enabled once final banner records are approved." action={<Link href="/" className="btn-lite"><Store className="h-4 w-4" /> View storefront</Link>} /></>;
+}
+
+function ReportsPage({ stats, rows, vatRate }: { stats: ReturnType<typeof buildStats>; rows: ProductRow[]; vatRate: number }) {
+  return <><PageHeader title="Reports" copy="Operational reports only. No invented business financial data." /><MetricGrid><MetricCard label="Products by brand" value={formatNumber(new Set(rows.map((row) => row.brand)).size)} note="Active brand count" /><MetricCard label="Stock by status" value={`${stats.inStock}/${stats.backorder}`} note="In stock / backorder products" /><MetricCard label="Inventory cost value" value={formatKes(stats.costValue)} note="Based on recorded cost only" /><MetricCard label="VAT Rate" value={`${Math.round(vatRate * 100)}%`} note="Checkout estimate" /></MetricGrid></>;
+}
+
+function SettingsPage() {
+  return <><PageHeader title="Store Settings" copy="Environment-backed deployment settings and payment configuration." /><div className="grid gap-3 md:grid-cols-2"><Card title="Configuration"><div className="p-3 text-sm text-[#60748a]">Supabase, Prisma pooler, storage bucket and payment credentials are configured via environment variables only.</div></Card><Card title="Security"><div className="p-3 text-sm text-[#60748a]">Admin access remains role-gated through Supabase Auth and `profiles.role`.</div></Card></div></>;
+}
+
+function UsersPage({ session }: { session: Props["session"] }) {
+  return <><PageHeader title="Users & Roles" copy="Admin access is separate from customer accounts." /><DataTable headers={["Name", "Email", "Role", "Status"]} rows={[[session.name ?? "Current admin", session.email ?? "-", session.role, "Active"]]} /></>;
+}
+
+function ProductDrawer({ product, categories, brands, onClose }: { product: ProductRow | null; categories: Props["categories"]; brands: Props["brands"]; onClose: () => void }) {
+  if (!product) return null;
+  return (
+    <>
+      <button className="fixed inset-0 z-[70] bg-[#071426]/35" aria-label="Close drawer" onClick={onClose} />
+      <aside className="fixed bottom-0 right-0 top-0 z-[80] flex w-[500px] max-w-[94vw] flex-col bg-white shadow-2xl">
+        <div className="flex h-16 items-center justify-between border-b border-[#dde8ee] px-4"><strong>Edit product</strong><button onClick={onClose} className="grid h-9 w-9 place-items-center rounded-md hover:bg-slate-100"><X className="h-4 w-4" /></button></div>
+        <div className="flex-1 overflow-auto p-4">
+          <div className="mb-4 grid h-44 place-items-center rounded-md border border-[#dde8ee] bg-[#f4f7fa]">{product.images[0] ? <Image src={product.images[0]} alt={product.name} width={220} height={160} className="max-h-40 w-auto object-contain" /> : <Package className="h-12 w-12 text-[#60748a]" />}</div>
+          <div className="grid gap-3">
+            <ReadonlyField label="Product" value={product.name} />
+            <ReadonlyField label="SKU / MPN" value={`${product.sku || "-"} / ${product.mpn || "-"}`} />
+            <ReadonlyField label="Category" value={categories.find((item) => item.id === product.category_id)?.name ?? product.category} />
+            <ReadonlyField label="Brand" value={brands.find((item) => item.id === product.brand_id)?.name ?? product.brand} />
+            <ReadonlyField label="Price" value={formatKes(product.price_kes)} />
+            <ReadonlyField label="Stock" value={`${product.stock_quantity} units, ${product.stock_status}`} />
+            <ReadonlyField label="Published" value={product.is_published ? "Yes" : "No"} />
+          </div>
+        </div>
+        <div className="flex justify-end gap-2 border-t border-[#dde8ee] p-4"><button onClick={onClose} className="btn-lite">Close</button><Link href={`/product/${product.slug}`} className="btn-dark">Open storefront page</Link></div>
+      </aside>
+    </>
+  );
+}
+
+function PageHeader({ title, copy, actions }: { title: string; copy: string; actions?: React.ReactNode }) {
+  return <div className="admin-page-head"><div className="admin-page-title"><h1>{title}</h1><p>{copy}</p></div><div className="admin-actions">{actions}</div></div>;
+}
+
+function FilterBar({ resultCount }: { resultCount: number }) {
+  return <div className="admin-toolbar"><Search className="h-4 w-4" /><span>{formatNumber(resultCount)} matching products</span><span className="ml-auto text-xs">Use the top search to filter product, SKU, MPN, category or brand.</span></div>;
+}
+
+function MetricGrid({ children }: { children: React.ReactNode }) {
+  return <div className="admin-kpi-grid">{children}</div>;
+}
+
+function MetricCard({ label, value, note }: { label: string; value: string; note: string }) {
+  return <div className="admin-card admin-kpi"><div className="admin-kpi-label">{label}</div><div className="admin-kpi-value">{value}</div><div className="admin-kpi-sub">{note}</div></div>;
+}
+
+function Card({ title, tag, children }: { title: string; tag?: string; children: React.ReactNode }) {
+  return <section className="admin-card admin-section-card"><div className="admin-card-head">{title}{tag ? <span className="admin-pill teal">{tag}</span> : null}</div>{children}</section>;
+}
+
+function DataTable({ headers, rows, empty }: { headers: string[]; rows: Array<Array<React.ReactNode>>; empty?: string }) {
+  if (!rows.length) return <EmptyState title={empty ?? "No records"} copy="Records will appear here once the workflow creates real data." />;
+  return <div className="admin-card"><div className="admin-table-wrap"><table className="min-w-[760px]"><thead><tr>{headers.map((header) => <Th key={header}>{header}</Th>)}</tr></thead><tbody>{rows.map((row, index) => <tr key={index}>{row.map((cell, cellIndex) => <Td key={cellIndex}>{cell}</Td>)}</tr>)}</tbody></table></div></div>;
+}
+
+function EmptyState({ title, copy, action }: { title: string; copy: string; action?: React.ReactNode }) {
+  return <div className="admin-card admin-empty"><strong>{title}</strong><p>{copy}</p>{action ? <div className="mt-4">{action}</div> : null}</div>;
+}
+
+function BulkBar({ count, pending, publish, unpublish, remove, clear }: { count: number; pending: boolean; publish: () => void; unpublish: () => void; remove: () => void; clear: () => void }) {
+  return <div className="sticky top-[84px] z-20 mb-3 flex flex-wrap items-center gap-2 rounded-md border border-[#223654] bg-[#0b1e39] px-3 py-2 text-sm text-white shadow-lg"><strong>{count} selected</strong><button disabled={pending} onClick={publish} className="rounded-md border border-white/25 px-2 py-1 hover:bg-white/10">Publish</button><button disabled={pending} onClick={unpublish} className="rounded-md border border-white/25 px-2 py-1 hover:bg-white/10"><Archive className="mr-1 inline h-3.5 w-3.5" />Unpublish</button><button disabled={pending} onClick={remove} className="rounded-md border border-red-300/70 bg-red-500/15 px-2 py-1 hover:bg-red-500/25"><Trash2 className="mr-1 inline h-3.5 w-3.5" />Delete</button><button disabled={pending} onClick={clear} className="ml-auto rounded-md border border-white/25 px-2 py-1 hover:bg-white/10">Clear</button></div>;
+}
+
+function EditInput({ row, field, dirty, updateCell }: { row: ProductRow; field: DirtyCell["field"]; dirty: Record<string, DirtyCell>; updateCell: (row: ProductRow, field: DirtyCell["field"], raw: string) => void }) {
+  return <input className={inputClass(dirty[`${row.id}:${field}`])} value={String(row[field] ?? "")} onChange={(event) => updateCell(row, field, event.target.value)} inputMode="numeric" />;
+}
+
+function inputClass(dirty?: DirtyCell) {
+  return `admin-edit-cell ${dirty ? "dirty" : ""}`;
+}
+
+function Th({ children, right }: { children?: React.ReactNode; right?: boolean }) {
+  return <th className={right ? "text-right" : "text-left"}>{children}</th>;
+}
+
+function Td({ children, right, mono }: { children?: React.ReactNode; right?: boolean; mono?: boolean }) {
+  return <td className={`${right ? "text-right" : ""} ${mono ? "font-mono tabular-nums" : ""}`}>{children}</td>;
+}
+
+function Badge({ children }: { children: React.ReactNode }) {
+  return <span className="admin-pill teal">{children}</span>;
+}
+
+function StatusBadge({ row }: { row: ProductRow }) {
+  const text = row.archived_at ? "Archived" : !row.is_published ? "Unpublished" : row.stock_quantity <= 0 ? "Out of stock" : row.stock_status === "backorder" ? "Backorder" : "Published";
+  const color = row.archived_at || !row.is_published ? "border-slate-200 bg-slate-100 text-slate-600" : row.stock_quantity <= 0 ? "border-red-100 bg-red-50 text-red-700" : row.stock_status === "backorder" ? "border-amber-100 bg-amber-50 text-amber-700" : "border-green-100 bg-green-50 text-green-700";
+  return <span className={`admin-pill ${color.includes("red") ? "red" : color.includes("amber") ? "amber" : color.includes("green") ? "green" : "gray"}`}>{text}</span>;
+}
+
+function ListRow({ title, value }: { title: string; value: number }) {
+  return <div className="admin-list-row"><span>{title}</span><strong className="font-mono">{formatNumber(value)}</strong></div>;
+}
+
+function ListMetric({ label, value }: { label: string; value: React.ReactNode }) {
+  return <div className="admin-list-metric"><div className="font-mono font-black">{value}</div><div>{label}</div></div>;
+}
+
+function ReadonlyField({ label, value }: { label: string; value: string }) {
+  return <label className="block text-xs font-bold uppercase text-[#60748a]"><span>{label}</span><input value={value} readOnly className="mt-1 h-10 w-full rounded-md border border-[#dde8ee] bg-[#f8fafc] px-3 text-sm normal-case text-[#0b1e39]" /></label>;
+}
+
+function buildStats(products: ProductRow[], orders: OrderRow[], quotes: QuoteRow[]) {
+  const active = products.filter((row) => !row.archived_at);
+  const costValue = active.reduce((sum, row) => sum + row.stock_quantity * (row.cost_price_kes ?? 0), 0);
+  const sellingValue = active.reduce((sum, row) => sum + row.stock_quantity * row.price_kes, 0);
+  const marginValue = sellingValue - costValue;
+  return {
+    products: active.length,
+    published: active.filter((row) => row.is_published).length,
+    inStock: active.filter((row) => row.stock_status === "in_stock").length,
+    backorder: active.filter((row) => row.stock_status === "backorder").length,
+    lowStock: active.filter((row) => row.reorder_level > 0 && row.stock_quantity <= row.reorder_level).length,
+    costValue,
+    sellingValue,
+    marginValue,
+    marginPercent: sellingValue > 0 ? Math.round((marginValue / sellingValue) * 1000) / 10 : 0,
+    orderCount: orders.length,
+    quoteCount: quotes.length
+  };
+}
+
+function marginPercent(row: ProductRow) {
+  return row.price_kes > 0 && row.cost_price_kes != null ? Math.round(((row.price_kes - row.cost_price_kes) / row.price_kes) * 1000) / 10 : 0;
+}
+
+function nextQuoteStatus(status: string) {
+  if (status === "new") return "contacted";
+  if (status === "contacted") return "quoted";
+  if (status === "quoted") return "won";
+  return "closed";
+}
+
+function initials(value: string) {
+  return value.split(/\s|@/).filter(Boolean).slice(0, 2).map((part) => part[0]?.toUpperCase()).join("") || "AD";
 }

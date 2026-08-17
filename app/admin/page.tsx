@@ -1,102 +1,73 @@
-import type { Prisma } from "@prisma/client";
-import { AdminConsole } from "@/components/admin/AdminConsole";
+import Link from "next/link";
+import { Card, Kpi, KpiGrid, Money, PageHeader, Pill, Table } from "@/components/admin/AdminPrimitives";
+import { getAdminDashboard } from "@/lib/admin/data";
 import { requireAdminSession } from "@/lib/admin/auth";
-import { prisma } from "@/lib/prisma";
+import { formatKes } from "@/lib/utils";
 
 export const metadata = { title: "Admin | Ceter Operations" };
 
-function asStringArray(value: Prisma.JsonValue | null | undefined) {
-  return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
-}
-
-function asSpecsText(value: Prisma.JsonValue | null | undefined) {
-  if (!value || Array.isArray(value) || typeof value !== "object") return "";
-  return Object.entries(value).map(([key, item]) => `${key}: ${String(item)}`).join("\n");
-}
-
 export default async function AdminPage() {
-  const session = await requireAdminSession();
-
-  const products = await prisma.product.findMany({
-    include: {
-      brand: { select: { name: true } },
-      category: { select: { name: true } }
-    },
-    orderBy: [{ updated_at: "desc" }],
-    take: 300
-  });
-  const quotes = await prisma.quoteRequest.findMany({ orderBy: { created_at: "desc" }, take: 100 });
-  const orders = await prisma.order.findMany({ include: { profile: { select: { full_name: true } }, order_items: true, serials: true }, orderBy: { created_at: "desc" }, take: 100 });
-  const movements = await prisma.stockMovement.findMany({
-    include: { product: { select: { name: true, mpn: true, sku: true } }, user: { select: { full_name: true } } },
-    orderBy: { created_at: "desc" },
-    take: 8
-  }).catch(() => []);
-  const categories = await prisma.category.findMany({ select: { id: true, name: true, slug: true }, orderBy: { name: "asc" } });
-  const brands = await prisma.brand.findMany({ select: { id: true, name: true, slug: true }, orderBy: { name: "asc" } });
+  await requireAdminSession();
+  const stats = await getAdminDashboard();
+  const potentialMargin = stats.inventorySellingValue - stats.inventoryCostValue;
 
   return (
-    <AdminConsole
-      session={{ role: session.role, name: session.name, email: session.email }}
-      vatRate={Number(process.env.NEXT_PUBLIC_VAT_RATE ?? process.env.VAT_RATE ?? 0.16)}
-      categories={categories}
-      brands={brands}
-      products={products.map((product) => ({
-        id: product.id,
-        name: product.name,
-        slug: product.slug,
-        description: product.description,
-        mpn: product.mpn,
-        sku: product.sku,
-        brand_id: product.brand_id,
-        brand: product.brand?.name ?? "Unbranded",
-        category_id: product.category_id,
-        category: product.category?.name ?? "Uncategorized",
-        price_kes: product.price_kes,
-        cost_price_kes: product.cost_price_kes,
-        stock_quantity: product.stock_quantity,
-        stock_status: product.stock_status,
-        condition: product.condition,
-        reorder_level: product.reorder_level,
-        reorder_quantity: product.reorder_quantity,
-        supplier_name: product.supplier_name,
-        images: asStringArray(product.images).filter((image) => image !== "/product-placeholder.svg"),
-        specs: asSpecsText(product.specs),
-        is_featured: product.is_featured,
-        is_published: product.is_published,
-        archived_at: product.archived_at?.toISOString() ?? null,
-        updated_at: product.updated_at.toISOString()
-      }))}
-      quotes={quotes.map((quote, index) => ({
-        id: quote.id,
-        ref: `QT-${String(quotes.length - index).padStart(4, "0")}`,
-        client: quote.name,
-        need: quote.service_needed,
-        status: quote.status,
-        owner: quote.owner_id ? "Assigned" : "Unassigned",
-        value: quote.quoted_value_kes ?? 0,
-        createdAt: quote.created_at.toISOString(),
-        followUpAt: quote.follow_up_at?.toISOString() ?? null
-      }))}
-      orders={orders.map((order, index) => ({
-        id: order.id,
-        ref: `SO-${String(orders.length - index).padStart(4, "0")}`,
-        client: order.profile?.full_name ?? order.user_id ?? "Guest",
-        status: order.status,
-        total: order.total_kes,
-        lines: order.order_items.length,
-        needsSerials: order.serials.length > 0,
-        createdAt: order.created_at.toISOString()
-      }))}
-      movements={movements.map((movement) => ({
-        id: movement.id,
-        product: movement.product.mpn ?? movement.product.sku ?? movement.product.name,
-        delta: movement.delta,
-        reason: movement.reason,
-        reference: movement.reference,
-        user: movement.user?.full_name ?? "System",
-        createdAt: movement.created_at.toLocaleTimeString("en-KE", { hour: "2-digit", minute: "2-digit" })
-      }))}
-    />
+    <>
+      <PageHeader title="Dashboard" copy="Live operational metrics from PostgreSQL. No mock records are included." />
+      <KpiGrid>
+        <Kpi label="Total products" value={stats.totalProducts} note={`${stats.publishedProducts} published / ${stats.draftProducts} draft`} />
+        <Kpi label="In-stock products" value={stats.inStockProducts} note={`${stats.backorderProducts} backorder products`} />
+        <Kpi label="Low stock" value={stats.lowStockProducts} note={`${stats.stockUnits} stock units on hand`} />
+        <Kpi label="Inventory cost value" value={formatKes(stats.inventoryCostValue)} note={`Selling value ${formatKes(stats.inventorySellingValue)}`} />
+        <Kpi label="Paid revenue" value={formatKes(stats.paidRevenue)} note={`${stats.paidPayments} paid payment records`} />
+        <Kpi label="Orders" value={stats.orders} note="Real order table count" />
+        <Kpi label="Quotes" value={stats.quotes} note="Quote pipeline records" />
+        <Kpi label="Customers" value={stats.customers} note="Authenticated customer profiles" />
+        <Kpi label="Potential gross margin" value={formatKes(potentialMargin)} note="Selling value minus known cost value" />
+        <Kpi label="Draft products" value={stats.draftProducts} note="Hidden from storefront until published" />
+      </KpiGrid>
+
+      <div className="admin-grid-2">
+        <Card title="Recent Activity" tag="database">
+          <Table headers={["Type", "Record", "Status", "When"]} minWidth={720}>
+            {stats.recentProducts.map((product) => (
+              <tr key={`p-${product.id}`}>
+                <td>Product</td>
+                <td><Link href={`/admin/products?q=${encodeURIComponent(product.name)}`} className="font-semibold hover:text-signal">{product.name}</Link></td>
+                <td><Pill tone={product.is_published ? "green" : "amber"}>{product.is_published ? "Published" : "Draft"}</Pill></td>
+                <td>{product.updated_at.toLocaleString("en-KE")}</td>
+              </tr>
+            ))}
+            {stats.recentOrders.map((order) => (
+              <tr key={`o-${order.id}`}>
+                <td>Order</td>
+                <td><Link href="/admin/orders" className="font-semibold hover:text-signal">{order.profile?.full_name ?? order.id.slice(0, 8)}</Link></td>
+                <td><Pill tone={order.status === "cancelled" ? "red" : "teal"}>{order.status}</Pill></td>
+                <td>{order.created_at.toLocaleString("en-KE")}</td>
+              </tr>
+            ))}
+            {stats.recentQuotes.map((quote) => (
+              <tr key={`q-${quote.id}`}>
+                <td>Quote</td>
+                <td><Link href="/admin/quotes" className="font-semibold hover:text-signal">{quote.name}</Link></td>
+                <td><Pill tone={quote.status === "won" ? "green" : "gray"}>{quote.status}</Pill></td>
+                <td>{quote.created_at.toLocaleString("en-KE")}</td>
+              </tr>
+            ))}
+          </Table>
+        </Card>
+
+        <Card title="Payments" tag="paid data only">
+          <div className="p-4 text-sm text-slate-600">
+            <p className="font-semibold text-ink">Revenue shown here uses only `PaymentTransaction.status = paid`.</p>
+            <p className="mt-2">Unpaid, pending, failed, or abandoned payments are listed on the payments page but are not counted as revenue.</p>
+            <div className="mt-4 rounded-md border border-line bg-white p-3">
+              <div className="text-xs uppercase text-slate-500">Paid revenue</div>
+              <div className="mt-1 text-2xl font-black"><Money value={stats.paidRevenue} /></div>
+            </div>
+          </div>
+        </Card>
+      </div>
+    </>
   );
 }

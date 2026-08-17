@@ -1,4 +1,4 @@
-import type { Banner } from "@/lib/types";
+import type { Banner, BannerImageVariant } from "@/lib/types";
 
 export type BannerGroup = "hero" | "category" | "services";
 export type BannerShape = "wide" | "mid" | "tall";
@@ -39,4 +39,33 @@ export function getBannerSrcSet(entry: BannerManifestEntry, shape: BannerShape) 
 export function getBannerFallbackUrl(entry: BannerManifestEntry) {
   const widths = entry.assets.wide.widths;
   return getBannerAssetUrl(entry, "wide", widths[Math.max(0, widths.length - 2)]);
+}
+
+export function normalizeBannerImageVariants(value: unknown): BannerImageVariant[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((item) => {
+    if (!item || typeof item !== "object") return [];
+    const record = item as Record<string, unknown>;
+    const url = normalizePublicAssetUrl(typeof record.url === "string" ? record.url : null);
+    const width = Number(record.width);
+    const height = Number(record.height);
+    const shape = record.shape === "wide" || record.shape === "mid" || record.shape === "tall" ? record.shape : null;
+    if (!url || !shape || !Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) return [];
+    return [{
+      slot: typeof record.slot === "string" ? record.slot : `${shape}_${width}`,
+      url,
+      width,
+      height,
+      shape,
+      aspectRatio: typeof record.aspectRatio === "string" ? record.aspectRatio : `${width}:${height}`
+    }];
+  });
+}
+
+export function bannerVariantSrcSet(variants: BannerImageVariant[], shape: BannerImageVariant["shape"]) {
+  return variants
+    .filter((variant) => variant.shape === shape)
+    .sort((a, b) => a.width - b.width)
+    .map((variant) => `${variant.url} ${variant.width}w`)
+    .join(", ");
 }

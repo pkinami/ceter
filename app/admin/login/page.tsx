@@ -1,11 +1,12 @@
 import Image from "next/image";
 import Link from "next/link";
-import { signInAction } from "@/app/actions";
+import { adminSignInAction } from "@/app/actions";
 import { BrandIcon } from "@/components/BrandIcon";
 import { FormSubmitButton } from "@/components/FormSubmitButton";
 
 export const metadata = {
-  title: "Admin Login"
+  title: "Admin Login",
+  robots: { index: false, follow: false }
 };
 
 export default async function AdminLoginPage({ searchParams }: { searchParams: Promise<{ error?: string }> }) {
@@ -13,7 +14,7 @@ export default async function AdminLoginPage({ searchParams }: { searchParams: P
 
   return (
     <div className="mx-auto max-w-md px-4 py-12">
-      <form action={signInAction} className="rounded-lg border border-[#DDE8EE] bg-white p-6 shadow-[0_1px_2px_rgba(11,30,57,0.04)]">
+      <form action={adminSignInAction} className="rounded-lg border border-[#DDE8EE] bg-white p-6 shadow-[0_1px_2px_rgba(11,30,57,0.04)]">
         <Image src="/ceter-logo-pack/lockup/ceter-logo-horizontal.svg" alt="Ceter Technologies Limited" width={190} height={45} className="mb-5 h-10 w-auto" />
         <h1 className="text-2xl font-black text-ink">Admin Login</h1>
         <p className="mt-2 text-sm text-slate-500">Staff access for catalog, orders, stock, and operations.</p>

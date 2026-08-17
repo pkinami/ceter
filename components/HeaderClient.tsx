@@ -2,8 +2,8 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { Menu, Search, ShoppingCart } from "lucide-react";
-import { useState } from "react";
+import { Menu, Search, ShoppingCart, X } from "lucide-react";
+import { FormEvent, Suspense, useState } from "react";
 import { TopBar } from "@/components/TopBar";
 import { Tooltip } from "@/components/Tooltip";
 import { Sidebar } from "@/components/Sidebar";
@@ -14,8 +14,51 @@ import type { Category } from "@/lib/types";
 
 export function HeaderClient({ categories, brands }: { categories: Category[]; brands: string[] }) {
   const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState(() => {
+    if (typeof window === "undefined") return "";
+    return new URLSearchParams(window.location.search).get("q") ?? "";
+  });
   const { items } = useCart();
   const cartQuantity = items.reduce((sum, item) => sum + item.quantity, 0);
+
+  function submitSearch(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const formData = new FormData(event.currentTarget);
+    const value = String(formData.get("q") ?? "").trim();
+    setQuery(value);
+    window.location.href = value ? `/category?q=${encodeURIComponent(value)}` : "/category";
+  }
+
+  function clearSearch() {
+    setQuery("");
+    window.location.href = "/category";
+  }
+
+  const searchInput = (className: string) => (
+    <>
+      <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+      <input
+        name="q"
+        value={query}
+        onChange={(event) => setQuery(event.target.value)}
+        className={className}
+        placeholder="Search toners, models, parts..."
+        aria-label="Search products"
+      />
+      {query ? (
+        <Tooltip label="Clear search">
+          <button type="button" onClick={clearSearch} className="absolute right-12 top-1/2 -translate-y-1/2 rounded-md p-1 text-slate-500 hover:bg-slate-100 hover:text-slate-900" aria-label="Clear search">
+            <X className="h-4 w-4" />
+          </button>
+        </Tooltip>
+      ) : null}
+      <Tooltip label="Search products">
+        <button type="submit" className="absolute right-1 top-1/2 grid h-9 w-9 -translate-y-1/2 place-items-center rounded-md bg-signal text-white hover:bg-teal-700" aria-label="Search products">
+          <Search className="h-4 w-4" />
+        </button>
+      </Tooltip>
+    </>
+  );
 
   return (
     <header className="sticky top-0 z-40 border-b border-line bg-white/95 backdrop-blur">
@@ -38,13 +81,9 @@ export function HeaderClient({ categories, brands }: { categories: Category[]; b
             />
           </Link>
         </div>
-        <label className="relative hidden sm:block">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-          <input
-            className="h-11 w-full rounded-md border border-slate-300 bg-white pl-10 pr-4 text-sm font-medium text-slate-950 placeholder:text-slate-500 outline-none focus:border-signal focus:ring-2 focus:ring-teal-100"
-            placeholder="Search toners, models, parts..."
-          />
-        </label>
+        <form className="relative hidden sm:block" onSubmit={submitSearch}>
+          {searchInput("h-11 w-full rounded-md border border-slate-300 bg-white pl-10 pr-24 text-sm font-medium text-slate-950 placeholder:text-slate-500 outline-none focus:border-signal focus:ring-2 focus:ring-teal-100")}
+        </form>
         <div className="flex items-center justify-end gap-4">
           <nav className="hidden items-center gap-4 text-sm font-bold text-slate-600 lg:flex">
             <Link href="/category" className="hover:text-signal">Catalog</Link>
@@ -72,12 +111,13 @@ export function HeaderClient({ categories, brands }: { categories: Category[]; b
         </div>
       </div>
       <div className="border-t border-line px-4 pb-3 sm:hidden">
-        <label className="relative block">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-          <input className="h-10 w-full rounded-md border border-slate-300 bg-white pl-10 pr-4 text-sm font-medium text-slate-950 placeholder:text-slate-500 outline-none focus:border-signal focus:ring-2 focus:ring-teal-100" placeholder="Search toners, models, parts..." />
-        </label>
+        <form className="relative block" onSubmit={submitSearch}>
+          {searchInput("h-10 w-full rounded-md border border-slate-300 bg-white pl-10 pr-24 text-sm font-medium text-slate-950 placeholder:text-slate-500 outline-none focus:border-signal focus:ring-2 focus:ring-teal-100")}
+        </form>
       </div>
-      <Sidebar categories={categories} brands={brands} mobileOpen={open} onClose={() => setOpen(false)} drawerOnly />
+      <Suspense fallback={null}>
+        <Sidebar categories={categories} brands={brands} mobileOpen={open} onClose={() => setOpen(false)} drawerOnly />
+      </Suspense>
     </header>
   );
 }

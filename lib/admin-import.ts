@@ -1,9 +1,9 @@
 import { Prisma, type ProductCondition, type StockStatus } from "@prisma/client";
-import { products as demoProducts } from "@/data/mockProducts";
-import { flattenCategoryTree } from "@/lib/category-tree";
 import { storeProductImage } from "@/lib/product-image-storage";
 import { prisma } from "@/lib/prisma";
 import { readFirstWorksheet, rowsToObjects, writeWorkbook } from "@/lib/xlsx";
+import { BUILT_IN_PARENT_CATEGORIES, BUILT_IN_PARENT_CATEGORY_SLUGS, builtInParentCategoryBySlug } from "@/lib/category-icons";
+import { ensureBuiltInParentCategories } from "@/lib/category-seeding";
 
 export const PRODUCT_IMPORT_COLUMNS = [
   "name",
@@ -28,13 +28,12 @@ export const PRODUCT_IMPORT_COLUMNS = [
   "is_published"
 ] as const;
 
-export const CATEGORY_IMPORT_COLUMNS = ["name", "slug", "parent_slug", "description", "icon", "image", "sort_order"] as const;
+export const CATEGORY_IMPORT_COLUMNS = ["name", "slug", "parent_slug", "description", "icon", "sort_order"] as const;
 
 const PRODUCT_CONDITIONS: ProductCondition[] = ["new", "refurbished"];
 const STOCK_STATUSES: StockStatus[] = ["in_stock", "backorder", "out_of_stock"];
 const MAX_ROWS = 500;
 const MAX_IMAGE_URLS = 3;
-const PLACEHOLDER_IMAGE = "/product-placeholder.svg";
 
 export type ImportKind = "products" | "categories";
 
@@ -68,6 +67,15 @@ export type PreviewResult = {
   rows: PreviewRow[];
   errorCount: number;
   rowLimit: number;
+};
+
+export type CommitImportResult = PreviewResult & {
+  importedCount: number;
+  updatedCount: number;
+  skippedCount: number;
+  failedCount: number;
+  affectedSlugs: string[];
+  importErrors: Array<{ rowNumber: number; errors: string[] }>;
 };
 
 function key(value: string) {
@@ -122,8 +130,8 @@ function parseBoolean(value: string, label: string, errors: string[]) {
   return false;
 }
 
-function parseImages(value: string, errors: string[], allowPlaceholder: boolean, remoteOnly = false) {
-  if (!value.trim()) return allowPlaceholder ? [PLACEHOLDER_IMAGE] : [];
+function parseImages(value: string, errors: string[], remoteOnly = false) {
+  if (!value.trim()) return [];
   const images = value.split(";").map((item) => item.trim()).filter(Boolean);
   if (images.length < 1 || images.length > MAX_IMAGE_URLS) errors.push(`images must contain 1-${MAX_IMAGE_URLS} URLs separated by semicolons.`);
   for (const image of images) {
@@ -176,6 +184,7 @@ function parseWorkbook(buffer: Buffer, expectedColumns: readonly string[]) {
 }
 
 async function makeLookup(kind: ImportKind, workbookRows: WorkbookRow[]): Promise<Lookup> {
+  if (kind === "categories") await ensureBuiltInParentCategories();
   const productSlugs = kind === "products" ? workbookRows.map((row) => key(row.values.slug ?? "")).filter(Boolean) : [];
   const [categories, brands, products] = await Promise.all([
     prisma.category.findMany({ select: { id: true, name: true, slug: true, parent_id: true } }),
@@ -197,10 +206,12 @@ async function makeLookup(kind: ImportKind, workbookRows: WorkbookRow[]): Promis
 
 function validateProductRows(workbookRows: WorkbookRow[], lookup: Lookup): PreviewRow[] {
   const seenSlugs = new Set<string>();
+  const seenSkus = new Set<string>();
 
   return workbookRows.map(({ rowNumber, values }) => {
     const errors: string[] = [];
     const slug = values.slug.trim();
+    const sku = values.sku.trim();
     required(values.name, "name", errors);
     required(slug, "slug", errors);
     required(values.description, "description", errors);
@@ -208,6 +219,8 @@ function validateProductRows(workbookRows: WorkbookRow[], lookup: Lookup): Previ
     if (slug && !isSlug(slug)) errors.push("slug must be lowercase letters, numbers, and single hyphens.");
     if (seenSlugs.has(key(slug))) errors.push("slug is duplicated in this workbook.");
     if (slug) seenSlugs.add(key(slug));
+    if (sku && seenSkus.has(key(sku))) errors.push("sku is duplicated in this workbook.");
+    if (sku) seenSkus.add(key(sku));
 
     const category = values.category.trim() ? findBySlugOrName(lookup.categories, values.category) : null;
     const brand = values.brand.trim() ? findBySlugOrName(lookup.brands, values.brand) : null;
@@ -227,7 +240,7 @@ function validateProductRows(workbookRows: WorkbookRow[], lookup: Lookup): Previ
     if (!PRODUCT_CONDITIONS.includes(condition)) errors.push(`condition must be one of: ${PRODUCT_CONDITIONS.join(", ")}`);
     if (!STOCK_STATUSES.includes(stockStatus)) errors.push(`stock_status must be one of: ${STOCK_STATUSES.join(", ")}`);
 
-    const images = parseImages(values.images, errors, true, true);
+    const images = parseImages(values.images, errors, true);
     const isFeatured = parseBoolean(values.is_featured, "is_featured", errors);
     const isPublished = values.is_published.trim() ? parseBoolean(values.is_published, "is_published", errors) : true;
 
@@ -245,7 +258,7 @@ function validateProductRows(workbookRows: WorkbookRow[], lookup: Lookup): Previ
         brand: brand?.name ?? (brandSlug ? titleFromSlug(values.brand) : null),
         brand_slug: brandSlug || null,
         mpn: values.mpn.trim() || null,
-        sku: values.sku.trim() || null,
+        sku: sku || null,
         price_kes: priceKes,
         cost_price_kes: costPriceKes,
         supplier_name: values.supplier_name.trim() || null,
@@ -285,7 +298,7 @@ function validateCategoryRows(workbookRows: WorkbookRow[], lookup: Lookup): Prev
     if (parentSlug && !parent && parentDepth == null) errors.push("parent_slug must match an existing category or an earlier row in this workbook.");
     if (parentDepth != null && parentDepth >= 2) errors.push("parent_slug cannot point to a sub-subcategory; category imports support root, subcategory, and sub-subcategory levels only.");
     const sortOrder = parseInteger(values.sort_order, "sort_order", errors, 0);
-    const images = parseImages(values.image, errors, false);
+    const builtIn = builtInParentCategoryBySlug(slug);
     if (slug && !errors.length) workbookDepths.set(key(slug), parentDepth == null ? 0 : parentDepth + 1);
 
     return {
@@ -296,10 +309,9 @@ function validateCategoryRows(workbookRows: WorkbookRow[], lookup: Lookup): Prev
         slug,
         parent_id: parent?.id ?? null,
         parent_slug: parentSlug || null,
-        description: values.description.trim() || null,
-        icon: values.icon.trim() || null,
-        image: images[0] ?? null,
-        images,
+        description: values.description.trim() || builtIn?.description || null,
+        icon: values.icon.trim() || builtIn?.icon || null,
+        is_builtin_parent: BUILT_IN_PARENT_CATEGORY_SLUGS.some((parentSlug) => parentSlug === slug),
         sort_order: sortOrder
       },
       errors
@@ -332,11 +344,14 @@ export async function commitImport(
       : await commitCategoryRows(validRows, preview, options);
 
   const importedCount = result.importedCount;
+  const updatedCount = validRows.filter((row) => row.operation === "update").length - result.importErrors.length;
   const importErrors = [...validationErrors, ...result.importErrors];
+  const failedCount = importErrors.length;
   const skippedCount = preview.rows.length - importedCount;
+  const affectedSlugs = validRows.filter((row) => !result.importErrors.some((error) => error.rowNumber === row.rowNumber)).map((row) => String(row.data.slug));
   options.onProgress?.({ stage: "Complete", processed: importedCount, total: validRows.length });
 
-  return { ...preview, importedCount, skippedCount, importErrors };
+  return { ...preview, importedCount, updatedCount: Math.max(0, updatedCount), skippedCount, failedCount, affectedSlugs, importErrors } satisfies CommitImportResult;
 }
 
 async function commitProductRows(
@@ -397,7 +412,7 @@ async function prepareProductLookups(rows: PreviewRow[]) {
     .map((data) => ({
       name: String(data.brand),
       slug: String(data.brand_slug),
-      icon: "/product-placeholder.svg"
+      icon: null as string | null
     })));
 
   await Promise.all([
@@ -489,8 +504,7 @@ async function currentProductImages(rows: PreviewRow[]) {
 
 function initialImagesForProduct(importImages: string[], currentImages: string[]) {
   if (currentImages.length) return currentImages;
-  if (importImages.includes(PLACEHOLDER_IMAGE)) return [PLACEHOLDER_IMAGE];
-  return [PLACEHOLDER_IMAGE];
+  return importImages;
 }
 
 async function downloadAndSaveProductImages(
@@ -499,7 +513,7 @@ async function downloadAndSaveProductImages(
   options: { onProgress?: (progress: ImportProgress) => void | Promise<void> }
 ) {
   const importErrors: Array<{ rowNumber: number; errors: string[] }> = [];
-  const rowsWithImages = rows.filter((row) => (row.data.images as string[]).some((image) => image !== PLACEHOLDER_IMAGE));
+  const rowsWithImages = rows.filter((row) => (row.data.images as string[]).length > 0);
   let processed = 0;
 
   for (const row of rowsWithImages) {
@@ -543,7 +557,7 @@ async function downloadAndSaveProductImages(
 }
 
 function asImages(value: Prisma.JsonValue | null | undefined) {
-  return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string" && item !== PLACEHOLDER_IMAGE) : [];
+  return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
 }
 
 async function commitCategoryRows(
@@ -609,26 +623,24 @@ async function upsertCategoryBatch(rows: PreviewRow[], preview: PreviewResult, p
   const values = rows.map((row) => {
     const data = row.data;
     const parentId = data.parent_slug ? parentIds.get(key(String(data.parent_slug))) ?? null : null;
-    const category = categoryData(data, data.image ? String(data.image) : null, parentId);
+    const category = categoryData(data, null, parentId);
     return Prisma.sql`(
       ${category.name},
       ${category.slug},
       ${category.description},
       ${category.icon},
-      ${category.image},
       ${category.parent_id},
       ${category.sort_order}
     )`;
   });
 
   const query = Prisma.sql`
-    insert into public.categories (name, slug, description, icon, image, parent_id, sort_order)
+    insert into public.categories (name, slug, description, icon, parent_id, sort_order)
     values ${Prisma.join(values)}
     on conflict (slug) do update set
       name = excluded.name,
       description = excluded.description,
       icon = excluded.icon,
-      image = excluded.image,
       parent_id = excluded.parent_id,
       sort_order = excluded.sort_order
   `;
@@ -702,35 +714,11 @@ function categoryData(data: PreviewRow["data"], image: string | null, parentId: 
 }
 
 export function productTemplateWorkbook() {
-  const rows = demoProducts.map((product) => [
-    product.name,
-    product.slug,
-    product.description,
-    slugify(product.category),
-    slugify(product.brand),
-    product.specs.Model ?? "",
-    `DEMO-${product.id.toUpperCase()}`,
-    String(product.price),
-    "",
-    "",
-    "",
-    "0",
-    "0",
-    product.condition.toLowerCase(),
-    product.stockStatus === "in-stock" ? "in_stock" : "backorder",
-    product.inStock ? "5" : "0",
-    product.image,
-    Object.entries(product.specs).map(([key, value]) => `${key}: ${value}`).join("; "),
-    "true",
-    "true"
-  ]);
-
   return writeWorkbook([
     {
       name: "Products",
       rows: [
-        [...PRODUCT_IMPORT_COLUMNS],
-        ...rows
+        [...PRODUCT_IMPORT_COLUMNS]
       ]
     },
     {
@@ -753,7 +741,7 @@ export function productTemplateWorkbook() {
         ["condition", "Optional", `Allowed values: ${PRODUCT_CONDITIONS.join(", ")}. Default: new.`],
         ["stock_status", "Optional", `Allowed values: ${STOCK_STATUSES.join(", ")}. Default: in_stock.`],
         ["stock_quantity", "Optional", "Whole number, greater than or equal to 0. Default: 0."],
-        ["images", "Optional", "Use 1-3 public http(s) image URLs separated by semicolons. Confirmed imports download and store images in Supabase Storage. Blank uses /product-placeholder.svg."],
+        ["images", "Optional", "Use 1-3 public http(s) image URLs separated by semicolons. Confirmed imports download and store images in Supabase Storage. Blank stores no product images."],
         ["specs", "Optional", "Use semicolon-separated Key: Value pairs."],
         ["is_featured", "Optional", "Allowed values: true/false, yes/no, 1/0. Default: false."],
         ["is_published", "Optional", "Allowed values: true/false, yes/no, 1/0. Default: true."]
@@ -763,22 +751,11 @@ export function productTemplateWorkbook() {
 }
 
 export function categoryTemplateWorkbook() {
-  const rows = flattenCategoryTree().map((category) => [
-    category.name,
-    category.slug,
-    category.parentId ?? "",
-    category.description ?? `${category.name} products and services.`,
-    category.icon ?? "",
-    "",
-    String(category.sortOrder)
-  ]);
-
   return writeWorkbook([
     {
       name: "Categories",
       rows: [
-        [...CATEGORY_IMPORT_COLUMNS],
-        ...rows
+        [...CATEGORY_IMPORT_COLUMNS]
       ]
     },
     {
@@ -789,9 +766,15 @@ export function categoryTemplateWorkbook() {
         ["slug", "Required", "Unique lowercase slug. Existing categories with the same slug are updated."],
         ["parent_slug", "Optional", "Blank for a root category. To create a subcategory or sub-subcategory, use an existing category slug or a parent row that appears earlier in this workbook. Maximum depth is root > subcategory > sub-subcategory."],
         ["description", "Optional", "Plain category description."],
-        ["icon", "Optional", "Icon text or image URL matching the manual category form."],
-        ["image", "Optional", "Use 1-3 image URLs separated by semicolons, for example image1.jpg;image2.jpg;image3.jpg. The first image is stored as the category image."],
+        ["icon", "Optional", "Parent category icon identifier. Built-in parent identifiers are Printer, Tags, Settings, Barcode, and Wrench. Child categories can leave this blank."],
         ["sort_order", "Optional", "Whole number used to order siblings under the same parent. Default: 0."]
+      ]
+    },
+    {
+      name: "Built-in Parents",
+      rows: [
+        ["parent_slug", "name", "icon", "usage"],
+        ...BUILT_IN_PARENT_CATEGORIES.map((category) => [category.slug, category.name, category.icon, "Use this parent_slug for child categories. These parent categories are created by the application if missing."])
       ]
     }
   ]);

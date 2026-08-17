@@ -4,7 +4,6 @@ import { FormEvent, ReactNode, useRef, useState } from "react";
 import { toast } from "sonner";
 import { CheckCircle2, Send } from "lucide-react";
 import { LoadingSpinner } from "@/components/LoadingSpinner";
-import { createClient } from "@/lib/supabase/client";
 
 type FormState = {
   name: string;
@@ -12,24 +11,31 @@ type FormState = {
   phone: string;
   service: string;
   message: string;
+  quantity: number;
 };
+type FormErrors = Partial<Record<keyof FormState, string>>;
 
-const initialState: FormState = { name: "", email: "", phone: "", service: "", message: "" };
+const initialState: FormState = { name: "", email: "", phone: "", service: "", message: "", quantity: 1 };
 
-export function QuoteForm() {
-  const [form, setForm] = useState<FormState>(initialState);
-  const [errors, setErrors] = useState<Partial<FormState>>({});
+export function QuoteForm({ product }: { product?: { id: string; name: string; sku?: string | null } | null }) {
+  const [form, setForm] = useState<FormState>({
+    ...initialState,
+    service: product ? "Product quotation" : "",
+    message: product ? `Please quote ${product.name}${product.sku ? ` (${product.sku})` : ""}.` : ""
+  });
+  const [errors, setErrors] = useState<FormErrors>({});
   const [status, setStatus] = useState<"idle" | "loading" | "success">("idle");
   const refs = {
     name: useRef<HTMLInputElement>(null),
     email: useRef<HTMLInputElement>(null),
     phone: useRef<HTMLInputElement>(null),
     service: useRef<HTMLSelectElement>(null),
-    message: useRef<HTMLTextAreaElement>(null)
+    message: useRef<HTMLTextAreaElement>(null),
+    quantity: useRef<HTMLInputElement>(null)
   };
 
   function validate() {
-    const next: Partial<FormState> = {};
+    const next: FormErrors = {};
     if (!form.name.trim()) next.name = "Name is required";
     if (!/^\S+@\S+\.\S+$/.test(form.email)) next.email = "Enter a valid email";
     if (form.phone.trim().length < 9) next.phone = "Enter a valid phone number";
@@ -49,24 +55,29 @@ export function QuoteForm() {
       return;
     }
     setStatus("loading");
-    const supabase = createClient();
-    const { error } = await supabase.from("quote_requests").insert({
-      name: form.name,
-      email: form.email,
-      phone: form.phone,
-      service_needed: form.service,
-      message: form.message,
-      status: "new"
+    const response = await fetch("/api/quotes", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: form.name,
+        email: form.email,
+        phone: form.phone,
+        service: form.service,
+        message: form.message,
+        productId: product?.id,
+        quantity: form.quantity
+      })
     });
-    if (error) {
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
       setStatus("idle");
-      toast.error("Quote request could not be submitted");
+      toast.error(data.error ?? "Quote request could not be submitted");
       return;
     }
     setStatus("success");
     toast.success("Quote request submitted");
     window.setTimeout(() => {
-      setForm(initialState);
+      setForm({ ...initialState, service: product ? "Product quotation" : "", message: product ? `Please quote ${product.name}${product.sku ? ` (${product.sku})` : ""}.` : "" });
       setStatus("idle");
     }, 1200);
   }
@@ -91,6 +102,7 @@ export function QuoteForm() {
         <Field id="quote-service" label="Service needed" error={errors.service}>
           <select ref={refs.service} id="quote-service" aria-describedby={errors.service ? "quote-service-error" : undefined} value={form.service} onChange={(event) => field("service", event.target.value)} className="h-11 w-full rounded-md border border-slate-300 px-3 text-sm focus:border-signal focus:outline-none">
             <option value="">Select service</option>
+            <option>Product quotation</option>
             <option>Printer repair</option>
             <option>Photocopier installation</option>
             <option>Toner supply</option>
@@ -98,6 +110,11 @@ export function QuoteForm() {
             <option>Managed print service</option>
           </select>
         </Field>
+        {product ? (
+          <Field id="quote-quantity" label="Quantity" error={errors.quantity}>
+            <input ref={refs.quantity} id="quote-quantity" type="number" min="1" value={form.quantity} onChange={(event) => field("quantity", Math.max(1, Number(event.target.value) || 1))} className="h-11 w-full rounded-md border border-slate-300 px-3 text-sm focus:border-signal focus:outline-none" />
+          </Field>
+        ) : null}
       </div>
       <Field id="quote-message" label="Message" error={errors.message} className="mt-4">
         <textarea ref={refs.message} id="quote-message" aria-describedby={errors.message ? "quote-message-error" : undefined} value={form.message} onChange={(event) => field("message", event.target.value)} rows={6} className="w-full rounded-md border border-slate-300 px-3 py-3 text-sm focus:border-signal focus:outline-none" />

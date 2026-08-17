@@ -1,7 +1,8 @@
 "use client";
 
 import Image from "next/image";
-import { Minus, Plus, ShoppingCart } from "lucide-react";
+import Link from "next/link";
+import { FileText, Flame, Minus, Package, Plus, ShoppingCart, Zap } from "lucide-react";
 import { useState } from "react";
 import type { Product } from "@/lib/types";
 import { AddToCartButton } from "@/components/AddToCartButton";
@@ -11,25 +12,40 @@ import { formatKes } from "@/lib/utils";
 
 export function ProductDetail({ product, related }: { product: Product; related: Product[] }) {
   const [quantity, setQuantity] = useState(1);
-  const gallery = product.images.length ? product.images : [product.image];
+  const gallery = product.images.length ? product.images : [];
+  const maxQuantity = product.stockStatus === "backorder" ? Number.POSITIVE_INFINITY : Math.max(0, product.stockQuantity);
+  const canAddToCart = product.stockStatus === "backorder" || maxQuantity > 0;
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-6">
       <div className="grid gap-8 lg:grid-cols-[1fr_0.9fr]">
         <section className="rounded-lg border border-slate-300 bg-white p-4">
-          <div className="relative aspect-[4/3] rounded-md bg-panel">
-            <Image src={gallery[0]} alt={product.name} fill className="object-contain p-8" priority />
+          <div className="relative aspect-[4/3] overflow-hidden rounded-md bg-white">
+            {gallery[0] ? (
+              <Image src={gallery[0]} alt={product.name} fill className="object-contain object-center" priority />
+            ) : (
+              <div className="flex h-full w-full items-center justify-center text-slate-500">
+                <Package className="h-14 w-14" aria-hidden />
+              </div>
+            )}
           </div>
-          <div className="mt-3 grid grid-cols-3 gap-3">
-            {gallery.map((image, index) => (
-              <button key={index} className="relative aspect-[4/3] rounded-md border border-slate-300 bg-panel hover:border-signal">
-                <Image src={image} alt="" fill className="object-contain p-3" />
-              </button>
-            ))}
-          </div>
+          {gallery.length > 1 ? (
+            <div className="mt-3 grid grid-cols-3 gap-3">
+              {gallery.map((image, index) => (
+                <button key={index} className="relative aspect-[4/3] rounded-md border border-slate-300 bg-panel hover:border-signal">
+                  <Image src={image} alt="" fill className="object-contain object-center" />
+                </button>
+              ))}
+            </div>
+          ) : null}
         </section>
         <section>
           <p className="text-sm font-black uppercase text-signal">{product.brand}</p>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {product.condition === "new" ? <span className="rounded-full bg-teal-600 px-3 py-1 text-xs font-black uppercase text-white">New</span> : null}
+            {product.showOfferBadge ? <span className="inline-flex items-center gap-1 rounded-full bg-orange-600 px-3 py-1 text-xs font-black uppercase text-white"><Flame className="h-3.5 w-3.5" aria-hidden /> Offer</span> : null}
+            {product.showFlashSaleBadge ? <span className="inline-flex items-center gap-1 rounded-full bg-red-600 px-3 py-1 text-xs font-black uppercase text-white"><Zap className="h-3.5 w-3.5" aria-hidden /> Flash Sale</span> : null}
+          </div>
           <h1 className="mt-2 text-3xl font-black text-ink">{product.name}</h1>
           <p className="mt-3 text-3xl font-black text-slate-950">{formatKes(product.price)}</p>
           {product.previousPrice ? <p className="mt-1 text-sm text-slate-500"><span className="line-through">{formatKes(product.previousPrice)}</span> previous price</p> : null}
@@ -53,11 +69,20 @@ export function ProductDetail({ product, related }: { product: Product; related:
             <div className="flex h-11 items-center rounded-md border border-slate-300 bg-white">
               <button className="px-3" onClick={() => setQuantity((value) => Math.max(1, value - 1))} aria-label="Decrease quantity"><Minus className="h-4 w-4" /></button>
               <span className="w-10 text-center text-sm font-black">{quantity}</span>
-              <button className="px-3" onClick={() => setQuantity((value) => value + 1)} aria-label="Increase quantity"><Plus className="h-4 w-4" /></button>
+              <button className="px-3" onClick={() => setQuantity((value) => Math.min(value + 1, maxQuantity))} aria-label="Increase quantity"><Plus className="h-4 w-4" /></button>
             </div>
-            <AddToCartButton product={product} quantity={quantity} className="min-w-40">
-              <ShoppingCart className="h-4 w-4" /> Add to cart
-            </AddToCartButton>
+            {canAddToCart ? (
+              <AddToCartButton product={product} quantity={quantity} className="min-w-40">
+                <ShoppingCart className="h-4 w-4" /> Add to cart
+              </AddToCartButton>
+            ) : (
+              <button type="button" disabled className="inline-flex h-11 min-w-40 cursor-not-allowed items-center justify-center gap-2 rounded-md bg-slate-300 px-4 text-sm font-semibold text-white">
+                <ShoppingCart className="h-4 w-4" /> Out of stock
+              </button>
+            )}
+            <Link href={`/quote?product=${encodeURIComponent(product.slug)}`} className="inline-flex h-11 min-w-40 items-center justify-center gap-2 rounded-md border border-slate-300 bg-white px-4 text-sm font-semibold text-ink hover:bg-slate-50">
+              <FileText className="h-4 w-4" /> Request quote
+            </Link>
             <WhatsAppOrderButton product={product} className="min-w-48" />
           </div>
         </section>

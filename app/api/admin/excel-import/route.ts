@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
-import { revalidatePath } from "next/cache";
 import { categoryTemplateWorkbook, commitImport, previewImport, productTemplateWorkbook, type ImportKind, type ImportProgress } from "@/lib/admin-import";
 import { getAdminSession, type AdminSession } from "@/lib/admin/auth";
+import { revalidateStorefront } from "@/lib/storefront-revalidation";
 
 export const maxDuration = 60;
 
@@ -135,9 +135,7 @@ function startImportJob(job: ImportJob, buffer: Buffer, session: AdminSession) {
       job.progress = { stage: "Complete", processed: importedCount(result), total: job.progress.total };
       job.updatedAt = Date.now();
       if (importedCount(result) > 0) {
-        revalidatePath("/");
-        revalidatePath("/admin");
-        revalidatePath("/category");
+        revalidateStorefront();
       }
     } catch (error) {
       job.status = "error";

@@ -1,7 +1,7 @@
 import { createHash } from "crypto";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { productImagesBucket } from "@/lib/product-image-urls";
 
-const DEFAULT_BUCKET = "product-images";
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 const IMAGE_TIMEOUT_MS = 15000;
 const ALLOWED_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/gif", "image/avif"]);
@@ -12,10 +12,6 @@ export type StoredProductImage = {
   path: string;
   skipped: boolean;
 };
-
-export function productImagesBucket() {
-  return process.env.SUPABASE_PRODUCT_IMAGES_BUCKET || DEFAULT_BUCKET;
-}
 
 export function storagePathForProductImage(input: { slug: string; sku?: string | null; sourceUrl: string; index: number; contentType?: string | null }) {
   const code = safeSegment(input.sku || input.slug);
