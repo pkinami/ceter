@@ -1,19 +1,5 @@
 import type { ReactNode } from "react";
-
-type LegalDocument = {
-  title: string;
-  label: string;
-  company: string;
-  effectiveDate: string;
-  lastReviewed: string;
-  sections: LegalSection[];
-};
-
-type LegalSection = {
-  id: string;
-  title: string;
-  content: ReactNode;
-};
+import { LegalDocumentLayout, type LegalDocument } from "@/components/LegalDocumentLayout";
 
 const contactRows = [
   ["Email", "info@cetertechnologies.com"],
@@ -24,6 +10,7 @@ const contactRows = [
 export const privacyPolicyDocument: LegalDocument = {
   title: "Privacy Policy",
   label: "Privacy and data protection",
+  description: "How Ceter Technologies collects, uses and protects customer information.",
   company: "Ceter Technologies Limited",
   effectiveDate: "August 17, 2026",
   lastReviewed: "August 2026",
@@ -208,6 +195,7 @@ export const privacyPolicyDocument: LegalDocument = {
 export const termsDocument: LegalDocument = {
   title: "Terms and Conditions",
   label: "Website and sales terms",
+  description: "The terms governing use of Ceter Technologies products and services.",
   company: "Ceter Technologies Limited",
   effectiveDate: "August 17, 2026",
   lastReviewed: "August 2026",
@@ -240,45 +228,7 @@ export const termsDocument: LegalDocument = {
 };
 
 export function LegalPage({ document }: { document: LegalDocument }) {
-  return (
-    <main className="bg-mist">
-      <section className="border-b border-line bg-ink text-white">
-        <div className="mx-auto max-w-7xl px-4 py-10 sm:py-12">
-          <p className="text-xs font-black uppercase text-signal">{document.label}</p>
-          <h1 className="mt-3 max-w-4xl text-3xl font-black leading-tight text-white sm:text-5xl">{document.title}</h1>
-          <div className="mt-5 flex flex-wrap gap-3 text-sm text-slate-200">
-            <span className="rounded-md border border-white/15 bg-white/10 px-3 py-2 font-bold">{document.company}</span>
-            <span className="rounded-md border border-white/15 bg-white/10 px-3 py-2">Effective date: {document.effectiveDate}</span>
-            <span className="rounded-md border border-white/15 bg-white/10 px-3 py-2">Last reviewed: {document.lastReviewed}</span>
-          </div>
-        </div>
-      </section>
-
-      <section className="mx-auto grid max-w-7xl gap-6 px-4 py-8 lg:grid-cols-[280px_1fr] lg:items-start">
-        <aside className="rounded-lg border border-line bg-white p-4 shadow-sm lg:sticky lg:top-24">
-          <h2 className="text-sm font-black uppercase text-ink">Contents</h2>
-          <nav className="mt-3 grid gap-1 text-sm" aria-label={`${document.title} contents`}>
-            {document.sections.map((section) => (
-              <a key={section.id} href={`#${section.id}`} className="rounded-md px-3 py-2 font-semibold text-slate-600 hover:bg-teal-50 hover:text-signal">
-                {section.title.replace(/^\d+\.\s*/, "")}
-              </a>
-            ))}
-          </nav>
-        </aside>
-
-        <article className="rounded-lg border border-line bg-white p-5 shadow-sm sm:p-8">
-          <div className="legal-document max-w-none">
-            {document.sections.map((section) => (
-              <section key={section.id} id={section.id} className="scroll-mt-28 border-t border-line pt-8 first:border-t-0 first:pt-0">
-                <h2>{section.title}</h2>
-                {section.content}
-              </section>
-            ))}
-          </div>
-        </article>
-      </section>
-    </main>
-  );
+  return <LegalDocumentLayout document={document} />;
 }
 
 function LegalList({ items }: { items: ReactNode[] }) {
@@ -293,24 +243,34 @@ function LegalList({ items }: { items: ReactNode[] }) {
 
 function InfoTable({ rows, headings = ["Detail", "Information"] }: { rows: string[][]; headings?: string[] }) {
   return (
-    <div className="my-6 overflow-x-auto">
-      <table>
-        <thead>
-          <tr>
-            {headings.map((heading) => (
-              <th key={heading}>{heading}</th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map(([label, value]) => (
-            <tr key={label}>
-              <td>{label}</td>
-              <td>{value}</td>
+    <div className="my-6">
+      <div className="hidden overflow-hidden rounded-lg border border-line sm:block">
+        <table>
+          <thead>
+            <tr>
+              {headings.map((heading) => (
+                <th key={heading}>{heading}</th>
+              ))}
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {rows.map(([label, value]) => (
+              <tr key={label}>
+                <td>{label}</td>
+                <td>{value}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <div className="grid gap-3 sm:hidden">
+        {rows.map(([label, value]) => (
+          <article key={label} className="rounded-lg border border-line bg-slate-50 p-4">
+            <p className="my-0 text-xs font-black uppercase text-signal">{label}</p>
+            <p className="my-0 mt-1 text-sm font-bold leading-6 text-ink">{value}</p>
+          </article>
+        ))}
+      </div>
     </div>
   );
 }

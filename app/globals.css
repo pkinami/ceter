@@ -152,23 +152,28 @@ select option:checked {
   }
 
   .legal-document h2 {
-    @apply text-2xl font-black leading-tight text-ink;
+    @apply text-2xl font-black leading-tight text-ink sm:text-3xl;
   }
 
   .legal-document h3 {
-    @apply mt-6 text-lg font-black leading-tight text-panel;
+    @apply mt-7 border-l-4 border-signal bg-teal-50/70 px-4 py-3 text-lg font-black leading-tight text-panel;
   }
 
   .legal-document p {
-    @apply my-5 text-[15px] leading-7 text-slate-700;
+    @apply my-4 text-[15px] leading-7 text-slate-700;
   }
 
-  .legal-document ul {
-    @apply my-5 grid gap-2 pl-5 text-[15px] leading-7 text-slate-700 marker:text-signal;
+  .legal-document ul,
+  .legal-document ol {
+    @apply my-5 grid gap-2 pl-5 text-[15px] leading-7 text-slate-700 marker:font-black marker:text-signal;
   }
 
-  .legal-document li {
+  .legal-document ul li {
     @apply list-disc pl-1;
+  }
+
+  .legal-document ol li {
+    @apply list-decimal pl-1;
   }
 
   .legal-document a {
@@ -176,7 +181,7 @@ select option:checked {
   }
 
   .legal-document table {
-    @apply w-full min-w-[520px] border-collapse overflow-hidden rounded-lg border border-line text-sm;
+    @apply w-full border-collapse text-sm;
   }
 
   .legal-document th {
