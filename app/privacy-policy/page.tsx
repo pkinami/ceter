@@ -1,7 +1,5 @@
 import type { Metadata } from "next";
-import { readFile } from "node:fs/promises";
-import { join } from "node:path";
-import { LegalPage } from "@/lib/legal-markdown";
+import { LegalPage, privacyPolicyDocument } from "@/lib/legal-pages";
 import { metadataForPage } from "@/lib/seo";
 
 export const metadata: Metadata = metadataForPage({
@@ -10,8 +8,6 @@ export const metadata: Metadata = metadataForPage({
   path: "/privacy-policy"
 });
 
-export default async function PrivacyPolicyPage() {
-  const markdown = await readFile(join(process.cwd(), "Ceter_Technologies_Privacy_Policy.md"), "utf8");
-
-  return <LegalPage markdown={markdown} label="Privacy and data protection" />;
+export default function PrivacyPolicyPage() {
+  return <LegalPage document={privacyPolicyDocument} />;
 }

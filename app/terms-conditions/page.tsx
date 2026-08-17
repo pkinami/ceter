@@ -1,7 +1,5 @@
 import type { Metadata } from "next";
-import { readFile } from "node:fs/promises";
-import { join } from "node:path";
-import { LegalPage } from "@/lib/legal-markdown";
+import { LegalPage, termsDocument } from "@/lib/legal-pages";
 import { metadataForPage } from "@/lib/seo";
 
 export const metadata: Metadata = metadataForPage({
@@ -10,8 +8,6 @@ export const metadata: Metadata = metadataForPage({
   path: "/terms-conditions"
 });
 
-export default async function TermsConditionsPage() {
-  const markdown = await readFile(join(process.cwd(), "Ceter_Technologies_Terms_and_Conditions.md"), "utf8");
-
-  return <LegalPage markdown={markdown} label="Website and sales terms" />;
+export default function TermsConditionsPage() {
+  return <LegalPage document={termsDocument} />;
 }

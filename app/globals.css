@@ -150,6 +150,42 @@ select option:checked {
   .admin-input {
     @apply h-9 rounded-md border border-line bg-white px-3 text-[13px] text-ink outline-none hover:border-teal-200 focus:border-accent focus:ring-2 focus:ring-accent/20 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400;
   }
+
+  .legal-document h2 {
+    @apply text-2xl font-black leading-tight text-ink;
+  }
+
+  .legal-document h3 {
+    @apply mt-6 text-lg font-black leading-tight text-panel;
+  }
+
+  .legal-document p {
+    @apply my-5 text-[15px] leading-7 text-slate-700;
+  }
+
+  .legal-document ul {
+    @apply my-5 grid gap-2 pl-5 text-[15px] leading-7 text-slate-700 marker:text-signal;
+  }
+
+  .legal-document li {
+    @apply list-disc pl-1;
+  }
+
+  .legal-document a {
+    @apply font-bold text-signal hover:text-teal-700;
+  }
+
+  .legal-document table {
+    @apply w-full min-w-[520px] border-collapse overflow-hidden rounded-lg border border-line text-sm;
+  }
+
+  .legal-document th {
+    @apply border-b border-line bg-slate-50 px-4 py-3 text-left align-top font-black text-ink;
+  }
+
+  .legal-document td {
+    @apply border-t border-line px-4 py-3 align-top leading-6 text-slate-700 first:font-bold first:text-ink;
+  }
 }
 
 .admin-ui {
