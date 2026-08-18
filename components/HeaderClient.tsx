@@ -114,7 +114,7 @@ export function HeaderClient({ categories, brands }: { categories: Category[]; b
       />
       {query ? (
         <Tooltip label="Clear search">
-          <button type="button" onClick={clearSearch} className="absolute right-12 top-1/2 -translate-y-1/2 rounded-md p-1 text-slate-500 hover:bg-slate-100 hover:text-slate-900" aria-label="Clear search">
+        <button type="button" onClick={clearSearch} className="absolute right-12 top-1/2 -translate-y-1/2 rounded-md p-1 text-slate-500 hover:bg-slate-100 hover:text-slate-900" aria-label="Clear search">
             <X className="h-4 w-4" />
           </button>
         </Tooltip>
@@ -130,10 +130,10 @@ export function HeaderClient({ categories, brands }: { categories: Category[]; b
   return (
     <header className="sticky top-0 z-40 border-b border-line bg-white/95 backdrop-blur">
       <TopBar />
-      <div className="mx-auto grid max-w-7xl grid-cols-[auto_1fr_auto] items-center gap-3 px-4 py-4 lg:grid-cols-[240px_1fr_auto]">
+      <div className="mx-auto grid min-h-[64px] max-w-[1440px] grid-cols-[auto_1fr_auto] items-center gap-2 px-4 py-2 lg:grid-cols-[232px_minmax(320px,420px)_auto] lg:gap-3 xl:grid-cols-[232px_minmax(380px,420px)_auto]">
         <div className="flex items-center gap-3">
           <Tooltip label="Open categories">
-          <button className="grid h-11 w-11 shrink-0 place-items-center rounded-md border border-slate-300 lg:hidden" onClick={openMenu} aria-label="Open categories" aria-controls="mobile-category-drawer" aria-expanded={open}>
+          <button className="grid h-10 w-10 shrink-0 place-items-center rounded-md border border-slate-300 lg:hidden" onClick={openMenu} aria-label="Open categories" aria-controls="mobile-category-drawer" aria-expanded={open}>
             <Menu className="h-5 w-5" />
           </button>
           </Tooltip>
@@ -144,27 +144,27 @@ export function HeaderClient({ categories, brands }: { categories: Category[]; b
               width={210}
               height={50}
               priority
-              className="h-10 w-auto"
+              className="h-8 w-auto max-w-[132px] sm:h-9 sm:max-w-none lg:h-10"
             />
           </Link>
         </div>
-        <form className="relative hidden sm:block" onSubmit={submitSearch}>
+        <form className="relative hidden w-full sm:block" onSubmit={submitSearch}>
           {searchInput("h-11 w-full rounded-md border border-slate-300 bg-white pl-10 pr-24 text-sm font-medium text-slate-950 placeholder:text-slate-500 outline-none focus:border-signal focus:ring-2 focus:ring-teal-100")}
         </form>
-        <div className="flex items-center justify-end gap-4">
-          <nav className="hidden items-center gap-4 text-sm font-bold text-slate-600 lg:flex">
+        <div className="flex min-w-0 items-center justify-end gap-2 lg:gap-3">
+          <nav className="hidden items-center gap-3 text-[13px] font-semibold text-slate-600 xl:flex xl:gap-4 xl:text-sm">
             <Link href="/category" className="hover:text-signal">Catalog</Link>
             <Link href="/quote" className="hover:text-signal">Service Quote</Link>
             <Link href="/about" className="hover:text-signal">About</Link>
           </nav>
           <div className="flex items-center gap-2">
             <Tooltip label="WhatsApp Ceter Technologies">
-              <a href="https://wa.me/254707143322" className="hidden h-11 items-center gap-2 rounded-md bg-green-600 px-4 text-sm font-bold text-white hover:bg-green-700 md:inline-flex">
+              <a href="https://wa.me/254707143322" className="hidden h-10 items-center gap-2 rounded-md bg-green-600 px-3 text-[13px] font-semibold text-white hover:bg-green-700 md:inline-flex xl:px-4 xl:text-sm">
                 <BrandIcon name="whatsapp" label="WhatsApp" size={18} className="h-4 w-4" /> WhatsApp
               </a>
             </Tooltip>
             <Tooltip label="View cart">
-              <Link href="/cart" className="relative grid h-11 w-11 place-items-center rounded-md border border-slate-300 hover:bg-slate-50" aria-label={`Cart${cartQuantity ? ` with ${cartQuantity} items` : ""}`}>
+              <Link href="/cart" className="relative grid h-10 w-10 place-items-center rounded-md border border-slate-300 hover:bg-slate-50" aria-label={`Cart${cartQuantity ? ` with ${cartQuantity} items` : ""}`}>
                 <ShoppingCart className="h-5 w-5" />
                 {cartQuantity > 0 ? (
                   <span className="absolute -right-2 -top-2 grid min-h-5 min-w-5 place-items-center rounded-full bg-signal px-1.5 text-[11px] font-black leading-none text-white shadow">
@@ -177,9 +177,9 @@ export function HeaderClient({ categories, brands }: { categories: Category[]; b
           </div>
         </div>
       </div>
-      <div className="border-t border-line px-4 pb-3 sm:hidden">
+      <div className="border-t border-line px-4 py-2 sm:hidden">
         <form className="relative block" onSubmit={submitSearch}>
-          {searchInput("h-10 w-full rounded-md border border-slate-300 bg-white pl-10 pr-24 text-sm font-medium text-slate-950 placeholder:text-slate-500 outline-none focus:border-signal focus:ring-2 focus:ring-teal-100")}
+          {searchInput("h-12 w-full rounded-md border border-slate-300 bg-white pl-10 pr-24 text-sm font-medium text-slate-950 placeholder:text-slate-500 outline-none focus:border-signal focus:ring-2 focus:ring-teal-100")}
         </form>
       </div>
       <Suspense fallback={null}>

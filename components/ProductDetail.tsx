@@ -5,8 +5,8 @@ import { FileText, Flame, Minus, Plus, ShoppingCart, Zap } from "lucide-react";
 import { useState } from "react";
 import type { Product } from "@/lib/types";
 import { AddToCartButton } from "@/components/AddToCartButton";
-import { ProductCard } from "@/components/ProductCard";
 import { ProductImageFrame } from "@/components/ProductImageFrame";
+import { ProductRail } from "@/components/ProductRail";
 import { WhatsAppOrderButton } from "@/components/WhatsAppOrderButton";
 import { formatKes } from "@/lib/utils";
 
@@ -87,12 +87,9 @@ export function ProductDetail({ product, related }: { product: Product; related:
           </div>
         </section>
       </div>
-      <section className="mt-10">
-        <h2 className="mb-4 text-xl font-black text-ink">Related products</h2>
-        <div className="grid grid-cols-1 gap-4 min-[460px]:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-5">
-          {related.map((item) => <ProductCard key={item.id} product={item} />)}
-        </div>
-      </section>
+      <div className="mt-8">
+        <ProductRail title="Related products" href={`/category?category=${encodeURIComponent(product.category)}`} products={related} />
+      </div>
     </div>
   );
 }

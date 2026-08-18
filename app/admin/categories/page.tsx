@@ -72,8 +72,8 @@ export default async function CategoriesPage({ searchParams }: Props) {
           </div>
         </form>
       </Card>
-      <form action="/admin/categories" className="admin-card flex flex-wrap items-end gap-3 p-4">
-        <label className="min-w-72 flex-1 text-xs font-bold uppercase tracking-[0.14em] text-slate-500">
+      <form action="/admin/categories" className="admin-card flex flex-wrap items-end gap-3 p-3 sm:p-4">
+        <label className="min-w-0 flex-1 text-xs font-bold uppercase tracking-[0.14em] text-slate-500 sm:min-w-72">
           Find categories
           <input className="admin-input mt-2 w-full" name="q" type="search" autoComplete="off" placeholder="Search category name, slug, description, or parent" defaultValue={params.q ?? ""} />
         </label>

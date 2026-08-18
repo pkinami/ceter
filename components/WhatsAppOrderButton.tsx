@@ -8,9 +8,10 @@ import { cn } from "@/lib/utils";
 type WhatsAppOrderButtonProps = {
   product: Product;
   className?: string;
+  compact?: boolean;
 };
 
-export function WhatsAppOrderButton({ product, className }: WhatsAppOrderButtonProps) {
+export function WhatsAppOrderButton({ product, className, compact = false }: WhatsAppOrderButtonProps) {
   const message = `Hi, I'm interested in ${product.name} (${formatKes(product.price)}) listed on your site.`;
   const href = `https://wa.me/254707143322?text=${encodeURIComponent(message)}`;
 
@@ -20,13 +21,14 @@ export function WhatsAppOrderButton({ product, className }: WhatsAppOrderButtonP
       target="_blank"
       rel="noreferrer"
       onClick={(event) => event.stopPropagation()}
+      aria-label={`Order ${product.name} via WhatsApp`}
       className={cn(
         "inline-flex h-11 items-center justify-center gap-2 rounded-md border border-signal bg-white px-4 text-sm font-semibold text-ink shadow-sm hover:bg-teal-50 hover:text-teal-800",
         className
       )}
     >
       <BrandIcon name="whatsapp" label="WhatsApp" size={18} className="h-4 w-4" />
-      Order via WhatsApp
+      {compact ? <span className="sr-only">Order via WhatsApp</span> : "Order via WhatsApp"}
     </a>
   );
 }

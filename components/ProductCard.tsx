@@ -19,7 +19,6 @@ export function ProductCard({ product }: { product: Product }) {
   const pointerStartRef = useRef<{ x: number; y: number; pointerId: number; pointerType: string } | null>(null);
   const suppressActivationRef = useRef(false);
   const hasImage = Boolean(product.image);
-  const placeholderLabel = (product.name || product.category || "Ceter").trim().charAt(0).toUpperCase();
 
   function onPointerDown(event: PointerEvent<HTMLAnchorElement>) {
     pointerStartRef.current = { x: event.clientX, y: event.clientY, pointerId: event.pointerId, pointerType: event.pointerType };
@@ -54,7 +53,7 @@ export function ProductCard({ product }: { product: Product }) {
 
   return (
     <article
-      className="product-card group relative flex h-full min-w-0 flex-col rounded-lg border border-slate-300 bg-white p-3 shadow-sm"
+      className="product-card group relative flex h-full min-w-0 flex-col rounded-xl border border-slate-200 bg-white p-2.5 shadow-sm sm:p-3"
     >
       <Link
         href={productHref}
@@ -68,35 +67,35 @@ export function ProductCard({ product }: { product: Product }) {
       >
         <div className="relative aspect-[4/3]">
           {hasImage ? (
-            <ProductImageFrame src={product.image} alt={product.name} sizes="(max-width: 520px) 100vw, (max-width: 768px) 50vw, 25vw" className="h-full w-full border-0" />
+            <ProductImageFrame src={product.image} alt={product.name} sizes="(max-width: 520px) 48vw, (max-width: 768px) 33vw, 25vw" className="h-full w-full border-0 bg-slate-50" imageClassName="p-1.5 sm:p-2" />
           ) : (
-            <div className="flex h-full w-full items-center justify-center rounded-md border border-slate-200 bg-slate-50 text-slate-400">
-              <span className="grid h-16 w-16 place-items-center rounded-md border border-slate-200 bg-slate-50 text-3xl font-black">{placeholderLabel}</span>
-            </div>
+            <ProductImageFrame alt={product.name} sizes="(max-width: 520px) 48vw, (max-width: 768px) 33vw, 25vw" className="h-full w-full border-0 bg-slate-50" placeholderClassName="[&_svg]:h-8 [&_svg]:w-8" />
           )}
-          <div className="absolute left-2 top-2 flex flex-wrap gap-1.5">
-            {product.condition === "new" ? <span className="rounded-full bg-teal-600 px-2.5 py-1 text-xs font-black uppercase text-white">New</span> : null}
-            {product.showOfferBadge ? <span className="inline-flex items-center gap-1 rounded-full bg-orange-600 px-2.5 py-1 text-xs font-black uppercase text-white"><Flame className="h-3 w-3" aria-hidden /> Offer</span> : null}
-            {product.showFlashSaleBadge ? <span className="inline-flex items-center gap-1 rounded-full bg-red-600 px-2.5 py-1 text-xs font-black uppercase text-white"><Zap className="h-3 w-3" aria-hidden /> Flash Sale</span> : null}
+          <div className="absolute left-1.5 top-1.5 flex max-w-[calc(100%-0.75rem)] flex-wrap gap-1">
+            {product.condition === "new" ? <span className="rounded-full bg-teal-600 px-1.5 py-0.5 text-[10px] font-bold uppercase leading-4 text-white">New</span> : null}
+            {product.showOfferBadge ? <span className="inline-flex items-center gap-0.5 rounded-full bg-orange-600 px-1.5 py-0.5 text-[10px] font-bold uppercase leading-4 text-white"><Flame className="h-2.5 w-2.5" aria-hidden /> Offer</span> : null}
+            {product.showFlashSaleBadge ? <span className="inline-flex items-center gap-0.5 rounded-full bg-red-600 px-1.5 py-0.5 text-[10px] font-bold uppercase leading-4 text-white"><Zap className="h-2.5 w-2.5" aria-hidden /> Flash</span> : null}
           </div>
-          {product.condition === "refurbished" ? <span className="absolute right-2 top-2 rounded-full border border-slate-200 bg-white/95 px-2.5 py-1 text-xs font-bold capitalize text-slate-700">{product.condition}</span> : null}
+          {product.condition === "refurbished" ? <span className="absolute right-1.5 top-1.5 rounded-full border border-slate-200 bg-white/95 px-1.5 py-0.5 text-[10px] font-semibold capitalize leading-4 text-slate-700">Refurb</span> : null}
         </div>
-        <div className="pt-3">
-          <p className="text-xs font-bold uppercase text-signal">{product.brand}</p>
-          <h3 className="mt-1 min-h-10 text-sm font-bold leading-5 text-ink">{product.name}</h3>
-          <p className="mt-2 text-lg font-black text-signal">{formatKes(product.price)}</p>
-          {product.previousPrice ? <p className="text-xs text-slate-500"><span className="line-through">{formatKes(product.previousPrice)}</span> previous price</p> : null}
-          <p className={product.stockStatus === "in_stock" ? "inline-flex items-center gap-1.5 text-xs font-semibold text-green-700" : product.stockStatus === "backorder" ? "inline-flex items-center gap-1.5 text-xs font-semibold text-amber-700" : "inline-flex items-center gap-1.5 text-xs font-semibold text-red-700"}>
-            <span className={product.stockStatus === "in_stock" ? "h-2 w-2 rounded-full bg-green-500" : product.stockStatus === "backorder" ? "h-2 w-2 rounded-full bg-amber-500" : "h-2 w-2 rounded-full bg-red-500"} />
+        <div className="pt-2.5">
+          <p className="truncate text-[11px] font-semibold uppercase leading-4 text-slate-500">{product.brand}</p>
+          <h3 className="mt-0.5 line-clamp-2 min-h-10 text-[15px] font-semibold leading-5 text-ink">{product.name}</h3>
+          <div className="mt-2 flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+            <p className="text-[19px] font-bold leading-6 text-signal">{formatKes(product.price)}</p>
+            {product.previousPrice ? <p className="text-[11px] text-slate-500"><span className="line-through">{formatKes(product.previousPrice)}</span></p> : null}
+          </div>
+          <p className={product.stockStatus === "in_stock" ? "mt-0.5 inline-flex items-center gap-1.5 text-[12px] font-semibold text-green-700" : product.stockStatus === "backorder" ? "mt-0.5 inline-flex items-center gap-1.5 text-[12px] font-semibold text-amber-700" : "mt-0.5 inline-flex items-center gap-1.5 text-[12px] font-semibold text-red-700"}>
+            <span className={product.stockStatus === "in_stock" ? "h-1.5 w-1.5 rounded-full bg-green-500" : product.stockStatus === "backorder" ? "h-1.5 w-1.5 rounded-full bg-amber-500" : "h-1.5 w-1.5 rounded-full bg-red-500"} />
             {product.stockStatus === "in_stock" ? "In stock" : product.stockStatus === "backorder" ? "Backorder" : "Out of stock"}
           </p>
         </div>
       </Link>
-      <div className="mt-3 grid gap-2 min-[1180px]:grid-cols-2" onClick={(event) => event.stopPropagation()} onPointerDown={(event) => event.stopPropagation()}>
-        <AddToCartButton product={product} className="min-h-11 w-full px-2 text-xs">
-          <ShoppingCart className="h-4 w-4" /> Add to cart
+      <div className="mt-2.5 grid grid-cols-[minmax(0,1fr)_44px] gap-2" onClick={(event) => event.stopPropagation()} onPointerDown={(event) => event.stopPropagation()}>
+        <AddToCartButton product={product} className="min-h-10 w-full px-2 text-[13px] sm:text-sm">
+          <ShoppingCart className="h-4 w-4" /> Add
         </AddToCartButton>
-        <WhatsAppOrderButton product={product} className="min-h-11 w-full px-2 text-xs" />
+        <WhatsAppOrderButton product={product} compact className="min-h-10 w-11 px-0" />
       </div>
       <QuickViewPopover product={product} />
     </article>

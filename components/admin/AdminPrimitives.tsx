@@ -18,10 +18,11 @@ export function KpiGrid({ children }: { children: React.ReactNode }) {
 }
 
 export function Kpi({ label, value, note }: { label: string; value: string | number; note?: string }) {
+  const displayValue = typeof value === "number" ? formatNumber(value) : compactValue(value);
   return (
     <div className="admin-card admin-kpi">
       <div className="admin-kpi-label">{label}</div>
-      <div className="admin-kpi-value">{typeof value === "number" ? formatNumber(value) : value}</div>
+      <div className="admin-kpi-value" aria-label={String(value)}>{displayValue}</div>
       {note ? <div className="admin-kpi-sub">{note}</div> : null}
     </div>
   );
@@ -55,6 +56,7 @@ export function NumberText({ value }: { value: number }) {
 export function Table({ headers, children, minWidth = 900 }: { headers: string[]; children: React.ReactNode; minWidth?: number }) {
   return (
     <div className="admin-card">
+      <div className="admin-table-hint">Swipe to view columns</div>
       <div className="admin-table-wrap">
         <table style={{ minWidth }}>
           <thead>
@@ -65,6 +67,14 @@ export function Table({ headers, children, minWidth = 900 }: { headers: string[]
       </div>
     </div>
   );
+}
+
+function compactValue(value: string) {
+  const match = value.match(/^KSh\s*([\d,]+)(?:\.(\d+))?$/);
+  if (!match) return value;
+  const amount = Number(match[1].replace(/,/g, "") + (match[2] ? `.${match[2]}` : ""));
+  if (!Number.isFinite(amount) || amount < 1000000) return value;
+  return `KSh ${(amount / 1000000).toFixed(amount >= 10000000 ? 1 : 2).replace(/\.0$/, "")}M`;
 }
 
 export function FilterLink({ href, active, children }: { href: string; active?: boolean; children: React.ReactNode }) {

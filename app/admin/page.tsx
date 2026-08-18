@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Card, Kpi, KpiGrid, Money, PageHeader, Pill, Table } from "@/components/admin/AdminPrimitives";
+import { Card, Kpi, KpiGrid, Money, PageHeader, Pill } from "@/components/admin/AdminPrimitives";
 import { getAdminDashboard } from "@/lib/admin/data";
 import { requireAdminSession } from "@/lib/admin/auth";
 import { formatKes } from "@/lib/utils";
@@ -29,32 +29,7 @@ export default async function AdminPage() {
 
       <div className="admin-grid-2">
         <Card title="Recent Activity" tag="database">
-          <Table headers={["Type", "Record", "Status", "When"]} minWidth={720}>
-            {stats.recentProducts.map((product) => (
-              <tr key={`p-${product.id}`}>
-                <td>Product</td>
-                <td><Link href={`/admin/products?q=${encodeURIComponent(product.name)}`} className="font-semibold hover:text-signal">{product.name}</Link></td>
-                <td><Pill tone={product.is_published ? "green" : "amber"}>{product.is_published ? "Published" : "Draft"}</Pill></td>
-                <td>{product.updated_at.toLocaleString("en-KE")}</td>
-              </tr>
-            ))}
-            {stats.recentOrders.map((order) => (
-              <tr key={`o-${order.id}`}>
-                <td>Order</td>
-                <td><Link href="/admin/orders" className="font-semibold hover:text-signal">{order.profile?.full_name ?? order.id.slice(0, 8)}</Link></td>
-                <td><Pill tone={order.status === "cancelled" ? "red" : "teal"}>{order.status}</Pill></td>
-                <td>{order.created_at.toLocaleString("en-KE")}</td>
-              </tr>
-            ))}
-            {stats.recentQuotes.map((quote) => (
-              <tr key={`q-${quote.id}`}>
-                <td>Quote</td>
-                <td><Link href="/admin/quotes" className="font-semibold hover:text-signal">{quote.name}</Link></td>
-                <td><Pill tone={quote.status === "won" ? "green" : "gray"}>{quote.status}</Pill></td>
-                <td>{quote.created_at.toLocaleString("en-KE")}</td>
-              </tr>
-            ))}
-          </Table>
+          <RecentActivity stats={stats} />
         </Card>
 
         <Card title="Payments" tag="paid data only">
@@ -67,6 +42,76 @@ export default async function AdminPage() {
             </div>
           </div>
         </Card>
+      </div>
+    </>
+  );
+}
+
+function RecentActivity({ stats }: { stats: Awaited<ReturnType<typeof getAdminDashboard>> }) {
+  const rows = [
+    ...stats.recentProducts.map((product) => ({
+      id: `p-${product.id}`,
+      type: "Product",
+      href: `/admin/products?q=${encodeURIComponent(product.name)}`,
+      record: product.name,
+      status: product.is_published ? "Published" : "Draft",
+      tone: product.is_published ? "green" as const : "amber" as const,
+      when: product.updated_at.toLocaleString("en-KE")
+    })),
+    ...stats.recentOrders.map((order) => ({
+      id: `o-${order.id}`,
+      type: "Order",
+      href: "/admin/orders",
+      record: order.profile?.full_name ?? order.id.slice(0, 8),
+      status: order.status,
+      tone: order.status === "cancelled" ? "red" as const : "teal" as const,
+      when: order.created_at.toLocaleString("en-KE")
+    })),
+    ...stats.recentQuotes.map((quote) => ({
+      id: `q-${quote.id}`,
+      type: "Quote",
+      href: "/admin/quotes",
+      record: quote.name,
+      status: quote.status,
+      tone: quote.status === "won" ? "green" as const : "gray" as const,
+      when: quote.created_at.toLocaleString("en-KE")
+    }))
+  ];
+
+  return (
+    <>
+      <div className="grid gap-2 p-3 md:hidden">
+        {rows.map((row) => (
+          <div key={row.id} className="rounded-md border border-line bg-white p-3">
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0">
+                <div className="text-[11px] font-bold uppercase text-slate-500">{row.type}</div>
+                <Link href={row.href} className="mt-0.5 block truncate text-sm font-semibold text-ink hover:text-signal">{row.record}</Link>
+              </div>
+              <Pill tone={row.tone}>{row.status}</Pill>
+            </div>
+            <div className="mt-2 text-[11px] font-semibold text-slate-500">{row.when}</div>
+          </div>
+        ))}
+      </div>
+      <div className="hidden md:block">
+        <div className="admin-table-wrap">
+          <table style={{ minWidth: 720 }}>
+            <thead>
+              <tr>{["Type", "Record", "Status", "When"].map((header) => <th key={header}>{header}</th>)}</tr>
+            </thead>
+            <tbody>
+          {rows.map((row) => (
+            <tr key={row.id}>
+              <td>{row.type}</td>
+              <td><Link href={row.href} className="font-semibold hover:text-signal">{row.record}</Link></td>
+              <td><Pill tone={row.tone}>{row.status}</Pill></td>
+              <td>{row.when}</td>
+            </tr>
+          ))}
+            </tbody>
+          </table>
+        </div>
       </div>
     </>
   );

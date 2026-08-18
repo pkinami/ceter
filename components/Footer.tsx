@@ -37,10 +37,10 @@ export function Footer() {
   return (
     <footer className="bg-ink text-white">
       <section className="border-b border-white/10 bg-ink">
-        <div className="mx-auto grid max-w-7xl gap-5 px-4 py-8 lg:grid-cols-[1fr_auto] lg:items-end">
+        <div className="mx-auto grid max-w-7xl gap-4 px-4 py-6 lg:grid-cols-[1fr_auto] lg:items-end lg:py-8">
           <div>
             <p className="text-xs font-black uppercase tracking-normal text-signal">NEWSLETTER</p>
-            <h2 className="mt-2 text-2xl font-black text-white">Get catalogue & procurement updates</h2>
+            <h2 className="mt-1 text-[22px] font-bold leading-7 text-white sm:text-2xl">Get catalogue & procurement updates</h2>
             <p className="mt-2 max-w-xl text-sm text-slate-300">Product, pricing, and service updates from Ceter Technologies.</p>
           </div>
           <form className="flex w-full max-w-lg flex-col gap-2 sm:flex-row">
@@ -51,7 +51,7 @@ export function Footer() {
         </div>
       </section>
       <section>
-        <div className="mx-auto grid max-w-7xl gap-8 px-4 py-10 md:grid-cols-2 lg:grid-cols-[1.35fr_0.75fr_1fr_1fr]">
+        <div className="mx-auto grid max-w-7xl gap-5 px-4 py-7 md:grid-cols-2 lg:grid-cols-[1.35fr_0.75fr_1fr_1fr] lg:gap-8 lg:py-10">
           <div>
             <Link href="/" className="inline-flex" aria-label="Ceter Technologies Limited home">
               <Image
@@ -59,11 +59,11 @@ export function Footer() {
                 alt="Ceter Technologies Limited"
                 width={240}
                 height={58}
-                className="h-12 w-auto"
+                className="h-10 w-auto sm:h-12"
               />
             </Link>
-            <p className="mt-3 max-w-sm text-sm leading-6 text-slate-300">Photocopiers, printers, toners and inkjets, spare parts, and office print solutions in Nairobi.</p>
-            <div className="mt-5 flex flex-wrap items-center gap-2.5" aria-label="Social links">
+            <p className="mt-2 max-w-sm text-sm leading-6 text-slate-300">Photocopiers, printers, toners and inkjets, spare parts, and office print solutions in Nairobi.</p>
+            <div className="mt-3 flex flex-wrap items-center gap-2" aria-label="Social links">
               {socials.map((social) => (
                 <a key={social.label} href={social.href} className="inline-flex h-8 w-8 items-center justify-center rounded-md text-slate-200 transition hover:-translate-y-0.5 hover:text-white" aria-label={social.label} title={social.label}>
                   <BrandIcon name={social.icon} label={social.label} size={20} className="h-5 w-5" />
@@ -71,30 +71,30 @@ export function Footer() {
               ))}
             </div>
           </div>
-          <div>
-            <h3 className="text-sm font-black uppercase text-white">Quick links</h3>
-            <div className="mt-4 grid gap-2 text-sm">
+          <details className="group border-t border-white/10 pt-3 md:border-0 md:pt-0" open>
+            <summary className="flex cursor-pointer list-none items-center justify-between text-sm font-bold uppercase text-white md:cursor-default">Quick links <span className="md:hidden">+</span></summary>
+            <div className="mt-3 grid grid-cols-2 gap-2 text-sm md:grid-cols-1">
               {quickLinks.map((link) => <Link key={link.label} href={link.href} className="text-slate-300 hover:text-signal">{link.label}</Link>)}
             </div>
-          </div>
-          <div>
-            <h3 className="text-sm font-black uppercase text-white">Shop by category</h3>
-            <div className="mt-4 grid gap-2 text-sm">
+          </details>
+          <details className="group border-t border-white/10 pt-3 md:border-0 md:pt-0" open>
+            <summary className="flex cursor-pointer list-none items-center justify-between text-sm font-bold uppercase text-white md:cursor-default">Shop by category <span className="md:hidden">+</span></summary>
+            <div className="mt-3 grid gap-2 text-sm">
               {footerCategories.map((category) => (
                 <Link key={category.href} href={category.href} className="text-slate-300 hover:text-signal">{category.label}</Link>
               ))}
             </div>
-          </div>
-          <div>
-            <h3 className="text-sm font-black uppercase text-white">Contact details</h3>
-            <div className="mt-4 space-y-3 text-sm text-slate-300">
+          </details>
+          <details className="group border-t border-white/10 pt-3 md:border-0 md:pt-0" open>
+            <summary className="flex cursor-pointer list-none items-center justify-between text-sm font-bold uppercase text-white md:cursor-default">Contact details <span className="md:hidden">+</span></summary>
+            <div className="mt-3 space-y-2 text-sm text-slate-300">
               <a href="https://wa.me/254707143322" className="flex items-center gap-2 hover:text-signal"><BrandIcon name="whatsapp" label="WhatsApp" size={18} className="h-4 w-4" /> +254 707 143322</a>
               <a href="mailto:info@cetertechnologies.com" className="flex items-center gap-2 hover:text-signal"><BrandIcon name="email" label="Email" size={18} className="h-4 w-4" /> info@cetertechnologies.com</a>
               <p className="flex items-center gap-2"><MapPin className="h-4 w-4 text-signal" /> Nairobi, Kenya</p>
             </div>
-            <div className="mt-6" aria-label="Accepted payment methods">
-              <h4 className="text-sm font-black uppercase text-white">Accepted Payment Methods</h4>
-              <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-3">
+            <div className="mt-4" aria-label="Accepted payment methods">
+              <h4 className="text-sm font-bold uppercase text-white">Accepted Payments</h4>
+              <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-2">
                 {payments.map((payment) => (
                   <span key={payment.label} className="inline-flex h-7 items-center justify-center" title={payment.label}>
                     <BrandIcon name={payment.icon} label={payment.label} size={58} className={payment.className} />
@@ -102,11 +102,11 @@ export function Footer() {
                 ))}
               </div>
             </div>
-          </div>
+          </details>
         </div>
       </section>
       <div className="border-t border-white/10">
-        <div className="mx-auto flex max-w-7xl flex-col gap-3 px-4 py-5 text-sm text-slate-400 md:flex-row md:items-center md:justify-between">
+        <div className="mx-auto flex max-w-7xl flex-col gap-3 px-4 py-4 text-sm text-slate-400 md:flex-row md:items-center md:justify-between">
           <div className="flex flex-wrap items-center gap-2">
             <Link href="/privacy-policy" className="text-slate-300 hover:text-signal">Privacy Policy</Link>
             <span className="text-slate-500">|</span>

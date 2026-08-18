@@ -29,7 +29,7 @@ export default async function CategoryPage({ searchParams }: { searchParams: Pro
   });
 
   return (
-    <div className="mx-auto max-w-[1500px] px-4 py-6">
+    <div className="mx-auto max-w-[1500px] px-4 py-5 sm:py-6">
       <div className="lg:flex lg:gap-5">
         <Suspense fallback={null}>
           <CategoryFilterPanel categories={categories} brands={brands.map((brand) => brand.name)} />
@@ -38,7 +38,7 @@ export default async function CategoryPage({ searchParams }: { searchParams: Pro
           <BannerCarousel banners={banners.main} variant="category" compact />
           <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
             <div>
-              <h1 className="text-2xl font-black text-ink">{searchQuery ? `Search results for "${searchQuery}"` : params.category ? "Category listing" : "Catalog listing"}</h1>
+              <h1 className="text-[26px] font-bold leading-8 text-ink sm:text-3xl">{searchQuery ? `Search results for "${searchQuery}"` : params.category ? "Category listing" : "Catalog listing"}</h1>
               <p className="text-sm text-slate-500">{filteredProducts.length} products available for this selection.</p>
             </div>
             <select aria-label="Sort products" autoComplete="off" className="h-10 rounded-md border border-slate-300 bg-white px-3 text-sm">

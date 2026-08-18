@@ -35,7 +35,7 @@ export default async function CategorySlugPage({ params, searchParams }: { param
   });
 
   return (
-    <div className="mx-auto max-w-[1500px] px-4 py-6">
+    <div className="mx-auto max-w-[1500px] px-4 py-5 sm:py-6">
       <JsonLd data={breadcrumbJsonLd(breadcrumbs)} />
       <div className="lg:flex lg:gap-5">
         <Suspense fallback={null}>
@@ -45,7 +45,7 @@ export default async function CategorySlugPage({ params, searchParams }: { param
           {banners.length ? <BannerCarousel banners={banners} variant="category" compact /> : null}
           <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
             <div>
-              <h1 className="text-2xl font-black text-ink">{searchQuery ? `${category.name}: "${searchQuery}"` : category.name}</h1>
+              <h1 className="text-[26px] font-bold leading-8 text-ink sm:text-3xl">{searchQuery ? `${category.name}: "${searchQuery}"` : category.name}</h1>
               <p className="text-sm text-slate-500">{category.description ?? `${filteredProducts.length} products in this category.`}</p>
             </div>
             <select aria-label="Sort products" autoComplete="off" className="h-10 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-900">

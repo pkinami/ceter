@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
-import { ChevronDown, X } from "lucide-react";
+import { ChevronDown, Mail, MapPin, Phone, X } from "lucide-react";
 import { memo, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { createPortal } from "react-dom";
@@ -29,10 +29,12 @@ export function Sidebar({
   const router = useRouter();
   const searchParams = useSearchParams();
   const [expandedCategoryPath, setExpandedCategoryPath] = useState<string[]>([]);
+  const [showAllBrands, setShowAllBrands] = useState(false);
   const [portalReady, setPortalReady] = useState(false);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
   const categoryTree = useMemo(() => buildCategoryTree(categories), [categories]);
   const selectedBrand = searchParams.get("brand") ?? "";
+  const visibleBrands = showAllBrands ? brands : brands.slice(0, 6);
 
   useEffect(() => setPortalReady(true), []);
 
@@ -50,7 +52,7 @@ export function Sidebar({
   }
 
   const content = (
-    <nav className="space-y-2">
+    <nav className="space-y-1.5">
       {categoryTree.map((category) => {
         const Icon = iconForCategory(category.icon, category.slug);
         return (
@@ -63,12 +65,12 @@ export function Sidebar({
           onNavigate={onClose}
         />
       );})}
-      <div className="mt-4 border-t border-line pt-4">
+      <div className="mt-3 border-t border-line pt-3">
         <p className="px-3 text-xs font-bold uppercase text-slate-500">Printer brands</p>
         <div className="mt-2 grid grid-cols-1 gap-1">
-          {brands.map((brand) => (
+          {visibleBrands.map((brand) => (
             <Tooltip key={brand} label={`Filter printers by ${brand}`}>
-              <label className={cn("flex cursor-pointer items-center gap-2 rounded px-3 py-2 text-xs font-medium text-slate-600 hover:bg-teal-50 hover:text-signal", selectedBrand === brand && "bg-teal-50 text-signal")}>
+              <label className={cn("flex min-h-8 cursor-pointer items-center gap-2 rounded px-3 py-1.5 text-xs font-medium leading-4 text-slate-600 hover:bg-teal-50 hover:text-signal", selectedBrand === brand && "bg-teal-50 text-signal")}>
                 <input
                   type="checkbox"
                   checked={selectedBrand === brand}
@@ -79,6 +81,28 @@ export function Sidebar({
               </label>
             </Tooltip>
           ))}
+          {brands.length > 6 ? (
+            <button type="button" onClick={() => setShowAllBrands((value) => !value)} className="min-h-8 rounded px-3 py-1.5 text-left text-xs font-semibold text-signal hover:bg-teal-50">
+              {showAllBrands ? "Show less" : `Show more (${brands.length - 6})`}
+            </button>
+          ) : null}
+        </div>
+      </div>
+      <div className="mt-4 border-t border-line pt-4 lg:hidden">
+        <p className="px-3 text-xs font-bold uppercase text-slate-500">Contact Ceter</p>
+        <div className="mt-2 grid gap-1 text-sm font-semibold text-slate-700">
+          <a href="https://maps.google.com/?q=Nairobi%2C%20Kenya" className="flex min-h-11 items-center gap-2 rounded-md px-3 py-2 hover:bg-teal-50 hover:text-signal">
+            <MapPin className="h-4 w-4 text-signal" /> Nairobi, Kenya
+          </a>
+          <a href="tel:+254707143322" className="flex min-h-11 items-center gap-2 rounded-md px-3 py-2 hover:bg-teal-50 hover:text-signal">
+            <Phone className="h-4 w-4 text-signal" /> +254 707 143322
+          </a>
+          <a href="https://wa.me/254707143322" className="flex min-h-11 items-center gap-2 rounded-md px-3 py-2 hover:bg-teal-50 hover:text-signal">
+            <span className="grid h-4 w-4 place-items-center rounded-sm bg-green-600 text-[10px] font-black text-white">W</span> WhatsApp
+          </a>
+          <a href="mailto:info@cetertechnologies.com" className="flex min-h-11 items-center gap-2 rounded-md px-3 py-2 hover:bg-teal-50 hover:text-signal">
+            <Mail className="h-4 w-4 text-signal" /> info@cetertechnologies.com
+          </a>
         </div>
       </div>
     </nav>
@@ -86,7 +110,7 @@ export function Sidebar({
 
   return (
     <>
-      <aside className={cn("hidden w-64 shrink-0 border-r border-line bg-white p-4 lg:block", drawerOnly && "lg:hidden")}>{content}</aside>
+      <aside className={cn("sticky top-[96px] hidden max-h-[calc(100dvh-104px)] w-[232px] shrink-0 overflow-y-auto overflow-x-hidden border-r border-line bg-white p-3 lg:block", drawerOnly && "lg:hidden")}>{content}</aside>
       {portalReady ? createPortal(<AnimatePresence>
         {mobileOpen ? (
           <motion.div
@@ -160,13 +184,13 @@ const CategoryBranch = memo(function CategoryBranch({
             href={`/category/${category.slug}`}
             onClick={onNavigate}
             className={cn(
-              "flex min-h-11 min-w-0 flex-1 items-center gap-2 rounded-md border-l-2 border-transparent px-3 py-2.5 text-sm font-semibold text-slate-700 hover:border-signal hover:bg-teal-50 hover:text-ink",
+              "flex min-h-9 min-w-0 flex-1 items-center gap-2 rounded-md border-l-2 border-transparent px-3 py-1.5 text-sm font-semibold leading-5 text-slate-700 hover:border-signal hover:bg-teal-50 hover:text-ink",
               depth === 1 && "pl-7 text-xs",
               depth === 2 && "pl-10 text-xs font-medium"
             )}
           >
             {icon}
-            <span className="truncate">{category.name}</span>
+            <span className="line-clamp-2 min-w-0 whitespace-normal">{category.name}</span>
           </Link>
         </Tooltip>
         {canExpand ? (
@@ -175,11 +199,11 @@ const CategoryBranch = memo(function CategoryBranch({
             onClick={toggle}
             aria-expanded={isExpanded}
             aria-label={`${isExpanded ? "Collapse" : "Expand"} ${category.name}`}
-            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md text-slate-500 hover:bg-teal-50 hover:text-signal"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-slate-500 hover:bg-teal-50 hover:text-signal"
           >
             <ChevronDown className={cn("h-4 w-4 transition-transform", isExpanded && "rotate-180")} />
           </button>
-        ) : <span aria-hidden="true" className="h-11 w-11" />}
+        ) : <span aria-hidden="true" className="h-9 w-9" />}
       </div>
       <AnimatePresence initial={false}>
         {isExpanded ? (
