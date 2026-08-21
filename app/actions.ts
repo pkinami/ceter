@@ -87,6 +87,19 @@ export async function signUpAction(formData: FormData) {
       update: { full_name: fullName, phone, role: "customer" },
       create: { id: data.user.id, full_name: fullName, phone, role: "customer" }
     });
+    const companyName = String(formData.get("company_name") ?? "").trim();
+    if (fullName || email || phone || companyName) {
+      const customerData = {
+        name: fullName || email || "Customer",
+        company_name: companyName || null,
+        customer_type: companyName ? "business" as const : "individual" as const,
+        phone: phone || null,
+        email: email || null,
+        tax_pin: null,
+        notes: null
+      };
+      await prisma.customer.create({ data: { profile_id: data.user.id, ...customerData } });
+    }
   }
   if (data.session) {
     await supabase.auth.signOut();
@@ -191,6 +204,29 @@ export async function updateProfileAction(formData: FormData) {
         role: "customer"
       }
     });
+    const name = String(formData.get("full_name") ?? "").trim();
+    const email = String(formData.get("email") ?? userData.user.email ?? "").trim();
+    const phone = String(formData.get("phone") ?? "").trim();
+    const companyName = String(formData.get("company_name") ?? "").trim();
+    const taxPin = String(formData.get("tax_pin") ?? "").trim();
+    const billingInformation = String(formData.get("billing_information") ?? "").trim();
+    if (name || email || phone || companyName || taxPin || billingInformation) {
+      const existingCustomer = await prisma.customer.findFirst({ where: { profile_id: userData.user.id }, select: { id: true } });
+      const customerData = {
+        name: name || email || "Customer",
+        company_name: companyName || null,
+        customer_type: companyName ? "business" as const : "individual" as const,
+        phone: phone || null,
+        email: email || null,
+        tax_pin: taxPin || null,
+        notes: billingInformation || null
+      };
+      if (existingCustomer) {
+        await prisma.customer.update({ where: { id: existingCustomer.id }, data: customerData });
+      } else {
+        await prisma.customer.create({ data: { profile_id: userData.user.id, ...customerData } });
+      }
+    }
   } catch (error) {
     const message = error instanceof Error ? error.message : "Profile could not be updated.";
     redirect(`${returnTo}?error=${encodeURIComponent(message)}`);

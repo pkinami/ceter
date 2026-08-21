@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { useFormStatus } from "react-dom";
 import { HelpCircle, ImagePlus, Trash2 } from "lucide-react";
 import { deleteBannerAction, upsertBannerAction } from "@/app/admin/actions";
-import { BANNER_ALLOWED_TYPES, BANNER_MAX_FILE_SIZE, HOMEPAGE_BANNER_LIMIT } from "@/lib/banner-requirements";
+import { BANNER_ALLOWED_TYPES, BANNER_IMAGE_SLOTS, BANNER_MAX_FILE_SIZE, HOMEPAGE_BANNER_REQUIREMENTS } from "@/lib/banner-requirements";
 
 type BannerRow = {
   id: string;
@@ -17,6 +17,12 @@ type BannerRow = {
   laptop_image: string | null;
   mobile_image: string | null;
   image_variants: unknown;
+  text_position: string;
+  overlay_opacity: number;
+  badge_enabled: boolean;
+  badge_text: string | null;
+  badge_color: string | null;
+  badge_position: string;
   placement: string;
   category_id: string | null;
   sort_order: number;
@@ -41,7 +47,6 @@ export function BannerManagementClient({
 }) {
   const homepageBanners = banners.filter((banner) => banner.placement === "main").sort((a, b) => a.sort_order - b.sort_order);
   const liveHomepageCount = homepageBanners.filter((banner) => banner.is_enabled).length;
-  const slots = Array.from({ length: HOMEPAGE_BANNER_LIMIT }, (_, index) => homepageBanners[index] ?? null);
   const [helpOpen, setHelpOpen] = useState(false);
 
   return (
@@ -51,32 +56,28 @@ export function BannerManagementClient({
       <div className="admin-card p-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <h2 className="text-sm font-black text-ink">Homepage Banner Slots</h2>
-            <p className="mt-1 text-xs text-slate-600">{liveHomepageCount} of {HOMEPAGE_BANNER_LIMIT} live homepage banners enabled.</p>
+            <h2 className="text-sm font-black text-ink">Homepage Banner Order</h2>
+            <p className="mt-1 text-xs text-slate-600">{liveHomepageCount} live homepage banners. Storefront displays enabled database banners by sort order.</p>
           </div>
           <button type="button" className="btn-lite" onClick={() => setHelpOpen(true)}>
             <HelpCircle className="h-4 w-4" />
             Banner Help
           </button>
         </div>
-        <div className="mt-3 grid gap-3 md:grid-cols-5">
-          {slots.map((banner, index) => (
-            <div key={banner?.id ?? index} className="rounded-md border border-slate-200 bg-white p-3">
-              <div className="text-xs font-black text-slate-500">Slot {index + 1}</div>
-              {banner ? (
-                <>
-                  <div className="mt-2 truncate text-sm font-bold text-ink">{banner.title}</div>
-                  <div className={banner.is_enabled ? "mt-2 text-xs font-bold text-green-700" : "mt-2 text-xs font-bold text-slate-500"}>{banner.is_enabled ? "Live" : "Disabled"}</div>
-                </>
-              ) : (
-                <div className="mt-2 text-xs text-slate-500">Empty</div>
-              )}
+        <div className="mt-3 grid gap-3 md:grid-cols-3">
+          {homepageBanners.length ? homepageBanners.map((banner) => (
+            <div key={banner.id} className="rounded-md border border-slate-200 bg-white p-3">
+              <div className="text-xs font-black text-slate-500">Sort {banner.sort_order}</div>
+              <div className="mt-2 truncate text-sm font-bold text-ink">{banner.title}</div>
+              <div className={banner.is_enabled ? "mt-2 text-xs font-bold text-green-700" : "mt-2 text-xs font-bold text-slate-500"}>{banner.is_enabled ? "Live" : "Disabled"}</div>
             </div>
-          ))}
+          )) : (
+            <div className="rounded-md border border-dashed border-slate-300 bg-white p-3 text-xs font-semibold text-slate-500">No homepage banners yet.</div>
+          )}
         </div>
       </div>
 
-      <BannerForm categories={categories} liveHomepageCount={liveHomepageCount} />
+      <BannerForm categories={categories} />
 
       <div className="space-y-3">
         {banners.map((banner) => (
@@ -86,7 +87,7 @@ export function BannerManagementClient({
               <span className="ml-2 text-xs text-slate-500">{banner.placement} | sort {banner.sort_order} | {banner.is_enabled ? "live" : "disabled"}</span>
             </summary>
             <div className="border-t border-line p-4">
-              <BannerForm banner={banner} categories={categories} liveHomepageCount={liveHomepageCount} />
+              <BannerForm banner={banner} categories={categories} />
               <form action={deleteBannerAction} className="mt-3">
                 <input type="hidden" name="id" value={banner.id} />
                 <DeleteBannerButton />
@@ -117,15 +118,21 @@ function DeleteBannerButton() {
   );
 }
 
-function BannerForm({ banner, categories, liveHomepageCount }: { banner?: BannerRow; categories: CategoryOption[]; liveHomepageCount: number }) {
+function BannerForm({ banner, categories }: { banner?: BannerRow; categories: CategoryOption[] }) {
   const [preview, setPreview] = useState<PreviewState>(null);
   const [focalMode, setFocalMode] = useState(() => currentFocal(banner?.image_variants).mode);
   const [focalX, setFocalX] = useState(() => currentFocal(banner?.image_variants).x);
   const [focalY, setFocalY] = useState(() => currentFocal(banner?.image_variants).y);
+  const [textPosition, setTextPosition] = useState(banner?.text_position ?? "left");
+  const [overlayOpacity, setOverlayOpacity] = useState(banner?.overlay_opacity ?? 70);
+  const [badgeEnabled, setBadgeEnabled] = useState(banner?.badge_enabled ?? false);
+  const [badgeText, setBadgeText] = useState(banner?.badge_text ?? "");
+  const [badgeColor, setBadgeColor] = useState(banner?.badge_color ?? "#0f766e");
+  const [badgePosition, setBadgePosition] = useState(banner?.badge_position ?? "top-left");
   const hasClientError = Boolean(preview && !preview.ok);
-  const wouldExceedLiveLimit = !banner && liveHomepageCount >= HOMEPAGE_BANNER_LIMIT;
   const master = currentMaster(banner?.image_variants);
   const currentPreview = preview?.url ?? master?.url ?? banner?.image ?? "";
+  const variants = normalizeVariants(banner?.image_variants);
 
   return (
     <form action={upsertBannerAction} className="grid gap-3 md:grid-cols-3">
@@ -158,8 +165,24 @@ function BannerForm({ banner, categories, liveHomepageCount }: { banner?: Banner
         </select>
       </label>
       <label className="flex items-center gap-2 text-xs font-semibold">
-        <input type="checkbox" name="is_enabled" defaultChecked={banner?.is_enabled ?? !wouldExceedLiveLimit} />
+        <input type="checkbox" name="is_enabled" defaultChecked={banner?.is_enabled ?? false} />
         Live
+      </label>
+      <label className="grid gap-1 text-xs font-semibold">
+        Text position
+        <select className="admin-input" name="text_position" value={textPosition} onChange={(event) => setTextPosition(event.target.value)}>
+          <option value="left">Left</option>
+          <option value="center">Center</option>
+          <option value="right">Right</option>
+        </select>
+      </label>
+      <label className="grid gap-1 text-xs font-semibold">
+        Overlay darkness
+        <input className="admin-input" type="number" min={0} max={95} name="overlay_opacity" value={overlayOpacity} onChange={(event) => setOverlayOpacity(Number(event.target.value))} />
+      </label>
+      <label className="flex items-center gap-2 text-xs font-semibold">
+        <input type="checkbox" name="badge_enabled" checked={badgeEnabled} onChange={(event) => setBadgeEnabled(event.target.checked)} />
+        Show badge
       </label>
 
       <label className="grid gap-2 rounded-md border border-slate-200 bg-white p-3 text-xs font-semibold md:col-span-3">
@@ -217,7 +240,54 @@ function BannerForm({ banner, categories, liveHomepageCount }: { banner?: Banner
       </label>
       <label className="grid gap-1 text-xs font-semibold md:col-span-3">Optional crop notes<input className="admin-input" name="crop_metadata" autoComplete="off" defaultValue={currentFocal(banner?.image_variants).crop ?? ""} placeholder="Subject or crop guidance for future image updates" /></label>
 
-      {wouldExceedLiveLimit ? <p className="text-xs font-semibold text-amber-700 md:col-span-3">The five live homepage slots are already occupied. New banners are created disabled unless you disable another homepage banner.</p> : null}
+      <div className="grid gap-3 rounded-md border border-slate-200 bg-white p-3 md:col-span-3 md:grid-cols-3">
+        <label className="grid gap-1 text-xs font-semibold">Badge text<input className="admin-input" name="badge_text" autoComplete="off" value={badgeText} onChange={(event) => setBadgeText(event.target.value)} /></label>
+        <label className="grid gap-1 text-xs font-semibold">Badge colour<input className="admin-input h-10" type="color" name="badge_color" value={badgeColor} onChange={(event) => setBadgeColor(event.target.value)} /></label>
+        <label className="grid gap-1 text-xs font-semibold">
+          Badge position
+          <select className="admin-input" name="badge_position" value={badgePosition} onChange={(event) => setBadgePosition(event.target.value)}>
+            <option value="top-left">Top left</option>
+            <option value="top-right">Top right</option>
+            <option value="bottom-left">Bottom left</option>
+            <option value="bottom-right">Bottom right</option>
+          </select>
+        </label>
+        <p className="text-xs text-slate-500 md:col-span-3">Badges are optional and appear only when enabled for this banner.</p>
+      </div>
+
+      <div className="grid gap-3 rounded-md border border-slate-200 bg-white p-3 md:col-span-3 md:grid-cols-2">
+        <div className="md:col-span-2">
+          <div className="text-xs font-black text-ink">Optional responsive image variants</div>
+          <p className="mt-1 text-xs text-slate-500">Use these when one master crop cannot preserve the subject across phones, tablets and desktops. Exact dimensions are required.</p>
+        </div>
+        {BANNER_IMAGE_SLOTS.map((slot) => {
+          const requirement = HOMEPAGE_BANNER_REQUIREMENTS[slot];
+          const existing = variants.find((variant) => (variant as { slot?: unknown }).slot === slot) as { url?: string } | undefined;
+          return (
+            <label key={slot} className="grid gap-1 text-xs font-semibold">
+              {requirement.label} <span className="font-normal text-slate-500">{requirement.width}x{requirement.height}px, {requirement.use}</span>
+              <input className="admin-input" type="file" name={requirement.field} accept={BANNER_ALLOWED_TYPES.join(",")} />
+              {existing?.url ? <span className="truncate text-[11px] font-normal text-green-700">Current variant saved</span> : null}
+            </label>
+          );
+        })}
+      </div>
+
+      {currentPreview ? (
+        <div className="overflow-hidden rounded-md border border-slate-200 bg-slate-950 md:col-span-3" style={{ aspectRatio: "32 / 9" }}>
+          <div className="relative h-full w-full">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={currentPreview} alt="" className="absolute inset-0 h-full w-full object-cover" style={{ objectPosition: `${focalX}% ${focalY}%` }} />
+            <div className="absolute inset-0" style={{ background: previewOverlay(textPosition, overlayOpacity) }} />
+            {badgeEnabled && badgeText.trim() ? <span className={badgePreviewClass(badgePosition)} style={{ backgroundColor: badgeColor }}>{badgeText}</span> : null}
+            <div className={previewTextClass(textPosition)}>
+              <div className="text-xs font-bold uppercase text-teal-200">{banner?.kicker || "Kicker"}</div>
+              <div className="mt-1 text-xl font-black text-white">{banner?.title || "Banner title"}</div>
+              <div className="mt-1 max-w-md text-sm text-slate-100">{banner?.body || "Banner description preview"}</div>
+            </div>
+          </div>
+        </div>
+      ) : null}
       <button className="btn-dark md:col-span-3" disabled={hasClientError}>{banner ? "Save Banner" : "Create Banner"}</button>
     </form>
   );
@@ -254,18 +324,18 @@ function validateImage(file: File) {
 }
 
 function HelpDialog({ onClose }: { onClose: () => void }) {
-  const requirements = useMemo(() => ["Use one master image of at least 1600x500px.", "Set the focal position to keep the subject visible across phone, tablet, desktop, and ultrawide crops.", "Use optional crop notes when a subject cannot be preserved automatically."], []);
+  const requirements = useMemo(() => ["Use a master image of at least 1600x500px.", "Add exact-size responsive variants when one crop cannot protect the subject across phone, tablet and desktop layouts.", "Set focal position, text position and overlay darkness before publishing."], []);
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" role="dialog" aria-modal="true" aria-labelledby="banner-help-title">
       <div className="max-w-2xl rounded-lg bg-white p-5 shadow-xl">
         <h2 id="banner-help-title" className="text-lg font-black text-ink">Homepage Banner Requirements</h2>
         <div className="mt-3 space-y-3 text-sm leading-6 text-slate-700">
-          <p>Homepage carousel has a maximum of {HOMEPAGE_BANNER_LIMIT} live banners. Each banner uses a single master image with focal-point-aware responsive cropping so administrators do not need to upload separate desktop and mobile files.</p>
+          <p>The storefront displays only enabled database banners in admin-defined sort order. Disabled banners remain available for drafting and preview.</p>
           <ul className="list-disc pl-5">
             {requirements.map((item) => <li key={item}>{item}</li>)}
           </ul>
           <p>Supported formats are JPG, PNG, and WebP. Each file must be 3 MB or smaller.</p>
-          <p>Wide, mid and tall variants are selected by viewport aspect ratio. The carousel still rotates automatically and keeps arrows, indicators, drag/swipe, smooth transitions, CTA links and reduced-motion support.</p>
+          <p>Wide, mid and tall variants are selected by viewport aspect ratio. The carousel keeps arrows, indicators, drag/swipe, pause behaviour, CTA links and reduced-motion support.</p>
         </div>
         <div className="mt-4 flex justify-end">
           <button type="button" className="btn-dark" onClick={onClose}>Close</button>
@@ -295,4 +365,29 @@ function currentFocal(value: unknown) {
     y: Number.isFinite(y) ? y : 50,
     crop: typeof master?.crop === "string" ? master.crop : ""
   };
+}
+
+function previewOverlay(textPosition: string, overlayOpacity: number) {
+  const opacity = Math.min(95, Math.max(0, overlayOpacity)) / 100;
+  const heavy = `rgba(11, 30, 57, ${opacity})`;
+  const mid = `rgba(11, 30, 57, ${opacity * 0.52})`;
+  const light = `rgba(11, 30, 57, ${opacity * 0.12})`;
+  if (textPosition === "center") return `linear-gradient(90deg, ${mid}, ${heavy}, ${mid})`;
+  if (textPosition === "right") return `linear-gradient(270deg, ${heavy}, ${mid}, ${light})`;
+  return `linear-gradient(90deg, ${heavy}, ${mid}, ${light})`;
+}
+
+function previewTextClass(textPosition: string) {
+  const base = "absolute inset-y-0 z-10 flex max-w-xl flex-col justify-center p-5 drop-shadow";
+  if (textPosition === "center") return `${base} left-1/2 -translate-x-1/2 items-center text-center`;
+  if (textPosition === "right") return `${base} right-0 items-end text-right`;
+  return `${base} left-0 items-start text-left`;
+}
+
+function badgePreviewClass(position: string) {
+  const base = "absolute z-20 rounded-md px-2.5 py-1 text-[11px] font-black uppercase text-white shadow";
+  if (position === "top-right") return `${base} right-4 top-4`;
+  if (position === "bottom-left") return `${base} bottom-4 left-4`;
+  if (position === "bottom-right") return `${base} bottom-4 right-4`;
+  return `${base} left-4 top-4`;
 }

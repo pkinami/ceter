@@ -993,11 +993,109 @@ select option:checked {
   transition: .15s;
 }
 
-.admin-entity-card:hover {
-  transform: translateY(-2px);
-  border-color: #a6deda;
-  box-shadow: 0 7px 18px rgba(15, 72, 91, .08);
-}
+  .admin-entity-card:hover {
+    transform: translateY(-2px);
+    border-color: #a6deda;
+    box-shadow: 0 7px 18px rgba(15, 72, 91, .08);
+  }
+
+  .business-message {
+    margin-bottom: 14px;
+    border-radius: 8px;
+    border: 1px solid var(--admin-line);
+    padding: 10px 12px;
+    font-size: 12px;
+    font-weight: 700;
+  }
+
+  .business-message.success {
+    border-color: #bfe8cf;
+    background: #effaf3;
+    color: #147b3d;
+  }
+
+  .business-message.error {
+    border-color: #f3c7c9;
+    background: #fff3f3;
+    color: #bd3238;
+  }
+
+  .business-form {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
+    padding: 14px;
+  }
+
+  .business-form label {
+    display: grid;
+    gap: 5px;
+    color: var(--admin-muted);
+    font-size: 11px;
+    font-weight: 720;
+  }
+
+  .business-form textarea.admin-input {
+    min-height: 82px;
+    height: auto;
+    padding-top: 9px;
+  }
+
+  .business-form-wide,
+  .business-lines {
+    grid-column: 1 / -1;
+  }
+
+  .business-check {
+    display: flex !important;
+    min-height: 36px;
+    align-items: center;
+    gap: 8px !important;
+    color: var(--admin-text) !important;
+  }
+
+  .business-check input {
+    width: 16px;
+    height: 16px;
+  }
+
+  .business-form-actions,
+  .business-actions-cell,
+  .business-status-form {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 7px;
+  }
+
+  .business-form-actions {
+    grid-column: 1 / -1;
+  }
+
+  .business-json {
+    margin-top: 8px;
+    max-height: 288px;
+    max-width: 576px;
+    overflow: auto;
+    border-radius: 6px;
+    background: #0f172a;
+    padding: 12px;
+    color: #e2e8f0;
+    font-size: 12px;
+    line-height: 1.4;
+    white-space: pre-wrap;
+  }
+
+  .business-lines {
+    display: grid;
+    gap: 8px;
+  }
+
+  .business-line {
+    display: grid;
+    grid-template-columns: 1.2fr 1.2fr .45fr .55fr .55fr;
+    gap: 7px;
+  }
 
 .admin-mobile-overlay {
   position: fixed;
@@ -1170,5 +1268,10 @@ select option:checked {
   .admin-ui td:first-child {
     min-width: 148px;
     max-width: 178px;
+  }
+
+  .business-form,
+  .business-line {
+    grid-template-columns: 1fr;
   }
 }

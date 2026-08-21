@@ -56,9 +56,11 @@ const navGroups: Array<{ label: string; items: Array<{ href: string; label: stri
     label: "Sales",
     items: [
       { href: "/admin/orders", label: "Orders", icon: ShoppingBag },
+      { href: "/admin/business", label: "Business Suite", icon: CreditCard },
       { href: "/admin/quotes", label: "Quotes & Tenders", icon: FileText },
       { href: "/admin/customers", label: "Customers", icon: Users },
-      { href: "/admin/payments", label: "Payments", icon: CreditCard }
+      { href: "/admin/payments", label: "Payments", icon: CreditCard },
+      { href: "/admin/payments/mpesa-reconciliation", label: "M-Pesa Reconciliation", icon: CreditCard }
     ]
   },
   {

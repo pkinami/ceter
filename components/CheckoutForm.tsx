@@ -202,10 +202,10 @@ export function CheckoutForm({ defaultProfile, deliveryFees }: { defaultProfile:
         </div>
         <div className="mt-4 space-y-3 text-sm">
           {items.map((item) => (
-            <div key={item.product.id} className="grid grid-cols-[64px_minmax(0,1fr)_auto] items-center gap-3">
+            <div key={item.product.id} className="grid grid-cols-[64px_minmax(0,1fr)] items-center gap-x-3 gap-y-1 sm:grid-cols-[64px_minmax(0,1fr)_auto]">
               <ProductImageFrame src={item.product.image} alt="" sizes="64px" className="h-16 w-16" imageClassName="p-1.5" />
               <span className="min-w-0 break-words">{item.product.name} x {item.quantity}</span>
-              <strong className="text-right">{formatKes(item.product.price * item.quantity)}</strong>
+              <strong className="col-start-2 whitespace-nowrap text-left sm:col-auto sm:text-right">{formatKes(item.product.price * item.quantity)}</strong>
             </div>
           ))}
           <div className="border-t border-line pt-3">

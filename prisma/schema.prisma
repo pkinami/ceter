@@ -67,6 +67,12 @@ model Banner {
   laptop_image   String?
   mobile_image   String?
   image_variants Json            @default("[]") @db.JsonB
+  text_position  String          @default("left")
+  overlay_opacity Int            @default(70)
+  badge_enabled  Boolean         @default(false)
+  badge_text     String?
+  badge_color    String?
+  badge_position String          @default("top-left")
   placement      BannerPlacement @default(main)
   category_id    String?         @db.Uuid
   sort_order     Int             @default(0)
@@ -129,13 +135,16 @@ model Order {
   delivery_location     String?
   delivery_instructions String?
   total_kes             Int                  @default(0)
+  customer_id           String?              @db.Uuid
   created_at            DateTime             @default(now()) @db.Timestamptz(6)
   order_items           OrderItem[]
   payments              PaymentTransaction[]
+  customer              Customer?            @relation(fields: [customer_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
   profile               Profile?             @relation(fields: [user_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
   serials               ProductSerial[]
 
   @@index([user_id])
+  @@index([customer_id])
   @@index([created_at])
   @@map("orders")
   @@schema("public")
@@ -170,6 +179,13 @@ model Product {
   updated_at                 DateTime               @default(now()) @updatedAt @db.Timestamptz(6)
   cart_items                 CartItem[]
   order_items                OrderItem[]
+  quote_items                QuoteItem[]
+  proforma_invoice_items     ProformaInvoiceItem[]
+  invoice_items              InvoiceItem[]
+  purchase_order_items       PurchaseOrderItem[]
+  goods_received_items       GoodsReceivedNoteItem[]
+  supplier_invoice_items     SupplierInvoiceItem[]
+  tender_products            TenderProduct[]
   quote_lines                QuoteLine[]
   stock_movements            StockMovement[]
   price_history              PriceHistory[]
@@ -233,9 +249,11 @@ model Profile {
   created_at            DateTime        @default(now()) @db.Timestamptz(6)
   cart_items            CartItem[]
   orders                Order[]
+  customers             Customer[]
   stock_movements       StockMovement[]
   changed_prices        PriceHistory[]  @relation("PriceChangedBy")
   audit_logs            AuditLog[]
+  notifications         NotificationHistory[]
 
   @@map("profiles")
   @@schema("public")
@@ -315,12 +333,22 @@ model StockMovement {
   delta      Int
   reason     StockMovementReason
   reference  String?
+  unit_cost_kes Int?
+  supplier_id String?            @db.Uuid
+  purchase_order_id String?      @db.Uuid
+  goods_received_note_id String? @db.Uuid
   user_id    String?             @db.Uuid
   created_at DateTime            @default(now()) @db.Timestamptz(6)
   product    Product             @relation(fields: [product_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  supplier   Supplier?           @relation(fields: [supplier_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  purchase_order PurchaseOrder?   @relation(fields: [purchase_order_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  goods_received_note GoodsReceivedNote? @relation(fields: [goods_received_note_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
   user       Profile?            @relation(fields: [user_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
 
   @@index([product_id, created_at])
+  @@index([supplier_id])
+  @@index([purchase_order_id])
+  @@index([goods_received_note_id])
   @@index([user_id])
   @@map("stock_movements")
   @@schema("public")
@@ -396,6 +424,1015 @@ model ServiceEntry {
 
   @@index([is_enabled, sort_order])
   @@map("service_entries")
+  @@schema("public")
+}
+
+model Customer {
+  id                  String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  profile_id          String?           @db.Uuid
+  name                String
+  company_name        String?
+  customer_type       CustomerType      @default(individual)
+  phone               String?
+  email               String?
+  tax_pin             String?
+  notes               String?
+  created_by_id       String?           @db.Uuid
+  created_at          DateTime          @default(now()) @db.Timestamptz(6)
+  updated_at          DateTime          @default(now()) @updatedAt @db.Timestamptz(6)
+  profile             Profile?          @relation(fields: [profile_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  addresses           CustomerAddress[]
+  quotes              Quote[]
+  proforma_invoices   ProformaInvoice[]
+  invoices            Invoice[]
+  payments            Payment[]
+  receipts            Receipt[]
+  orders              Order[]
+  mpesa_transactions  MpesaTransaction[]
+  expenses            Expense[]
+  transactions        Transaction[]
+  documents           Document[]
+  company_documents   CompanyDocument[]
+
+  @@index([profile_id])
+  @@index([email])
+  @@index([phone])
+  @@index([customer_type])
+  @@map("customers")
+  @@schema("public")
+}
+
+model CustomerAddress {
+  id                 String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  customer_id        String   @db.Uuid
+  label              String?
+  recipient_name     String?
+  phone              String?
+  address_line_1     String
+  address_line_2     String?
+  city               String?
+  region             String?
+  delivery_notes     String?
+  is_default         Boolean  @default(false)
+  created_at         DateTime @default(now()) @db.Timestamptz(6)
+  updated_at         DateTime @default(now()) @updatedAt @db.Timestamptz(6)
+  customer           Customer @relation(fields: [customer_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([customer_id])
+  @@map("customer_addresses")
+  @@schema("public")
+}
+
+model Quote {
+  id                 String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  quote_number       String          @unique
+  customer_id        String          @db.Uuid
+  status             BusinessQuoteStatus @default(draft)
+  subtotal_kes       Int             @default(0)
+  discount_kes       Int             @default(0)
+  vat_kes            Int             @default(0)
+  total_kes          Int             @default(0)
+  vat_enabled        Boolean         @default(false)
+  notes              String?
+  terms              String?
+  valid_until        DateTime?       @db.Date
+  created_by_id      String?         @db.Uuid
+  accepted_at        DateTime?       @db.Timestamptz(6)
+  created_at         DateTime        @default(now()) @db.Timestamptz(6)
+  updated_at         DateTime        @default(now()) @updatedAt @db.Timestamptz(6)
+  customer           Customer        @relation(fields: [customer_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  items              QuoteItem[]
+  proforma_invoices  ProformaInvoice[]
+  invoices           Invoice[]
+  transactions       Transaction[]
+  documents          Document[]
+
+  @@index([customer_id])
+  @@index([status])
+  @@index([created_at])
+  @@map("quotes")
+  @@schema("public")
+}
+
+model QuoteItem {
+  id                 String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  quote_id           String    @db.Uuid
+  product_id         String?   @db.Uuid
+  item_type          BusinessItemType @default(product)
+  description        String
+  quantity           Int
+  unit_price_kes     Int
+  discount_kes       Int       @default(0)
+  vat_kes            Int       @default(0)
+  line_total_kes     Int
+  sort_order         Int       @default(0)
+  created_at         DateTime  @default(now()) @db.Timestamptz(6)
+  quote              Quote     @relation(fields: [quote_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  product            Product?  @relation(fields: [product_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
+
+  @@index([quote_id])
+  @@index([product_id])
+  @@map("quote_items")
+  @@schema("public")
+}
+
+model ProformaInvoice {
+  id                 String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  proforma_number    String          @unique
+  quote_id           String?         @db.Uuid
+  customer_id        String          @db.Uuid
+  status             ProformaStatus  @default(draft)
+  subtotal_kes       Int             @default(0)
+  discount_kes       Int             @default(0)
+  vat_kes            Int             @default(0)
+  total_kes          Int             @default(0)
+  vat_enabled        Boolean         @default(false)
+  notes              String?
+  terms              String?
+  due_date           DateTime?       @db.Date
+  created_by_id      String?         @db.Uuid
+  created_at         DateTime        @default(now()) @db.Timestamptz(6)
+  updated_at         DateTime        @default(now()) @updatedAt @db.Timestamptz(6)
+  quote              Quote?          @relation(fields: [quote_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  customer           Customer        @relation(fields: [customer_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  items              ProformaInvoiceItem[]
+  payments           Payment[]
+  invoices           Invoice[]
+  transactions       Transaction[]
+  documents          Document[]
+
+  @@index([quote_id])
+  @@index([customer_id])
+  @@index([status])
+  @@map("proforma_invoices")
+  @@schema("public")
+}
+
+model ProformaInvoiceItem {
+  id                    String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  proforma_invoice_id   String           @db.Uuid
+  product_id            String?          @db.Uuid
+  item_type             BusinessItemType @default(product)
+  description           String
+  quantity              Int
+  unit_price_kes        Int
+  discount_kes          Int              @default(0)
+  vat_kes               Int              @default(0)
+  line_total_kes        Int
+  sort_order            Int              @default(0)
+  created_at            DateTime         @default(now()) @db.Timestamptz(6)
+  proforma_invoice      ProformaInvoice  @relation(fields: [proforma_invoice_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  product               Product?         @relation(fields: [product_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
+
+  @@index([proforma_invoice_id])
+  @@index([product_id])
+  @@map("proforma_invoice_items")
+  @@schema("public")
+}
+
+model Invoice {
+  id                    String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  invoice_number        String          @unique
+  quote_id              String?         @db.Uuid
+  proforma_invoice_id   String?         @db.Uuid
+  customer_id           String          @db.Uuid
+  status                InvoiceStatus   @default(draft)
+  subtotal_kes          Int             @default(0)
+  discount_kes          Int             @default(0)
+  vat_kes               Int             @default(0)
+  total_kes             Int             @default(0)
+  paid_kes              Int             @default(0)
+  balance_kes           Int             @default(0)
+  vat_enabled           Boolean         @default(false)
+  etims_status          EtimsSubmissionStatus @default(not_ready)
+  etims_external_id     String?
+  etims_control_number  String?
+  etims_qr_reference    String?
+  etims_verification_url String?
+  notes                 String?
+  terms                 String?
+  due_date              DateTime?       @db.Date
+  payment_terms         String?
+  created_by_id         String?         @db.Uuid
+  created_at            DateTime        @default(now()) @db.Timestamptz(6)
+  updated_at            DateTime        @default(now()) @updatedAt @db.Timestamptz(6)
+  quote                 Quote?          @relation(fields: [quote_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  proforma_invoice      ProformaInvoice? @relation(fields: [proforma_invoice_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  customer              Customer        @relation(fields: [customer_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  items                 InvoiceItem[]
+  payments              Payment[]
+  receipts              Receipt[]
+  transactions          Transaction[]
+  documents             Document[]
+  journal_entries       JournalEntry[]
+  etims_records         EtimsRecord[]
+  mpesa_transactions    MpesaTransaction[]
+
+  @@index([quote_id])
+  @@index([proforma_invoice_id])
+  @@index([customer_id])
+  @@index([status])
+  @@index([due_date])
+  @@index([etims_status])
+  @@map("invoices")
+  @@schema("public")
+}
+
+model InvoiceItem {
+  id                 String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  invoice_id         String           @db.Uuid
+  product_id         String?          @db.Uuid
+  item_type          BusinessItemType @default(product)
+  description        String
+  quantity           Int
+  unit_price_kes     Int
+  discount_kes       Int              @default(0)
+  vat_kes            Int              @default(0)
+  line_total_kes     Int
+  sort_order         Int              @default(0)
+  created_at         DateTime         @default(now()) @db.Timestamptz(6)
+  invoice            Invoice          @relation(fields: [invoice_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  product            Product?         @relation(fields: [product_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
+
+  @@index([invoice_id])
+  @@index([product_id])
+  @@map("invoice_items")
+  @@schema("public")
+}
+
+model Payment {
+  id                    String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  payment_number        String          @unique
+  invoice_id            String?         @db.Uuid
+  proforma_invoice_id   String?         @db.Uuid
+  customer_id           String          @db.Uuid
+  amount_kes            Int
+  method                BusinessPaymentMethod
+  reference             String?
+  notes                 String?
+  paid_at               DateTime        @default(now()) @db.Timestamptz(6)
+  created_by_id         String?         @db.Uuid
+  created_at            DateTime        @default(now()) @db.Timestamptz(6)
+  invoice               Invoice?        @relation(fields: [invoice_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  proforma_invoice      ProformaInvoice? @relation(fields: [proforma_invoice_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  customer              Customer        @relation(fields: [customer_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  receipt               Receipt?
+  transactions          Transaction[]
+  documents             Document[]
+  journal_entries       JournalEntry[]
+  mpesa_transaction     MpesaTransaction?
+
+  @@index([invoice_id])
+  @@index([proforma_invoice_id])
+  @@index([customer_id])
+  @@index([paid_at])
+  @@map("payments")
+  @@schema("public")
+}
+
+model Receipt {
+  id                 String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  receipt_number     String    @unique
+  payment_id         String    @unique @db.Uuid
+  invoice_id         String?   @db.Uuid
+  customer_id        String    @db.Uuid
+  amount_kes         Int
+  issued_at          DateTime  @default(now()) @db.Timestamptz(6)
+  created_by_id      String?   @db.Uuid
+  created_at         DateTime  @default(now()) @db.Timestamptz(6)
+  payment            Payment   @relation(fields: [payment_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  invoice            Invoice?  @relation(fields: [invoice_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  customer           Customer  @relation(fields: [customer_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  documents          Document[]
+
+  @@index([invoice_id])
+  @@index([customer_id])
+  @@map("receipts")
+  @@schema("public")
+}
+
+model ExpenseCategory {
+  id                 String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name               String    @unique
+  description        String?
+  is_active          Boolean   @default(true)
+  created_at         DateTime  @default(now()) @db.Timestamptz(6)
+  expenses           Expense[]
+
+  @@map("expense_categories")
+  @@schema("public")
+}
+
+model Expense {
+  id                    String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  expense_number        String          @unique
+  category_id           String          @db.Uuid
+  supplier              String?
+  customer_id           String?         @db.Uuid
+  amount_kes            Int
+  method                BusinessPaymentMethod
+  expense_date          DateTime        @db.Date
+  notes                 String?
+  attachment_url        String?
+  created_by_id         String?         @db.Uuid
+  created_at            DateTime        @default(now()) @db.Timestamptz(6)
+  updated_at            DateTime        @default(now()) @updatedAt @db.Timestamptz(6)
+  category              ExpenseCategory @relation(fields: [category_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  customer              Customer?       @relation(fields: [customer_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  transactions          Transaction[]
+  documents             Document[]
+  journal_entries       JournalEntry[]
+
+  @@index([category_id])
+  @@index([customer_id])
+  @@index([expense_date])
+  @@map("expenses")
+  @@schema("public")
+}
+
+model Transaction {
+  id                    String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  transaction_type      TransactionType
+  direction             TransactionDirection
+  amount_kes            Int
+  memo                  String?
+  customer_id           String?           @db.Uuid
+  quote_id              String?           @db.Uuid
+  proforma_invoice_id   String?           @db.Uuid
+  invoice_id            String?           @db.Uuid
+  payment_id            String?           @db.Uuid
+  expense_id            String?           @db.Uuid
+  supplier_invoice_id   String?           @db.Uuid
+  supplier_payment_id   String?           @db.Uuid
+  created_by_id         String?           @db.Uuid
+  created_at            DateTime          @default(now()) @db.Timestamptz(6)
+  customer              Customer?         @relation(fields: [customer_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  quote                 Quote?            @relation(fields: [quote_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  proforma_invoice      ProformaInvoice?  @relation(fields: [proforma_invoice_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  invoice               Invoice?          @relation(fields: [invoice_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  payment               Payment?          @relation(fields: [payment_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  expense               Expense?          @relation(fields: [expense_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  supplier_invoice      SupplierInvoice?  @relation(fields: [supplier_invoice_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  supplier_payment      SupplierPayment?  @relation(fields: [supplier_payment_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
+
+  @@index([transaction_type, created_at])
+  @@index([customer_id])
+  @@index([invoice_id])
+  @@index([payment_id])
+  @@index([expense_id])
+  @@index([supplier_invoice_id])
+  @@index([supplier_payment_id])
+  @@map("transactions")
+  @@schema("public")
+}
+
+model Document {
+  id                    String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  document_type         DocumentType
+  title                 String
+  bucket                String
+  storage_path          String
+  public_url            String?
+  customer_id           String?       @db.Uuid
+  quote_id              String?       @db.Uuid
+  proforma_invoice_id   String?       @db.Uuid
+  invoice_id            String?       @db.Uuid
+  payment_id            String?       @db.Uuid
+  receipt_id            String?       @db.Uuid
+  expense_id            String?       @db.Uuid
+  supplier_id           String?       @db.Uuid
+  purchase_order_id     String?       @db.Uuid
+  supplier_invoice_id   String?       @db.Uuid
+  tender_id             String?       @db.Uuid
+  company_document_id   String?       @db.Uuid
+  category              DocumentCategory @default(company)
+  expiry_date           DateTime?     @db.Date
+  reminder_date         DateTime?     @db.Date
+  notes                 String?
+  created_by_id         String?       @db.Uuid
+  created_at            DateTime      @default(now()) @db.Timestamptz(6)
+  customer              Customer?     @relation(fields: [customer_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  quote                 Quote?        @relation(fields: [quote_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  proforma_invoice      ProformaInvoice? @relation(fields: [proforma_invoice_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  invoice               Invoice?      @relation(fields: [invoice_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  payment               Payment?      @relation(fields: [payment_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  receipt               Receipt?      @relation(fields: [receipt_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  expense               Expense?      @relation(fields: [expense_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  supplier              Supplier?     @relation(fields: [supplier_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  purchase_order        PurchaseOrder? @relation(fields: [purchase_order_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  supplier_invoice      SupplierInvoice? @relation(fields: [supplier_invoice_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  tender                Tender?       @relation(fields: [tender_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  company_document      CompanyDocument? @relation(fields: [company_document_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
+
+  @@index([document_type, created_at])
+  @@index([customer_id])
+  @@index([quote_id])
+  @@index([proforma_invoice_id])
+  @@index([invoice_id])
+  @@index([payment_id])
+  @@index([receipt_id])
+  @@index([expense_id])
+  @@index([supplier_id])
+  @@index([purchase_order_id])
+  @@index([supplier_invoice_id])
+  @@index([tender_id])
+  @@index([company_document_id])
+  @@index([category, expiry_date])
+  @@map("documents")
+  @@schema("public")
+}
+
+model Supplier {
+  id                   String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  company_name         String
+  contact_person       String?
+  phone                String?
+  email                String?
+  address              String?
+  kra_pin              String?
+  notes                String?
+  created_by_id        String?             @db.Uuid
+  created_at           DateTime            @default(now()) @db.Timestamptz(6)
+  updated_at           DateTime            @default(now()) @updatedAt @db.Timestamptz(6)
+  purchase_requests    PurchaseRequest[]
+  purchase_orders      PurchaseOrder[]
+  goods_received_notes GoodsReceivedNote[]
+  supplier_invoices    SupplierInvoice[]
+  supplier_payments    SupplierPayment[]
+  stock_movements      StockMovement[]
+  documents            Document[]
+  company_documents    CompanyDocument[]
+
+  @@index([company_name])
+  @@index([email])
+  @@index([phone])
+  @@map("suppliers")
+  @@schema("public")
+}
+
+model PurchaseRequest {
+  id              String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  request_number  String                @unique
+  supplier_id     String?               @db.Uuid
+  status          PurchaseRequestStatus @default(draft)
+  needed_by       DateTime?             @db.Date
+  reason          String?
+  notes           String?
+  created_by_id   String?               @db.Uuid
+  created_at      DateTime              @default(now()) @db.Timestamptz(6)
+  updated_at      DateTime              @default(now()) @updatedAt @db.Timestamptz(6)
+  supplier        Supplier?             @relation(fields: [supplier_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  purchase_orders PurchaseOrder[]
+
+  @@index([supplier_id])
+  @@index([status])
+  @@map("purchase_requests")
+  @@schema("public")
+}
+
+model PurchaseOrder {
+  id                     String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  po_number              String              @unique
+  supplier_id            String              @db.Uuid
+  purchase_request_id    String?             @db.Uuid
+  status                 PurchaseOrderStatus @default(draft)
+  expected_delivery_date DateTime?           @db.Date
+  subtotal_kes           Int                 @default(0)
+  vat_kes                Int                 @default(0)
+  total_kes              Int                 @default(0)
+  notes                  String?
+  created_by_id          String?             @db.Uuid
+  created_at             DateTime            @default(now()) @db.Timestamptz(6)
+  updated_at             DateTime            @default(now()) @updatedAt @db.Timestamptz(6)
+  supplier               Supplier            @relation(fields: [supplier_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  purchase_request       PurchaseRequest?    @relation(fields: [purchase_request_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  items                  PurchaseOrderItem[]
+  goods_received_notes   GoodsReceivedNote[]
+  supplier_invoices      SupplierInvoice[]
+  stock_movements        StockMovement[]
+  documents              Document[]
+
+  @@index([supplier_id])
+  @@index([purchase_request_id])
+  @@index([status])
+  @@index([expected_delivery_date])
+  @@map("purchase_orders")
+  @@schema("public")
+}
+
+model PurchaseOrderItem {
+  id                     String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  purchase_order_id      String                  @db.Uuid
+  product_id             String                  @db.Uuid
+  description            String
+  quantity               Int
+  unit_price_kes         Int
+  vat_kes                Int                     @default(0)
+  line_total_kes         Int
+  received_quantity      Int                     @default(0)
+  sort_order             Int                     @default(0)
+  purchase_order         PurchaseOrder           @relation(fields: [purchase_order_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  product                Product                 @relation(fields: [product_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  goods_received_items   GoodsReceivedNoteItem[]
+  supplier_invoice_items SupplierInvoiceItem[]
+
+  @@index([purchase_order_id])
+  @@index([product_id])
+  @@map("purchase_order_items")
+  @@schema("public")
+}
+
+model GoodsReceivedNote {
+  id                 String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  grn_number         String                  @unique
+  supplier_id        String                  @db.Uuid
+  purchase_order_id  String                  @db.Uuid
+  delivery_date      DateTime                @db.Date
+  status             GoodsReceivedStatus     @default(received)
+  delivery_reference String?
+  notes              String?
+  created_by_id      String?                 @db.Uuid
+  created_at         DateTime                @default(now()) @db.Timestamptz(6)
+  supplier           Supplier                @relation(fields: [supplier_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  purchase_order     PurchaseOrder           @relation(fields: [purchase_order_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  items              GoodsReceivedNoteItem[]
+  stock_movements    StockMovement[]
+  journal_entries    JournalEntry[]
+
+  @@index([supplier_id])
+  @@index([purchase_order_id])
+  @@index([delivery_date])
+  @@map("goods_received_notes")
+  @@schema("public")
+}
+
+model GoodsReceivedNoteItem {
+  id                     String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  goods_received_note_id String            @db.Uuid
+  purchase_order_item_id String            @db.Uuid
+  product_id             String            @db.Uuid
+  quantity_received      Int
+  unit_cost_kes          Int
+  goods_received_note    GoodsReceivedNote @relation(fields: [goods_received_note_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  purchase_order_item    PurchaseOrderItem @relation(fields: [purchase_order_item_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  product                Product           @relation(fields: [product_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
+
+  @@index([goods_received_note_id])
+  @@index([purchase_order_item_id])
+  @@index([product_id])
+  @@map("goods_received_note_items")
+  @@schema("public")
+}
+
+model SupplierInvoice {
+  id                      String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  supplier_invoice_number String                @unique
+  supplier_reference      String?
+  supplier_id             String                @db.Uuid
+  purchase_order_id       String?               @db.Uuid
+  status                  SupplierInvoiceStatus @default(unpaid)
+  subtotal_kes            Int                   @default(0)
+  vat_kes                 Int                   @default(0)
+  total_kes               Int                   @default(0)
+  paid_kes                Int                   @default(0)
+  balance_kes             Int                   @default(0)
+  invoice_date            DateTime              @db.Date
+  due_date                DateTime?             @db.Date
+  notes                   String?
+  created_by_id           String?               @db.Uuid
+  created_at              DateTime              @default(now()) @db.Timestamptz(6)
+  updated_at              DateTime              @default(now()) @updatedAt @db.Timestamptz(6)
+  supplier                Supplier              @relation(fields: [supplier_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  purchase_order          PurchaseOrder?        @relation(fields: [purchase_order_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  items                   SupplierInvoiceItem[]
+  payments                SupplierPayment[]
+  transactions            Transaction[]
+  journal_entries         JournalEntry[]
+  documents               Document[]
+
+  @@index([supplier_id])
+  @@index([purchase_order_id])
+  @@index([status])
+  @@index([due_date])
+  @@map("supplier_invoices")
+  @@schema("public")
+}
+
+model SupplierInvoiceItem {
+  id                   String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  supplier_invoice_id  String             @db.Uuid
+  purchase_order_item_id String?          @db.Uuid
+  product_id           String?            @db.Uuid
+  description          String
+  quantity             Int
+  unit_price_kes       Int
+  vat_kes              Int                @default(0)
+  line_total_kes       Int
+  supplier_invoice     SupplierInvoice    @relation(fields: [supplier_invoice_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  purchase_order_item  PurchaseOrderItem? @relation(fields: [purchase_order_item_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  product              Product?           @relation(fields: [product_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
+
+  @@index([supplier_invoice_id])
+  @@index([purchase_order_item_id])
+  @@index([product_id])
+  @@map("supplier_invoice_items")
+  @@schema("public")
+}
+
+model SupplierPayment {
+  id                      String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  supplier_payment_number String                @unique
+  supplier_id             String                @db.Uuid
+  supplier_invoice_id     String                @db.Uuid
+  amount_kes              Int
+  method                  BusinessPaymentMethod
+  reference               String?
+  notes                   String?
+  paid_at                 DateTime              @default(now()) @db.Timestamptz(6)
+  created_by_id           String?               @db.Uuid
+  created_at              DateTime              @default(now()) @db.Timestamptz(6)
+  supplier                Supplier              @relation(fields: [supplier_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  supplier_invoice        SupplierInvoice       @relation(fields: [supplier_invoice_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  transactions            Transaction[]
+  journal_entries         JournalEntry[]
+
+  @@index([supplier_id])
+  @@index([supplier_invoice_id])
+  @@index([paid_at])
+  @@map("supplier_payments")
+  @@schema("public")
+}
+
+model Account {
+  id         String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  code       String        @unique
+  name       String
+  type       AccountType
+  is_system  Boolean       @default(false)
+  is_active  Boolean       @default(true)
+  created_at DateTime      @default(now()) @db.Timestamptz(6)
+  lines      JournalLine[]
+
+  @@index([type])
+  @@map("accounts")
+  @@schema("public")
+}
+
+model JournalEntry {
+  id                  String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  entry_number        String            @unique
+  source_type         JournalSourceType
+  memo                String?
+  entry_date          DateTime          @db.Date
+  invoice_id          String?           @db.Uuid
+  payment_id          String?           @db.Uuid
+  expense_id          String?           @db.Uuid
+  supplier_invoice_id String?           @db.Uuid
+  supplier_payment_id String?           @db.Uuid
+  goods_received_note_id String?        @db.Uuid
+  created_by_id       String?           @db.Uuid
+  created_at          DateTime          @default(now()) @db.Timestamptz(6)
+  invoice             Invoice?          @relation(fields: [invoice_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  payment             Payment?          @relation(fields: [payment_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  expense             Expense?          @relation(fields: [expense_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  supplier_invoice    SupplierInvoice?  @relation(fields: [supplier_invoice_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  supplier_payment    SupplierPayment?  @relation(fields: [supplier_payment_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  goods_received_note GoodsReceivedNote? @relation(fields: [goods_received_note_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  lines               JournalLine[]
+
+  @@index([source_type, entry_date])
+  @@index([invoice_id])
+  @@index([payment_id])
+  @@index([expense_id])
+  @@index([supplier_invoice_id])
+  @@index([supplier_payment_id])
+  @@index([goods_received_note_id])
+  @@map("journal_entries")
+  @@schema("public")
+}
+
+model JournalLine {
+  id               String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  journal_entry_id String               @db.Uuid
+  account_id       String               @db.Uuid
+  direction        TransactionDirection
+  amount_kes       Int
+  memo             String?
+  journal_entry    JournalEntry         @relation(fields: [journal_entry_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  account          Account              @relation(fields: [account_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
+
+  @@index([journal_entry_id])
+  @@index([account_id])
+  @@map("journal_lines")
+  @@schema("public")
+}
+
+model TaxRecord {
+  id             String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tax_type       TaxType
+  period_start   DateTime         @db.Date
+  period_end     DateTime         @db.Date
+  output_tax_kes Int              @default(0)
+  input_tax_kes  Int              @default(0)
+  payable_kes    Int              @default(0)
+  status         ComplianceStatus @default(draft)
+  notes          String?
+  created_at     DateTime         @default(now()) @db.Timestamptz(6)
+  updated_at     DateTime         @default(now()) @updatedAt @db.Timestamptz(6)
+
+  @@index([tax_type, period_start, period_end])
+  @@index([status])
+  @@map("tax_records")
+  @@schema("public")
+}
+
+model ComplianceSetting {
+  id             String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  code           String           @unique
+  name           String
+  agency         String
+  value_type     SettingValueType @default(percent)
+  value          Decimal?         @db.Decimal(12, 4)
+  effective_from DateTime?        @db.Date
+  effective_to   DateTime?        @db.Date
+  notes          String?
+  is_active      Boolean          @default(true)
+  created_at     DateTime         @default(now()) @db.Timestamptz(6)
+
+  @@index([agency, is_active])
+  @@map("compliance_settings")
+  @@schema("public")
+}
+
+model ComplianceItem {
+  id              String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  title           String
+  agency          String
+  compliance_type ComplianceItemType
+  due_date        DateTime           @db.Date
+  status          ComplianceStatus   @default(draft)
+  amount_kes      Int?
+  reference       String?
+  notes           String?
+  created_at      DateTime           @default(now()) @db.Timestamptz(6)
+  updated_at      DateTime           @default(now()) @updatedAt @db.Timestamptz(6)
+
+  @@index([due_date])
+  @@index([status])
+  @@index([agency])
+  @@map("compliance_items")
+  @@schema("public")
+}
+
+model Employee {
+  id              String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  full_name       String
+  kra_pin         String?
+  national_id     String?
+  nssf_number     String?
+  sha_number      String?
+  email           String?
+  phone           String?
+  base_salary_kes Int
+  is_active       Boolean         @default(true)
+  created_at      DateTime        @default(now()) @db.Timestamptz(6)
+  updated_at      DateTime        @default(now()) @updatedAt @db.Timestamptz(6)
+  payroll_records PayrollRecord[]
+
+  @@index([is_active])
+  @@map("employees")
+  @@schema("public")
+}
+
+model PayrollRecord {
+  id               String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  employee_id      String           @db.Uuid
+  period_start     DateTime         @db.Date
+  period_end       DateTime         @db.Date
+  gross_pay_kes    Int
+  paye_kes         Int              @default(0)
+  nssf_kes         Int              @default(0)
+  sha_kes          Int              @default(0)
+  housing_levy_kes Int              @default(0)
+  nita_kes         Int              @default(0)
+  net_pay_kes      Int              @default(0)
+  status           ComplianceStatus @default(draft)
+  notes            String?
+  employee         Employee         @relation(fields: [employee_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([employee_id])
+  @@index([period_start, period_end])
+  @@map("payroll_records")
+  @@schema("public")
+}
+
+model EtimsRecord {
+  id                  String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  invoice_id          String                @db.Uuid
+  status              EtimsSubmissionStatus @default(not_ready)
+  external_invoice_id String?
+  control_number      String?
+  qr_reference        String?
+  verification_url    String?
+  last_error          String?
+  retry_count         Int                   @default(0)
+  submitted_at        DateTime?             @db.Timestamptz(6)
+  last_attempt_at     DateTime?             @db.Timestamptz(6)
+  payload             Json?                 @db.JsonB
+  response            Json?                 @db.JsonB
+  reference_information Json?               @db.JsonB
+  created_at          DateTime              @default(now()) @db.Timestamptz(6)
+  updated_at          DateTime              @default(now()) @updatedAt @db.Timestamptz(6)
+  invoice             Invoice               @relation(fields: [invoice_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  logs                EtimsSubmissionLog[]
+
+  @@index([invoice_id])
+  @@index([status])
+  @@map("etims_records")
+  @@schema("public")
+}
+
+model MpesaTransaction {
+  id                    String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  invoice_id            String             @db.Uuid
+  customer_id           String             @db.Uuid
+  payment_id            String?            @unique @db.Uuid
+  phone_number          String
+  amount                Int
+  transaction_reference String?            @unique
+  checkout_request_id   String?            @unique
+  callback_payload      Json?              @db.JsonB
+  payment_status        MpesaPaymentStatus @default(pending)
+  failure_reason        String?
+  verified_at           DateTime?          @db.Timestamptz(6)
+  created_at            DateTime           @default(now()) @db.Timestamptz(6)
+  updated_at            DateTime           @default(now()) @updatedAt @db.Timestamptz(6)
+  invoice               Invoice            @relation(fields: [invoice_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  customer              Customer           @relation(fields: [customer_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  payment               Payment?           @relation(fields: [payment_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
+
+  @@index([invoice_id, payment_status])
+  @@index([customer_id, created_at])
+  @@index([payment_status])
+  @@map("mpesa_transactions")
+  @@schema("public")
+}
+
+model NotificationHistory {
+  id                String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id           String?            @db.Uuid
+  recipient_email   String?
+  notification_type NotificationType
+  status            NotificationStatus @default(pending)
+  subject           String?
+  error_message     String?
+  retry_count       Int                @default(0)
+  provider_response Json?              @db.JsonB
+  sent_at           DateTime?          @db.Timestamptz(6)
+  created_at        DateTime           @default(now()) @db.Timestamptz(6)
+  user              Profile?           @relation(fields: [user_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
+
+  @@index([user_id, created_at])
+  @@index([notification_type, status])
+  @@map("notification_history")
+  @@schema("public")
+}
+
+model BusinessSetting {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  code        String   @unique
+  label       String
+  value       String?
+  description String?
+  updated_at  DateTime @default(now()) @updatedAt @db.Timestamptz(6)
+  created_at  DateTime @default(now()) @db.Timestamptz(6)
+
+  @@map("business_settings")
+  @@schema("public")
+}
+
+model EtimsSubmissionLog {
+  id               String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  etims_record_id  String                @db.Uuid
+  status           EtimsSubmissionStatus
+  message          String?
+  request_payload  Json?                 @db.JsonB
+  response_payload Json?                 @db.JsonB
+  created_at       DateTime              @default(now()) @db.Timestamptz(6)
+  etims_record     EtimsRecord           @relation(fields: [etims_record_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([etims_record_id, created_at])
+  @@map("etims_submission_logs")
+  @@schema("public")
+}
+
+model Tender {
+  id               String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tender_title     String
+  organization     String
+  tender_number    String?
+  closing_date     DateTime?         @db.Date
+  tender_value_kes Int?
+  status           TenderStatus      @default(new)
+  technical_notes  String?
+  pricing_notes    String?
+  submission_notes String?
+  created_by_id    String?           @db.Uuid
+  created_at       DateTime          @default(now()) @db.Timestamptz(6)
+  updated_at       DateTime          @default(now()) @updatedAt @db.Timestamptz(6)
+  documents        TenderDocument[]
+  requirements     TenderRequirement[]
+  products         TenderProduct[]
+  company_documents CompanyDocument[]
+  linked_documents Document[]
+
+  @@index([status])
+  @@index([closing_date])
+  @@map("tenders")
+  @@schema("public")
+}
+
+model TenderDocument {
+  id            String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tender_id     String             @db.Uuid
+  title         String
+  document_type TenderDocumentType @default(tender_document)
+  bucket        String
+  storage_path  String
+  public_url    String?
+  expiry_date   DateTime?          @db.Date
+  notes         String?
+  created_at    DateTime           @default(now()) @db.Timestamptz(6)
+  tender        Tender             @relation(fields: [tender_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([tender_id])
+  @@index([document_type])
+  @@index([expiry_date])
+  @@map("tender_documents")
+  @@schema("public")
+}
+
+model TenderRequirement {
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tender_id    String    @db.Uuid
+  requirement  String
+  category     String?
+  is_required  Boolean   @default(true)
+  is_complete  Boolean   @default(false)
+  due_date     DateTime? @db.Date
+  notes        String?
+  tender       Tender    @relation(fields: [tender_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([tender_id])
+  @@index([is_complete])
+  @@map("tender_requirements")
+  @@schema("public")
+}
+
+model TenderProduct {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tender_id      String   @db.Uuid
+  product_id     String?  @db.Uuid
+  description    String
+  quantity       Int      @default(1)
+  unit_price_kes Int      @default(0)
+  notes          String?
+  tender         Tender   @relation(fields: [tender_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  product        Product? @relation(fields: [product_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
+
+  @@index([tender_id])
+  @@index([product_id])
+  @@map("tender_products")
+  @@schema("public")
+}
+
+model CompanyDocument {
+  id            String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  title         String
+  category      DocumentCategory @default(company)
+  bucket        String
+  storage_path  String
+  public_url    String?
+  expiry_date   DateTime?        @db.Date
+  reminder_date DateTime?        @db.Date
+  notes         String?
+  tender_id     String?          @db.Uuid
+  supplier_id   String?          @db.Uuid
+  customer_id   String?          @db.Uuid
+  created_by_id String?          @db.Uuid
+  created_at    DateTime         @default(now()) @db.Timestamptz(6)
+  updated_at    DateTime         @default(now()) @updatedAt @db.Timestamptz(6)
+  tender        Tender?          @relation(fields: [tender_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  supplier      Supplier?        @relation(fields: [supplier_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  customer      Customer?        @relation(fields: [customer_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  documents     Document[]
+
+  @@index([category])
+  @@index([expiry_date])
+  @@index([tender_id])
+  @@index([supplier_id])
+  @@index([customer_id])
+  @@map("company_documents")
   @@schema("public")
 }
 
@@ -552,5 +1589,307 @@ enum ProductSerialStatus {
   RETURNED
 
   @@map("product_serial_status")
+  @@schema("public")
+}
+
+enum CustomerType {
+  individual
+  business
+  government
+  ngo
+
+  @@map("customer_type")
+  @@schema("public")
+}
+
+enum BusinessQuoteStatus {
+  draft
+  sent
+  accepted
+  rejected
+  expired
+
+  @@map("business_quote_status")
+  @@schema("public")
+}
+
+enum ProformaStatus {
+  draft
+  sent
+  paid
+  cancelled
+
+  @@map("proforma_status")
+  @@schema("public")
+}
+
+enum InvoiceStatus {
+  draft
+  sent
+  partially_paid
+  paid
+  overdue
+  cancelled
+
+  @@map("invoice_status")
+  @@schema("public")
+}
+
+enum BusinessPaymentMethod {
+  mpesa
+  bank_transfer
+  cash
+  card
+  pay_on_delivery
+  credit
+
+  @@map("business_payment_method")
+  @@schema("public")
+}
+
+enum MpesaPaymentStatus {
+  pending
+  completed
+  failed
+  cancelled
+
+  @@map("mpesa_payment_status")
+  @@schema("public")
+}
+
+enum NotificationType {
+  invoice_created
+  payment_received
+  quote_created
+  quote_approved
+  receipt_generated
+
+  @@map("notification_type")
+  @@schema("public")
+}
+
+enum NotificationStatus {
+  pending
+  sent
+  failed
+  skipped
+
+  @@map("notification_status")
+  @@schema("public")
+}
+
+enum BusinessItemType {
+  product
+  service
+
+  @@map("business_item_type")
+  @@schema("public")
+}
+
+enum TransactionType {
+  invoice_created
+  payment_received
+  expense_recorded
+  sales_recorded
+  customer_balance_increase
+  customer_balance_decrease
+  cash_bank_increase
+
+  @@map("transaction_type")
+  @@schema("public")
+}
+
+enum TransactionDirection {
+  debit
+  credit
+
+  @@map("transaction_direction")
+  @@schema("public")
+}
+
+enum DocumentType {
+  quotation
+  proforma_invoice
+  invoice
+  receipt
+  expense_attachment
+  purchase_order
+  supplier_invoice
+  delivery_note
+  customer_statement
+  expense_report
+  financial_report
+  tax_report
+  tender_document
+  company_document
+  contract
+
+  @@map("document_type")
+  @@schema("public")
+}
+
+enum PurchaseRequestStatus {
+  draft
+  requested
+  approved
+  rejected
+  ordered
+  cancelled
+
+  @@map("purchase_request_status")
+  @@schema("public")
+}
+
+enum PurchaseOrderStatus {
+  draft
+  sent
+  confirmed
+  partially_received
+  completed
+  cancelled
+
+  @@map("purchase_order_status")
+  @@schema("public")
+}
+
+enum GoodsReceivedStatus {
+  received
+  reversed
+
+  @@map("goods_received_status")
+  @@schema("public")
+}
+
+enum SupplierInvoiceStatus {
+  unpaid
+  partially_paid
+  paid
+  overdue
+  cancelled
+
+  @@map("supplier_invoice_status")
+  @@schema("public")
+}
+
+enum AccountType {
+  asset
+  liability
+  equity
+  income
+  expense
+
+  @@map("account_type")
+  @@schema("public")
+}
+
+enum JournalSourceType {
+  sales_invoice
+  customer_payment
+  expense
+  supplier_invoice
+  supplier_payment
+  stock_receipt
+  manual
+
+  @@map("journal_source_type")
+  @@schema("public")
+}
+
+enum TaxType {
+  vat
+  paye
+  nssf
+  sha_shif
+  affordable_housing_levy
+  nita
+  kra_other
+
+  @@map("tax_type")
+  @@schema("public")
+}
+
+enum ComplianceStatus {
+  draft
+  pending
+  filed
+  paid
+  overdue
+  not_applicable
+
+  @@map("compliance_status")
+  @@schema("public")
+}
+
+enum SettingValueType {
+  percent
+  amount
+  text
+
+  @@map("setting_value_type")
+  @@schema("public")
+}
+
+enum ComplianceItemType {
+  vat_deadline
+  paye_deadline
+  licence_expiry
+  certificate_expiry
+  statutory_payment
+  tender_document_expiry
+  other
+
+  @@map("compliance_item_type")
+  @@schema("public")
+}
+
+enum EtimsSubmissionStatus {
+  not_ready
+  pending
+  submitted
+  accepted
+  rejected
+  failed
+  retry_required
+
+  @@map("etims_submission_status")
+  @@schema("public")
+}
+
+enum TenderStatus {
+  new
+  reviewing
+  preparing
+  submitted
+  won
+  lost
+  cancelled
+
+  @@map("tender_status")
+  @@schema("public")
+}
+
+enum TenderDocumentType {
+  tender_document
+  requirement
+  compliance_document
+  technical_document
+  pricing_schedule
+  submission_checklist
+
+  @@map("tender_document_type")
+  @@schema("public")
+}
+
+enum DocumentCategory {
+  company
+  tax
+  tender
+  supplier
+  customer
+  contract
+  finance
+  other
+
+  @@map("document_category")
   @@schema("public")
 }

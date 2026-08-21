@@ -70,7 +70,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
     await next;
   }, []);
 
-  const loadRemoteCart = useCallback(async (id: string) => {
+  const loadRemoteCart = useCallback(async () => {
     const response = await fetch("/api/cart", { cache: "no-store" });
     if (!response.ok) {
       toast.error("Could not load saved cart");
@@ -78,9 +78,9 @@ export function CartProvider({ children }: { children: ReactNode }) {
     }
     const data = await response.json() as { items?: CartLine[] };
     return data.items ?? [];
-  }, [supabase]);
+  }, []);
 
-  const mergeGuestCart = useCallback(async (id: string) => {
+  const mergeGuestCart = useCallback(async () => {
     const stored = readGuestCart();
     const products = readGuestProducts();
     if (!stored.length) return;
@@ -103,7 +103,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
       });
       return Array.from(merged.values());
     });
-  }, [supabase]);
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -115,10 +115,10 @@ export function CartProvider({ children }: { children: ReactNode }) {
       setUserId(id);
 
       if (id) {
-        const remote = await loadRemoteCart(id);
+        const remote = await loadRemoteCart();
         if (!active) return;
         setItems(remote);
-        await mergeGuestCart(id);
+        await mergeGuestCart();
       } else {
         const stored = readGuestCart();
         const products = readGuestProducts();
@@ -132,8 +132,8 @@ export function CartProvider({ children }: { children: ReactNode }) {
       const nextUserId = session?.user.id ?? null;
       setUserId(nextUserId);
       if (nextUserId) {
-        await mergeGuestCart(nextUserId);
-        setItems(await loadRemoteCart(nextUserId));
+        await mergeGuestCart();
+        setItems(await loadRemoteCart());
       }
     });
 

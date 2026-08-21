@@ -1,5 +1,4 @@
 import { cache } from "react";
-import { getStaticCategoryBanners, getStaticHomepageBanners } from "@/lib/banner-assets";
 import { normalizeBannerImageVariants, normalizePublicAssetUrl } from "@/lib/banner-schema";
 import { categoryAndDescendantKeys } from "@/lib/category-tree";
 import { prisma } from "@/lib/prisma";
@@ -190,29 +189,32 @@ export async function getHomepageBanners(): Promise<HomepageBannerGroups> {
     orderBy: [{ placement: "asc" }, { sort_order: "asc" }, { title: "asc" }]
   }));
   if (!banners.length) return emptyHomepageBanners();
-  const main = banners.filter((banner) => banner.placement === "main").slice(0, 5).map(mapDbBanner);
-  const services = banners.filter((banner) => banner.placement === "services").map(mapDbBanner);
+  const main = banners.filter((banner) => banner.placement === "main").map(mapDbBanner).filter(hasUsableBannerImage);
+  const services = banners.filter((banner) => banner.placement === "services").map(mapDbBanner).filter(hasUsableBannerImage);
+  const category = banners.filter((banner) => banner.placement === "category").reduce<Record<string, Banner[]>>((groups, banner) => {
+    const key = banner.category?.slug;
+    const mapped = mapDbBanner(banner);
+    if (!key || !hasUsableBannerImage(mapped)) return groups;
+    groups[key] = [...(groups[key] ?? []), mapped];
+    return groups;
+  }, {});
 
   return {
     main,
-    category: banners.filter((banner) => banner.placement === "category").reduce<Record<string, Banner[]>>((groups, banner) => {
-      const key = banner.category?.slug;
-      if (!key) return groups;
-      groups[key] = [...(groups[key] ?? []), mapDbBanner(banner)];
-      return groups;
-    }, {}),
+    category,
     services
   };
 }
 
 export async function getCategoryBanners(categorySlug: string): Promise<Banner[]> {
-  if (isProductionBuild()) return getStaticCategoryBanners(categorySlug);
+  if (isProductionBuild()) return [];
   const banners = await prismaRead(() => prisma.banner.findMany({
     where: { is_enabled: true, placement: "category", category: { slug: categorySlug } },
     include: { category: true },
     orderBy: [{ sort_order: "asc" }, { title: "asc" }]
   }));
-  return banners.length ? banners.map(mapDbBanner) : getStaticCategoryBanners(categorySlug);
+  const mapped = banners.map(mapDbBanner).filter(hasUsableBannerImage);
+  return mapped;
 }
 
 type DbBanner = Awaited<ReturnType<typeof prisma.banner.findMany>>[number] & {
@@ -237,9 +239,34 @@ function mapDbBanner(banner: DbBanner): Banner {
     mobileImage: images.mobileImage,
     imageVariants: normalizeBannerImageVariants("image_variants" in banner ? banner.image_variants : []),
     focalPoint: bannerFocalPoint("image_variants" in banner ? banner.image_variants : []),
+    textPosition: bannerTextPosition("text_position" in banner ? banner.text_position : null),
+    overlayOpacity: bannerOverlayOpacity("overlay_opacity" in banner ? banner.overlay_opacity : null),
+    badge: bannerBadge(banner),
     placement: banner.placement,
     categoryId: banner.category_id,
     sortOrder: banner.sort_order
+  };
+}
+
+function bannerTextPosition(value: unknown) {
+  return value === "center" || value === "right" ? value : "left";
+}
+
+function bannerOverlayOpacity(value: unknown) {
+  const opacity = Number(value);
+  return Number.isFinite(opacity) ? Math.min(95, Math.max(0, opacity)) : 70;
+}
+
+function bannerBadge(banner: Record<string, unknown>): Banner["badge"] {
+  if (banner.badge_enabled !== true || typeof banner.badge_text !== "string" || !banner.badge_text.trim()) return null;
+  const position: NonNullable<Banner["badge"]>["position"] = banner.badge_position === "top-right" || banner.badge_position === "bottom-left" || banner.badge_position === "bottom-right"
+    ? banner.badge_position
+    : "top-left";
+  return {
+    enabled: true,
+    text: banner.badge_text.trim(),
+    color: typeof banner.badge_color === "string" && banner.badge_color.trim() ? banner.badge_color.trim() : "#0f766e",
+    position
   };
 }
 
@@ -272,6 +299,10 @@ function bannerAssetUrlOrNull(value: string | null | undefined) {
   if (!normalized) return null;
   if (normalized.startsWith("/banners/") || /^https?:\/\//i.test(normalized)) return normalized;
   return null;
+}
+
+function hasUsableBannerImage(banner: Banner) {
+  return Boolean(banner.image || banner.laptopImage || banner.mobileImage || banner.imageVariants?.length);
 }
 
 export async function getServices(limit?: number): Promise<ServiceEntry[]> {
@@ -341,7 +372,7 @@ function isProductionBuild() {
 }
 
 function emptyHomepageBanners(): HomepageBannerGroups {
-  return getStaticHomepageBanners();
+  return { main: [], category: {}, services: [] };
 }
 
 export function filterProductsByCategory(products: Product[], categories: Category[], categoryValue: string | null | undefined) {

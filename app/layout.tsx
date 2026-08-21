@@ -4,41 +4,44 @@ import { Header } from "@/components/Header";
 import { NotificationSystem } from "@/components/NotificationSystem";
 import { Providers } from "@/components/Providers";
 import { SiteChrome } from "@/components/SiteChrome";
-import { SITE_LOGO_PATH, SITE_URL } from "@/lib/seo";
+import { SITE_DESCRIPTION, SITE_LOGO_PATH, SITE_NAME, SITE_TITLE, SITE_URL } from "@/lib/seo";
 import "./globals.css";
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
+  applicationName: SITE_NAME,
+  manifest: "/manifest.webmanifest",
   title: {
-    default: "Ceter Technologies Limited | Printers and Photocopiers in Nairobi",
-    template: "%s | Ceter Technologies Limited"
+    default: SITE_TITLE,
+    template: `%s | ${SITE_NAME}`
   },
-  description: "Shop printers, photocopiers, toners, spare parts and printer repair services from Ceter Technologies in Nairobi.",
+  description: SITE_DESCRIPTION,
   alternates: { canonical: SITE_URL },
   verification: {
     google: process.env.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION || undefined
   },
   icons: {
     icon: [
-      { url: "/ceter-logo-pack/favicon/favicon.ico" },
+      { url: "/favicon.ico", sizes: "any" },
+      { url: "/icon.png", sizes: "512x512", type: "image/png" },
       { url: "/ceter-logo-pack/favicon/favicon-16.png", sizes: "16x16", type: "image/png" },
       { url: "/ceter-logo-pack/favicon/favicon-32.png", sizes: "32x32", type: "image/png" },
       { url: "/ceter-logo-pack/favicon/favicon-48.png", sizes: "48x48", type: "image/png" },
       { url: "/ceter-logo-pack/favicon/favicon-96.png", sizes: "96x96", type: "image/png" }
     ],
-    apple: [{ url: "/ceter-logo-pack/app-icon/apple-touch-icon-180.png", sizes: "180x180", type: "image/png" }]
+    apple: [{ url: "/apple-touch-icon.png", sizes: "180x180", type: "image/png" }]
   },
   openGraph: {
-    title: "Ceter Technologies Limited",
-    description: "Office printing equipment, consumables and IT services in Nairobi.",
+    title: SITE_TITLE,
+    description: SITE_DESCRIPTION,
     url: SITE_URL,
-    siteName: "Ceter Technologies Limited",
-    images: [{ url: SITE_LOGO_PATH, width: 1200, height: 480, alt: "Ceter Technologies Limited" }]
+    siteName: SITE_NAME,
+    images: [{ url: SITE_LOGO_PATH, width: 1200, height: 461, alt: SITE_NAME }]
   },
   twitter: {
     card: "summary_large_image",
-    title: "Ceter Technologies Limited",
-    description: "Office printing equipment, consumables and IT services in Nairobi.",
+    title: SITE_TITLE,
+    description: SITE_DESCRIPTION,
     images: [SITE_LOGO_PATH]
   }
 };

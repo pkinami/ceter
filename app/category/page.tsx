@@ -8,7 +8,7 @@ import { metadataForPage } from "@/lib/seo";
 
 export const metadata: Metadata = metadataForPage({
   title: "Office Printing Catalogue in Kenya",
-  description: "Browse Ceter Technologies products by category, brand and stock status, including printers, photocopiers, toner cartridges and spare parts in Kenya.",
+  description: "Browse Ceter Technologies Limited products by category, brand and stock status, including printers, photocopiers, toner cartridges and spare parts in Kenya.",
   path: "/category"
 });
 
@@ -35,7 +35,7 @@ export default async function CategoryPage({ searchParams }: { searchParams: Pro
           <CategoryFilterPanel categories={categories} brands={brands.map((brand) => brand.name)} />
         </Suspense>
         <section className="min-w-0 flex-1 space-y-5">
-          <BannerCarousel banners={banners.main} variant="category" compact />
+          {banners.main.length ? <BannerCarousel banners={banners.main} variant="category" compact /> : null}
           <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
             <div>
               <h1 className="text-[26px] font-bold leading-8 text-ink sm:text-3xl">{searchQuery ? `Search results for "${searchQuery}"` : params.category ? "Category listing" : "Catalog listing"}</h1>

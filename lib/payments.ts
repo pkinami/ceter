@@ -236,7 +236,7 @@ async function darajaToken() {
   const key = process.env.MPESA_CONSUMER_KEY;
   const secret = process.env.MPESA_CONSUMER_SECRET;
   if (!key || !secret) throw new Error("M-Pesa credentials are not configured.");
-  const baseUrl = process.env.MPESA_ENV === "production" ? "https://api.safaricom.co.ke" : "https://sandbox.safaricom.co.ke";
+  const baseUrl = (process.env.MPESA_ENVIRONMENT ?? process.env.MPESA_ENV) === "production" ? "https://api.safaricom.co.ke" : "https://sandbox.safaricom.co.ke";
   const response = await fetch(`${baseUrl}/oauth/v1/generate?grant_type=client_credentials`, {
     headers: { Authorization: `Basic ${Buffer.from(`${key}:${secret}`).toString("base64")}` },
     cache: "no-store"

@@ -24,7 +24,7 @@ import {
 import { metadataForPage } from "@/lib/seo";
 
 export const metadata: Metadata = metadataForPage({
-  title: "About Ceter Technologies",
+  title: "About Ceter Technologies Limited",
   description: "Learn about Ceter Technologies Limited, a Nairobi supplier of printers, photocopiers, toners, spare parts, office equipment, POS solutions and technology support.",
   path: "/about"
 });

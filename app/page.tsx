@@ -5,6 +5,7 @@ import { ArrowRight, Cloud, DatabaseBackup, Network, Server, ShieldCheck, Wrench
 import type { LucideIcon } from "lucide-react";
 import { BannerCarousel } from "@/components/BannerCarousel";
 import { CategoryTile } from "@/components/CategoryTile";
+import { FeaturedCategoriesMobile } from "@/components/FeaturedCategoriesMobile";
 import { ProductGrid } from "@/components/ProductGrid";
 import { ProductRail } from "@/components/ProductRail";
 import { Sidebar } from "@/components/Sidebar";
@@ -12,12 +13,12 @@ import { formatKes } from "@/lib/utils";
 import { buildCategoryTree, categoryAndDescendantKeys } from "@/lib/category-tree";
 import { iconForCategory } from "@/lib/category-icons";
 import { getBrands, getCategories, getHomepageBanners, getHomepageSections, getProducts, getServices } from "@/lib/data";
-import { JsonLd, metadataForPage, organizationJsonLd } from "@/lib/seo";
+import { JsonLd, SITE_DESCRIPTION, SITE_TITLE, metadataForPage, organizationJsonLd } from "@/lib/seo";
 import type { Banner, Category, Product, ServiceEntry } from "@/lib/types";
 
 export const metadata: Metadata = metadataForPage({
-  title: "Printers, Photocopiers and Toners in Kenya",
-  description: "Shop printers in Kenya, photocopiers, toner cartridges, spare parts and printer repair services from Ceter Technologies in Nairobi.",
+  title: SITE_TITLE,
+  description: SITE_DESCRIPTION,
   path: "/"
 });
 
@@ -71,15 +72,16 @@ export default async function HomePage() {
         <Sidebar categories={categories} brands={brands.map((brand) => brand.name)} />
       </Suspense>
       <JsonLd data={organizationJsonLd()} />
-      <div className="min-w-0 flex-1 space-y-6 sm:space-y-7">
-        <BannerCarousel banners={banners.main} variant="main" />
+      <div className="min-w-0 flex-1 space-y-4 sm:space-y-7">
+        {banners.main.length ? <BannerCarousel banners={banners.main} variant="main" /> : null}
 
         <section>
-          <div className="mb-2.5 flex items-center justify-between gap-3">
+          <FeaturedCategoriesMobile categories={rootCategories.slice(0, 10)} />
+          <div className="mb-2.5 hidden items-center justify-between gap-3 sm:flex">
             <h2 className="text-[21px] font-bold leading-7 text-ink sm:text-[22px]">Featured Categories</h2>
             <Link href="/category" className="inline-flex items-center gap-1 text-sm font-semibold text-signal">View all <ArrowRight className="h-4 w-4" /></Link>
           </div>
-          <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-5">
+          <div className="hidden grid-cols-2 gap-3 sm:grid md:grid-cols-3 lg:grid-cols-5">
             {rootCategories.length ? rootCategories.slice(0, 10).map((category) => {
               const Icon = iconForCategory(category.icon, category.slug);
               return (

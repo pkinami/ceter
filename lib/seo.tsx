@@ -3,6 +3,8 @@ import type { Category, Product, StockStatus } from "@/lib/types";
 
 export const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || "https://www.cetertechnologies.com").replace(/\/$/, "");
 export const SITE_NAME = "Ceter Technologies Limited";
+export const SITE_TITLE = "Ceter Technologies Limited | Printers, Photocopiers & IT Solutions Kenya";
+export const SITE_DESCRIPTION = "Ceter Technologies Limited supplies printers, photocopiers, toner cartridges, office equipment, barcode solutions and IT support services in Kenya.";
 export const SITE_LOGO_PATH = "/ceter-logo-pack/lockup/ceter-logo-horizontal-1200.png";
 export const SITE_LOGO_URL = absoluteUrl(SITE_LOGO_PATH);
 export const PUBLIC_PRODUCT_WHERE = {
@@ -10,7 +12,7 @@ export const PUBLIC_PRODUCT_WHERE = {
   archived_at: null
 } as const;
 
-const DEFAULT_DESCRIPTION = "Shop printers, photocopiers, toners, spare parts and printer repair services from Ceter Technologies in Nairobi.";
+const DEFAULT_DESCRIPTION = SITE_DESCRIPTION;
 
 export function absoluteUrl(path = "/") {
   if (/^https?:\/\//i.test(path)) return path;
@@ -64,7 +66,7 @@ export function metadataForPage({
 export function productMetadata(product: Product): Metadata {
   const title = `${product.name} ${product.brand ? `by ${product.brand}` : ""} in Kenya`.replace(/\s+/g, " ").trim();
   const description = truncateDescription(
-    `Buy ${product.name}${product.brand ? ` by ${product.brand}` : ""}${product.category ? ` in ${product.category}` : ""} from Ceter Technologies in Nairobi. Price: KES ${product.price.toLocaleString("en-KE")}.`
+    `Buy ${product.name}${product.brand ? ` by ${product.brand}` : ""}${product.category ? ` in ${product.category}` : ""} from Ceter Technologies Limited in Nairobi. Price: KES ${product.price.toLocaleString("en-KE")}.`
   );
   const image = firstCrawlableImage(product.images) ?? SITE_LOGO_PATH;
   return metadataForPage({ title, description, path: `/product/${product.slug}`, image });
@@ -75,8 +77,8 @@ export function categoryMetadata(category: Category): Metadata {
   const title = `${category.name} | ${focusPhrase}`;
   const description = truncateDescription(
     category.description
-      ? `${category.description} Browse ${focusPhrase} from Ceter Technologies in Nairobi.`
-      : `Browse ${focusPhrase} from Ceter Technologies, including dependable office equipment, consumables and support options in Kenya.`
+      ? `${category.description} Browse ${focusPhrase} from Ceter Technologies Limited in Nairobi.`
+      : `Browse ${focusPhrase} from Ceter Technologies Limited, including dependable office equipment, consumables and support options in Kenya.`
   );
   return metadataForPage({ title, description, path: `/category/${category.slug}` });
 }
@@ -112,6 +114,7 @@ export function organizationJsonLd() {
     name: SITE_NAME,
     url: SITE_URL,
     logo: SITE_LOGO_URL,
+    image: SITE_LOGO_URL,
     telephone: "+254707143322",
     email: "info@cetertechnologies.com",
     sameAs: [

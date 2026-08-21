@@ -5,7 +5,7 @@ import { metadataForPage, PUBLIC_PRODUCT_WHERE } from "@/lib/seo";
 
 export const metadata: Metadata = metadataForPage({
   title: "Printer Repair Nairobi and Service Quotes",
-  description: "Request printer repair in Nairobi, office equipment maintenance, spare parts, installation or managed print support from Ceter Technologies.",
+  description: "Request printer repair in Nairobi, office equipment maintenance, spare parts, installation or managed print support from Ceter Technologies Limited.",
   path: "/quote"
 });
 

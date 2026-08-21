@@ -15,6 +15,7 @@
     "db:migrate": "prisma migrate deploy",
     "db:seed": "prisma db execute --file prisma/seed.sql",
     "verify:db": "node scripts/verify-supabase.mjs",
+    "test:codex:phase3a": "node scripts/test-codex-phase3a.mjs",
     "setup:admin": "node scripts/setup-admin.mjs"
   },
   "dependencies": {

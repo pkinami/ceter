@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { handleMpesaCallbackPayload } from "@/lib/business/mpesa";
 import { markPaymentStatus } from "@/lib/payments";
 import { prisma } from "@/lib/prisma";
 
@@ -10,6 +11,9 @@ export async function POST(request: Request) {
   const payload = await request.json().catch(() => null);
   const callback = payload?.Body?.stkCallback;
   if (!callback?.CheckoutRequestID) return NextResponse.json({ ResultCode: 1, ResultDesc: "Invalid callback" }, { status: 400 });
+
+  const invoiceTransaction = await handleMpesaCallbackPayload(payload).catch(() => null);
+  if (invoiceTransaction) return NextResponse.json({ ResultCode: 0, ResultDesc: "Accepted" });
 
   const payment = await prisma.paymentTransaction.findUnique({
     where: { checkout_request_id: String(callback.CheckoutRequestID) }

@@ -1,4 +1,3 @@
-export const HOMEPAGE_BANNER_LIMIT = 5;
 export const BANNER_MAX_FILE_SIZE = 3 * 1024 * 1024;
 export const BANNER_ALLOWED_TYPES = ["image/jpeg", "image/png", "image/webp"] as const;
 

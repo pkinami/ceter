@@ -90,9 +90,21 @@ export type Banner = {
   mobileImage: string | null;
   imageVariants?: BannerImageVariant[];
   focalPoint?: BannerFocalPoint;
+  textPosition?: BannerTextPosition;
+  overlayOpacity?: number;
+  badge?: BannerBadge | null;
   placement: BannerPlacement;
   categoryId: string | null;
   sortOrder: number;
+};
+
+export type BannerTextPosition = "left" | "center" | "right";
+
+export type BannerBadge = {
+  enabled: boolean;
+  text: string;
+  color: string;
+  position: "top-left" | "top-right" | "bottom-left" | "bottom-right";
 };
 
 export type BannerFocalPoint = {

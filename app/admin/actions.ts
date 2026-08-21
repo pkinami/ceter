@@ -11,7 +11,7 @@ import { stockStatusForQuantity } from "@/lib/admin/data";
 import { DELIVERY_REGIONS } from "@/lib/delivery";
 import { normalizePublicAssetUrl } from "@/lib/banner-schema";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { BANNER_ALLOWED_TYPES, BANNER_IMAGE_SLOTS, BANNER_MAX_FILE_SIZE, HOMEPAGE_BANNER_LIMIT, HOMEPAGE_BANNER_REQUIREMENTS, type BannerImageSlot } from "@/lib/banner-requirements";
+import { BANNER_ALLOWED_TYPES, BANNER_IMAGE_SLOTS, BANNER_MAX_FILE_SIZE, HOMEPAGE_BANNER_REQUIREMENTS, type BannerImageSlot } from "@/lib/banner-requirements";
 
 function parseImages(value: FormDataEntryValue | null) {
   const text = String(value ?? "").trim();
@@ -158,6 +158,26 @@ function parseBannerVariants(value: FormDataEntryValue | null) {
   } catch {
     return [];
   }
+}
+
+function bannerTextPosition(value: FormDataEntryValue | null) {
+  const text = String(value ?? "left");
+  return text === "center" || text === "right" ? text : "left";
+}
+
+function bannerOverlayOpacity(value: FormDataEntryValue | null) {
+  const parsed = Number(value ?? 70);
+  return Number.isFinite(parsed) ? Math.min(95, Math.max(0, Math.round(parsed))) : 70;
+}
+
+function bannerBadgePosition(value: FormDataEntryValue | null) {
+  const text = String(value ?? "top-left");
+  return text === "top-right" || text === "bottom-left" || text === "bottom-right" ? text : "top-left";
+}
+
+function bannerBadgeColor(value: FormDataEntryValue | null) {
+  const text = String(value ?? "").trim();
+  return /^#[0-9a-f]{6}$/i.test(text) ? text : "#0f766e";
 }
 
 async function bannerImageVariantsFromForm(formData: FormData, slug: string) {
@@ -913,10 +933,6 @@ export async function upsertBannerAction(formData: FormData) {
   const placement = String(formData.get("placement") ?? "main") as BannerPlacement;
   const isEnabled = formData.get("is_enabled") === "on";
   const categoryId = String(formData.get("category_id") ?? "") || null;
-  if (isEnabled && placement === "main") {
-    const liveCount = await prisma.banner.count({ where: { placement: "main", is_enabled: true, id: id ? { not: id } : undefined } });
-    if (liveCount >= HOMEPAGE_BANNER_LIMIT) messageRedirect(returnTo, "error", `Only ${HOMEPAGE_BANNER_LIMIT} live homepage banners are allowed. Disable or delete one before enabling another.`);
-  }
   let image: string | null = null;
   let laptop_image: string | null = null;
   let mobile_image: string | null = null;
@@ -931,6 +947,7 @@ export async function upsertBannerAction(formData: FormData) {
     const masterUrl = uploadedMaster?.url ?? existingMaster?.url ?? bannerImageValueFromForm(formData, "image", String(formData.get("existing_image") ?? "") || null);
     const masterWidth = uploadedMaster?.width ?? (Number(existingMaster?.width) || 1920);
     const masterHeight = uploadedMaster?.height ?? (Number(existingMaster?.height) || 720);
+    const responsiveVariants = await bannerImageVariantsFromForm(formData, slug);
 
     image_variants = masterUrl ? [{
       slot: "master",
@@ -942,19 +959,19 @@ export async function upsertBannerAction(formData: FormData) {
       focalX: Number.isFinite(focalX) ? focalX : 50,
       focalY: Number.isFinite(focalY) ? focalY : 50,
       crop: nullableString(formData.get("crop_metadata"))
-    }] : await bannerImageVariantsFromForm(formData, slug);
+    }, ...responsiveVariants] : responsiveVariants;
 
-    image = masterUrl
-      ?? image_variants.find((variant) => variant.slot === "wide_1600")?.url
+    image = image_variants.find((variant) => variant.slot === "wide_1600")?.url
       ?? image_variants.find((variant) => variant.shape === "wide")?.url
+      ?? masterUrl
       ?? bannerImageValueFromForm(formData, "image", String(formData.get("existing_image") ?? "") || null);
-    laptop_image = masterUrl
-      ?? image_variants.find((variant) => variant.slot === "mid_1280")?.url
+    laptop_image = image_variants.find((variant) => variant.slot === "mid_1280")?.url
       ?? image_variants.find((variant) => variant.shape === "mid")?.url
+      ?? masterUrl
       ?? bannerImageValueFromForm(formData, "laptop_image", String(formData.get("existing_laptop_image") ?? "") || null);
-    mobile_image = masterUrl
-      ?? image_variants.find((variant) => variant.slot === "tall_720")?.url
+    mobile_image = image_variants.find((variant) => variant.slot === "tall_720")?.url
       ?? image_variants.find((variant) => variant.shape === "tall")?.url
+      ?? masterUrl
       ?? bannerImageValueFromForm(formData, "mobile_image", String(formData.get("existing_mobile_image") ?? "") || null);
   } catch (error) {
     await removeBannerStorageObjects([image, laptop_image, mobile_image, ...image_variants.map((variant) => variant.url)]).catch(() => undefined);
@@ -970,6 +987,12 @@ export async function upsertBannerAction(formData: FormData) {
     laptop_image,
     mobile_image,
     image_variants: image_variants as Prisma.InputJsonValue,
+    text_position: bannerTextPosition(formData.get("text_position")),
+    overlay_opacity: bannerOverlayOpacity(formData.get("overlay_opacity")),
+    badge_enabled: formData.get("badge_enabled") === "on",
+    badge_text: nullableString(formData.get("badge_text")),
+    badge_color: bannerBadgeColor(formData.get("badge_color")),
+    badge_position: bannerBadgePosition(formData.get("badge_position")),
     placement,
     category_id: categoryId,
     sort_order: Number(formData.get("sort_order") ?? 0),

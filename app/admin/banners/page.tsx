@@ -11,7 +11,7 @@ export default async function BannersPage({ searchParams }: Props) {
   const [banners, { categories }] = await Promise.all([getBanners(), getProductFilters()]);
   return (
     <>
-      <PageHeader title="Banners & Storefront" copy="Manage up to five live homepage banners with aspect-ratio responsive image variants." />
+      <PageHeader title="Banners & Storefront" copy="Create, order, preview and publish responsive database-driven storefront banners." />
       <BannerManagementClient
         banners={banners.map((banner) => ({
           id: banner.id,
@@ -24,6 +24,12 @@ export default async function BannersPage({ searchParams }: Props) {
           laptop_image: banner.laptop_image,
           mobile_image: banner.mobile_image,
           image_variants: banner.image_variants,
+          text_position: banner.text_position,
+          overlay_opacity: banner.overlay_opacity,
+          badge_enabled: banner.badge_enabled,
+          badge_text: banner.badge_text,
+          badge_color: banner.badge_color,
+          badge_position: banner.badge_position,
           placement: banner.placement,
           category_id: banner.category_id,
           sort_order: banner.sort_order,

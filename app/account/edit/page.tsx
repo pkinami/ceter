@@ -29,6 +29,10 @@ export default async function EditAccountPage({ searchParams }: { searchParams: 
     },
     select: { full_name: true, phone: true, email: true, delivery_region: true, delivery_location: true, delivery_instructions: true }
   });
+  const customer = await prisma.customer.findFirst({
+    where: { profile_id: userData.user.id },
+    select: { company_name: true, tax_pin: true, notes: true }
+  });
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-8">
@@ -53,6 +57,18 @@ export default async function EditAccountPage({ searchParams }: { searchParams: 
           <label className="block text-sm font-bold text-slate-700">
             Email address
             <input id="account-email" name="email" type="email" autoComplete="email" placeholder="you@example.com" defaultValue={profile?.email ?? userData.user.email ?? ""} className="mt-2 h-11 w-full rounded-md border border-slate-300 px-3 text-sm focus:border-signal focus:outline-none" />
+          </label>
+          <label className="block text-sm font-bold text-slate-700">
+            Company name
+            <input id="account-company-name" name="company_name" autoComplete="organization" placeholder="Company or trading name" defaultValue={customer?.company_name ?? ""} className="mt-2 h-11 w-full rounded-md border border-slate-300 px-3 text-sm focus:border-signal focus:outline-none" />
+          </label>
+          <label className="block text-sm font-bold text-slate-700">
+            KRA PIN
+            <input id="account-tax-pin" name="tax_pin" autoComplete="off" placeholder="Optional billing PIN" defaultValue={customer?.tax_pin ?? ""} className="mt-2 h-11 w-full rounded-md border border-slate-300 px-3 text-sm focus:border-signal focus:outline-none" />
+          </label>
+          <label className="block text-sm font-bold text-slate-700">
+            Billing information
+            <textarea id="account-billing-information" name="billing_information" autoComplete="off" placeholder="Optional billing notes, purchase order instructions, or invoice contact" defaultValue={customer?.notes ?? ""} rows={3} className="mt-2 w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-signal focus:outline-none" />
           </label>
           <label className="block text-sm font-bold text-slate-700">
             Delivery region

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type TouchEvent } from "react";
 import { motion, PanInfo, useReducedMotion } from "framer-motion";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import Link from "next/link";
@@ -15,39 +15,39 @@ const variantConfig = {
   main: {
     interval: 15000,
     duration: 0.55,
-    sectionClass: "h-[clamp(336px,52svh,384px)] min-h-0 max-h-none sm:aspect-[9/5] sm:h-auto sm:min-h-[330px] md:aspect-auto md:h-[clamp(220px,18vw,250px)] md:min-h-0 2xl:h-[clamp(270px,15vw,290px)]",
-    contentClass: "h-full justify-end px-4 pb-11 pt-[178px] sm:justify-center sm:px-8 sm:py-6 md:max-w-[45%] lg:px-9",
-    titleClass: "text-[23px] leading-7 sm:text-4xl sm:leading-[1.08] lg:text-[40px]",
-    bodyClass: "text-[13px] sm:text-[15px] lg:text-base",
+    sectionClass: "h-[clamp(276px,66vw,300px)] min-h-0 sm:h-[clamp(258px,34vw,306px)] md:h-[268px] lg:h-[280px] min-[1366px]:h-[292px] min-[1600px]:h-[312px]",
+    contentClass: "h-full w-[76%] max-w-[36rem] px-7 py-7 sm:w-[68%] sm:max-w-[40rem] sm:px-10 md:w-[62%] md:max-w-[42rem] md:px-11 lg:w-[58%] xl:w-[54%]",
+    titleClass: "text-[clamp(21px,5.4vw,27px)] leading-[1.16] sm:text-[clamp(29px,3.4vw,36px)] sm:leading-[1.1] lg:text-[clamp(34px,2.35vw,38px)] lg:leading-[1.08] min-[1600px]:text-[40px]",
+    bodyClass: "text-[clamp(13px,3.35vw,15px)] leading-[1.55] sm:text-[clamp(15px,1.6vw,16px)] md:text-[clamp(15px,1.05vw,16px)]",
     imageClass: "",
-    imageWrapClass: "bottom-[45%] sm:bottom-0",
-    overlayClass: "bg-gradient-to-b from-ink/10 via-ink/20 to-ink/96 sm:bg-gradient-to-r sm:from-ink/88 sm:via-ink/35 sm:to-ink/0",
+    imageWrapClass: "",
+    overlayClass: "bg-gradient-to-r from-ink/86 via-ink/42 to-ink/8",
     initial: { opacity: 0 },
     animate: { opacity: 1 }
   },
   category: {
     interval: 15000,
     duration: 0.6,
-    sectionClass: "aspect-[4/5] min-h-[260px] max-h-[min(54dvh,460px)] sm:aspect-[9/5] md:aspect-[21/9] lg:aspect-[32/9] md:min-h-[190px]",
-    contentClass: "h-full px-5 py-6 sm:px-8",
-    titleClass: "text-2xl sm:text-3xl",
-    bodyClass: "text-sm sm:text-base",
+    sectionClass: "h-[clamp(268px,64vw,294px)] min-h-0 sm:h-[clamp(252px,32vw,298px)] md:h-[260px] lg:h-[272px] min-[1366px]:h-[286px] min-[1600px]:h-[304px]",
+    contentClass: "h-full w-[76%] max-w-[36rem] px-7 py-7 sm:w-[68%] sm:max-w-[40rem] sm:px-10 md:w-[62%] md:max-w-[42rem] lg:w-[58%] xl:w-[54%]",
+    titleClass: "text-[clamp(21px,5.3vw,27px)] leading-[1.16] sm:text-[clamp(29px,3.3vw,35px)] sm:leading-[1.1] lg:text-[clamp(33px,2.25vw,37px)] lg:leading-[1.08] min-[1600px]:text-[39px]",
+    bodyClass: "text-[clamp(13px,3.3vw,15px)] leading-[1.55] sm:text-[clamp(15px,1.55vw,16px)] md:text-[clamp(15px,1vw,16px)]",
     imageClass: "scale-100",
     imageWrapClass: "",
-    overlayClass: "bg-gradient-to-r from-ink/90 via-ink/50 to-ink/10",
+    overlayClass: "bg-gradient-to-r from-ink/88 via-ink/44 to-ink/8",
     initial: { opacity: 0 },
     animate: { opacity: 1 }
   },
   services: {
     interval: 15000,
     duration: 0.8,
-    sectionClass: "aspect-[4/5] min-h-[260px] max-h-[min(54dvh,480px)] sm:aspect-[5/3] md:aspect-[2/1] lg:aspect-[16/5] md:min-h-[210px]",
-    contentClass: "h-full px-5 py-6 sm:px-8",
-    titleClass: "text-2xl sm:text-4xl",
-    bodyClass: "text-sm sm:text-base",
+    sectionClass: "h-[clamp(268px,64vw,294px)] min-h-0 sm:h-[clamp(252px,32vw,298px)] md:h-[260px] lg:h-[272px] min-[1366px]:h-[286px] min-[1600px]:h-[304px]",
+    contentClass: "h-full w-[76%] max-w-[36rem] px-7 py-7 sm:w-[68%] sm:max-w-[40rem] sm:px-10 md:w-[62%] md:max-w-[42rem] lg:w-[58%] xl:w-[54%]",
+    titleClass: "text-[clamp(21px,5.3vw,27px)] leading-[1.16] sm:text-[clamp(29px,3.3vw,35px)] sm:leading-[1.1] lg:text-[clamp(33px,2.25vw,37px)] lg:leading-[1.08] min-[1600px]:text-[39px]",
+    bodyClass: "text-[clamp(13px,3.3vw,15px)] leading-[1.55] sm:text-[clamp(15px,1.55vw,16px)] md:text-[clamp(15px,1vw,16px)]",
     imageClass: "scale-[1.02]",
     imageWrapClass: "",
-    overlayClass: "bg-gradient-to-r from-ink/90 via-ink/50 to-ink/10",
+    overlayClass: "bg-gradient-to-r from-ink/88 via-ink/44 to-ink/8",
     initial: { opacity: 0 },
     animate: { opacity: 1 }
   }
@@ -68,6 +68,7 @@ export function BannerCarousel({
   const [paused, setPaused] = useState(false);
   const [rotationResetKey, setRotationResetKey] = useState(0);
   const requestIdRef = useRef(0);
+  const touchStartRef = useRef<{ x: number; y: number } | null>(null);
   const reduceMotion = useReducedMotion();
   const config = variantConfig[variant];
   const visibleBanners = useMemo(() => banners, [banners]);
@@ -111,9 +112,25 @@ export function BannerCarousel({
     void moveTo(active + direction, true);
   }
 
-  function onDragEnd(_: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) {
+  function onDragEnd(_: MouseEvent | globalThis.TouchEvent | PointerEvent, info: PanInfo) {
     if (info.offset.x > 50) move(-1);
     if (info.offset.x < -50) move(1);
+  }
+
+  function onTouchStart(event: TouchEvent<HTMLElement>) {
+    if (visibleBanners.length <= 1 || (event.target as HTMLElement).closest("a,button")) return;
+    const touch = event.touches[0];
+    touchStartRef.current = { x: touch.clientX, y: touch.clientY };
+  }
+
+  function onTouchEnd(event: TouchEvent<HTMLElement>) {
+    if (!touchStartRef.current || visibleBanners.length <= 1) return;
+    const touch = event.changedTouches[0];
+    const deltaX = touch.clientX - touchStartRef.current.x;
+    const deltaY = touch.clientY - touchStartRef.current.y;
+    touchStartRef.current = null;
+    if (Math.abs(deltaX) < 44 || Math.abs(deltaX) < Math.abs(deltaY) * 1.2) return;
+    move(deltaX > 0 ? -1 : 1);
   }
 
   if (!visibleBanners.length) return null;
@@ -126,6 +143,9 @@ export function BannerCarousel({
       className={cn("relative isolate w-full max-w-full overflow-hidden rounded-lg border border-slate-300 bg-ink shadow-industrial", config.sectionClass, className)}
       onMouseEnter={() => setPaused(true)}
       onMouseLeave={() => setPaused(false)}
+      onTouchStart={onTouchStart}
+      onTouchEnd={onTouchEnd}
+      data-banner-carousel={variant}
     >
       {visibleBanners.map((item, index) => (
         <motion.div
@@ -138,20 +158,22 @@ export function BannerCarousel({
           animate={index === active ? motionState.animate : { opacity: 0 }}
           transition={transition}
           aria-hidden={index !== active}
+          data-banner-slide={index}
         >
-          <BannerImage banner={item} imageClass={config.imageClass} imageWrapClass={config.imageWrapClass} reduceMotion={Boolean(reduceMotion)} active={index === active} />
-          <div className={cn("pointer-events-none absolute inset-0 z-10", config.overlayClass)} />
-          <div className={cn("relative z-20 flex h-full max-w-4xl flex-col justify-center drop-shadow-[0_2px_10px_rgba(0,0,0,0.55)]", config.contentClass)}>
-            {item.kicker ? <p className="text-[11px] font-bold uppercase tracking-normal text-teal-200 sm:text-sm">{item.kicker}</p> : null}
-            <h1 className={cn("mt-2 max-w-[min(42rem,calc(100vw-3rem))] font-bold leading-tight text-balance md:mt-1", config.titleClass)}>{item.title}</h1>
-            <p className={cn("mt-2 max-w-[min(36rem,calc(100vw-3rem))] leading-[18px] text-slate-100 sm:mt-2 sm:leading-6 md:line-clamp-1", config.bodyClass)}>{item.body}</p>
+          {index === active ? <BannerImage banner={item} imageClass={config.imageClass} imageWrapClass={config.imageWrapClass} reduceMotion={Boolean(reduceMotion)} active={index === active} /> : null}
+          <div className="pointer-events-none absolute inset-0 z-10" style={bannerOverlayStyle(item)} />
+          <BannerBadge banner={item} />
+          <div className={cn("relative z-20 flex h-full max-w-4xl flex-col justify-center drop-shadow-[0_2px_10px_rgba(0,0,0,0.55)]", config.contentClass, item.badge?.enabled && item.badge.position === "top-left" && item.textPosition !== "right" && "pt-12 sm:pt-14 md:pt-16", bannerContentClass(item))}>
+            {item.kicker ? <p className="line-clamp-1 text-[10px] font-bold uppercase leading-none tracking-normal text-teal-200 sm:text-[11px] md:text-xs">{item.kicker}</p> : null}
+            <h1 className={cn("mt-3 w-full max-w-[min(620px,100%)] font-semibold tracking-normal sm:mt-3.5", config.titleClass)}>{item.title}</h1>
+            <p className={cn("mt-3 w-full max-w-[min(560px,100%)] text-slate-100 sm:mt-3.5", config.bodyClass)}>{item.body}</p>
             {item.ctaLabel && item.ctaHref ? (
-              <div className="mt-3 flex flex-wrap gap-3 sm:mt-4 md:mt-3">
-                <Link href={item.ctaHref} className="inline-flex min-h-10 w-fit items-center rounded-md bg-white px-4 py-2 text-sm font-semibold text-ink shadow hover:bg-slate-100 sm:min-h-10 sm:px-4 sm:py-2 md:min-h-11">
+              <div className="mt-4 flex flex-wrap gap-2 sm:mt-5 md:mt-5">
+                <Link href={item.ctaHref} className="inline-flex h-10 min-h-10 w-fit items-center rounded-md bg-white px-3.5 text-sm font-semibold text-ink shadow hover:bg-slate-100 sm:h-10 sm:min-h-10 sm:px-4 md:h-11 md:min-h-11">
                   {item.ctaLabel}
                 </Link>
                 {item.secondaryCtaLabel && item.secondaryCtaHref ? (
-                  <Link href={item.secondaryCtaHref} className="inline-flex min-h-10 w-fit items-center rounded-md border border-white/80 bg-white/15 px-4 py-2 text-sm font-semibold text-white shadow hover:bg-white/25 sm:min-h-10 sm:px-4 sm:py-2 md:min-h-11">
+                  <Link href={item.secondaryCtaHref} className="inline-flex h-10 min-h-10 w-fit items-center rounded-md border border-white/80 bg-white/15 px-3.5 text-sm font-semibold text-white shadow hover:bg-white/25 sm:h-10 sm:min-h-10 sm:px-4 md:h-11 md:min-h-11">
                     {item.secondaryCtaLabel}
                   </Link>
                 ) : null}
@@ -163,26 +185,35 @@ export function BannerCarousel({
 
       {visibleBanners.length > 1 ? (
         <>
-          <button className="absolute left-3 top-[27%] z-20 grid h-9 w-9 -translate-y-1/2 place-items-center rounded-full border border-white/70 bg-ink/70 text-white shadow backdrop-blur hover:bg-ink sm:top-1/2 sm:h-10 sm:w-10 sm:bg-white/92 sm:text-ink sm:hover:bg-white" onClick={() => move(-1)} aria-label="Previous banner" title="Previous banner">
-            <ChevronLeft className="h-4 w-4 sm:h-5 sm:w-5" />
+          <button className="group/banner-arrow absolute left-0.5 top-1/2 z-20 grid h-11 w-11 -translate-y-1/2 place-items-center text-white opacity-45 hover:opacity-100 focus-visible:opacity-100 active:opacity-100 sm:left-1 md:left-2" onClick={() => move(-1)} aria-label="Previous banner" title="Previous banner" data-banner-prev>
+            <span className="grid h-7 w-7 place-items-center rounded-full border border-white/45 bg-ink/45 shadow backdrop-blur transition-colors group-hover/banner-arrow:bg-ink/75 group-focus-visible/banner-arrow:bg-ink/75 sm:h-8 sm:w-8">
+              <ChevronLeft className="h-4 w-4 sm:h-5 sm:w-5" />
+            </span>
           </button>
-          <button className="absolute right-3 top-[27%] z-20 grid h-9 w-9 -translate-y-1/2 place-items-center rounded-full border border-white/70 bg-ink/70 text-white shadow backdrop-blur hover:bg-ink sm:top-1/2 sm:h-10 sm:w-10 sm:bg-white/92 sm:text-ink sm:hover:bg-white" onClick={() => move(1)} aria-label="Next banner" title="Next banner">
-            <ChevronRight className="h-4 w-4 sm:h-5 sm:w-5" />
+          <button className="group/banner-arrow absolute right-0.5 top-1/2 z-20 grid h-11 w-11 -translate-y-1/2 place-items-center text-white opacity-45 hover:opacity-100 focus-visible:opacity-100 active:opacity-100 sm:right-1 md:right-2" onClick={() => move(1)} aria-label="Next banner" title="Next banner" data-banner-next>
+            <span className="grid h-7 w-7 place-items-center rounded-full border border-white/45 bg-ink/45 shadow backdrop-blur transition-colors group-hover/banner-arrow:bg-ink/75 group-focus-visible/banner-arrow:bg-ink/75 sm:h-8 sm:w-8">
+              <ChevronRight className="h-4 w-4 sm:h-5 sm:w-5" />
+            </span>
           </button>
         </>
       ) : null}
 
-      <div className="absolute bottom-3 left-1/2 z-20 flex max-w-[calc(100%-2rem)] -translate-x-1/2 gap-1.5 sm:bottom-3 sm:gap-1.5">
-        {visibleBanners.map((item, index) => (
-          <button
-            key={item.id}
-            onClick={() => void moveTo(index, true)}
-            className={cn("min-h-0 h-1.5 w-1.5 rounded-full bg-white/55 p-0 transition-colors hover:bg-white sm:h-2 sm:w-2", index === active && "bg-white ring-2 ring-white/30")}
-            aria-label={`Go to banner ${index + 1}`}
-            aria-current={index === active}
-          />
-        ))}
-      </div>
+      {visibleBanners.length > 1 ? (
+        <div className="absolute bottom-3 left-1/2 z-20 flex max-w-[calc(100%-2rem)] -translate-x-1/2 gap-1.5 sm:bottom-3 sm:gap-1.5">
+          {visibleBanners.map((item, index) => (
+            <button
+              key={item.id}
+              onClick={() => void moveTo(index, true)}
+              className={cn("h-3 min-h-0 w-3 rounded-full p-[3px]", index === active ? "bg-white/25" : "bg-transparent")}
+              aria-label={`Go to banner ${index + 1}`}
+              aria-current={index === active}
+              data-banner-dot={index}
+            >
+              <span className={cn("block h-1.5 w-1.5 rounded-full bg-white/55 transition-colors hover:bg-white sm:h-2 sm:w-2", index === active && "bg-white")} />
+            </button>
+          ))}
+        </div>
+      ) : null}
     </section>
   );
 }
@@ -201,7 +232,7 @@ function BannerImage({ banner, imageClass, imageWrapClass, reduceMotion, active 
 
   const useResponsiveSources = Boolean(manifestBanner && imageMode === "responsive");
   const priority = manifestBanner?.priority ?? "lazy";
-  const focalPosition = banner.focalPoint ? `${banner.focalPoint.x}% ${banner.focalPoint.y}%` : "center";
+  const focalPosition = bannerObjectPosition(banner);
 
   return (
     <picture className={cn("absolute inset-0 z-0 block w-full overflow-hidden bg-ink", imageWrapClass)}>
@@ -221,6 +252,55 @@ function BannerImage({ banner, imageClass, imageWrapClass, reduceMotion, active 
         }}
       />
     </picture>
+  );
+}
+
+function bannerObjectPosition(banner: Banner) {
+  if (!banner.focalPoint) return "center center";
+  if (banner.focalPoint.mode === "left") return `${Math.min(banner.focalPoint.x, 32)}% ${banner.focalPoint.y}%`;
+  if (banner.focalPoint.mode === "right") return `${Math.max(banner.focalPoint.x, 68)}% ${banner.focalPoint.y}%`;
+  return `${banner.focalPoint.x}% ${banner.focalPoint.y}%`;
+}
+
+function bannerContentClass(banner: Banner) {
+  if (banner.textPosition === "center") return "mx-auto items-center text-center";
+  if (banner.textPosition === "right") return "ml-auto items-end text-right";
+  const x = banner.focalPoint?.x ?? 50;
+  if (x < 45) return "ml-auto items-end text-right";
+  return "items-start text-left";
+}
+
+function bannerOverlayStyle(banner: Banner) {
+  const opacity = Math.min(95, Math.max(0, banner.overlayOpacity ?? 70)) / 100;
+  const heavy = `rgba(11, 30, 57, ${opacity})`;
+  const mid = `rgba(11, 30, 57, ${Math.max(0, opacity * 0.46)})`;
+  const soft = `rgba(11, 30, 57, ${Math.max(0, opacity * 0.18)})`;
+  const light = `rgba(11, 30, 57, ${Math.max(0, opacity * 0.06)})`;
+  if (banner.textPosition === "center") {
+    return { background: `linear-gradient(90deg, ${soft}, ${heavy}, ${soft})` };
+  }
+  if (banner.textPosition === "right" || (banner.textPosition !== "left" && (banner.focalPoint?.x ?? 50) < 45)) {
+    return { background: `linear-gradient(270deg, ${heavy} 0%, ${heavy} 30%, ${mid} 54%, ${light} 78%)` };
+  }
+  return { background: `linear-gradient(90deg, ${heavy} 0%, ${heavy} 30%, ${mid} 54%, ${light} 78%)` };
+}
+
+function BannerBadge({ banner }: { banner: Banner }) {
+  if (!banner.badge?.enabled) return null;
+  return (
+    <div
+      className={cn(
+        "pointer-events-none absolute z-30 rounded-md px-2.5 py-1 text-[11px] font-black uppercase tracking-normal text-white shadow",
+        banner.badge.position === "top-right" && "right-4 top-4",
+        banner.badge.position === "bottom-left" && "bottom-4 left-4",
+        banner.badge.position === "bottom-right" && "bottom-4 right-4",
+        banner.badge.position === "top-left" && "left-4 top-4"
+      )}
+      style={{ backgroundColor: banner.badge.color }}
+      data-banner-badge
+    >
+      {banner.badge.text}
+    </div>
   );
 }
 
@@ -256,7 +336,7 @@ function OptimizedBannerPicture({
     alt: banner.alt,
     quality: 92,
     sizes: "100vw",
-    priority: priority === "high"
+    priority: active || priority === "high"
   };
   const wideProps = getImageProps({ ...common, src: wide, width: 1920, height: 720 }).props;
   const midProps = getImageProps({ ...common, src: mid, width: 1280, height: 549 }).props;
@@ -288,10 +368,10 @@ function OptimizedBannerPicture({
           const failedUrl = event.currentTarget.currentSrc || event.currentTarget.src;
           onError(failedUrl);
         }}
-        className={cn("absolute inset-0 h-full w-full transform-gpu object-cover object-center [backface-visibility:hidden] will-change-transform", imageClass)}
-        style={{ objectPosition: focalPosition }}
-        loading={priority === "high" ? "eager" : "lazy"}
-        fetchPriority={priority === "high" ? "high" : "auto"}
+        className={cn("absolute inset-0 h-full w-full transform-gpu object-cover object-[var(--banner-focal)] [backface-visibility:hidden] will-change-transform max-sm:object-[38%_center]", imageClass)}
+        style={{ "--banner-focal": focalPosition } as CSSProperties}
+        loading={active || priority === "high" ? "eager" : "lazy"}
+        fetchPriority={active || priority === "high" ? "high" : "auto"}
         decoding="async"
         initial={false}
         animate={{ scale: 1 }}
