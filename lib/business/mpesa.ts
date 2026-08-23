@@ -209,12 +209,14 @@ export async function completeInvoiceMpesaTransaction(input: {
   });
 }
 
-export function mpesaAdminMessage(status: MpesaPaymentStatus, failureReason?: string | null) {
+export function mpesaOperationsMessage(status: MpesaPaymentStatus, failureReason?: string | null) {
   if (status === "completed") return "Successful payment: receipt generated from verified M-Pesa reference.";
   if (status === "failed") return `Failed payment: ${failureReason ?? "callback failed, timed out, or settlement could not be completed."}`;
   if (status === "cancelled") return `Failed payment: customer cancelled the STK request${failureReason ? ` (${failureReason})` : ""}.`;
   return "Pending payment: STK request sent; wait for customer approval and verified callback before receipting.";
 }
+
+export const mpesaAdminMessage = mpesaOperationsMessage;
 
 export async function handleMpesaCallbackPayload(payload: unknown) {
   const callback = (payload as { Body?: { stkCallback?: Record<string, unknown> } } | null)?.Body?.stkCallback;

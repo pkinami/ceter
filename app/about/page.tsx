@@ -42,7 +42,7 @@ const offers = [
   { icon: Wrench, title: "Printer spare parts", text: "Replacement parts and accessories to help extend equipment service life." },
   { icon: Barcode, title: "Barcode and POS solutions", text: "Barcode printers, label printing equipment and POS-related technology for operational environments." },
   { icon: IdCard, title: "ID card printing solutions", text: "ID card printer options and related consumables for organizations with card issuance needs." },
-  { icon: ShoppingBag, title: "Office equipment", text: "Office technology products selected for business, institutional and administrative use." },
+  { icon: ShoppingBag, title: "Office equipment", text: "Office technology products selected for business, institutional and operational use." },
   { icon: Cpu, title: "IT and business technology solutions", text: "Technology support for organizations that need practical business systems and equipment advice." },
   { icon: Headphones, title: "Printer repair and maintenance services", text: "Repair, maintenance and service quotation support for printers, photocopiers and related equipment." }
 ] satisfies ProfileItem[];

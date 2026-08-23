@@ -2,6 +2,6 @@
 --
 -- This file intentionally does not insert catalogue records.
 -- Products, categories, brands, banners, homepage sections, and services should
--- come from admin CRUD or clean imports, not from demo/sample seed data.
+-- come from clean imports or purpose-built management tooling, not demo/sample seed data.
 --
 -- Safe to run against an empty catalogue.

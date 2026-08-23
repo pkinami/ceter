@@ -1,13 +1,5 @@
-import { ExcelImportPanel } from "@/app/admin/ExcelImportPanel";
-import { PageHeader } from "@/components/admin/AdminPrimitives";
-import { requireAdminSession } from "@/lib/admin/auth";
+import { CeterAdminWorkspace } from "@/components/admin/CeterAdminWorkspace";
 
-export default async function ImportPage() {
-  await requireAdminSession();
-  return (
-    <>
-      <PageHeader title="Import Centre" copy="XLSX parse, validate, preview, batched import and Supabase Storage image saving." />
-      <ExcelImportPanel />
-    </>
-  );
+export default function ImportPage() {
+  return <CeterAdminWorkspace module="inventory" />;
 }

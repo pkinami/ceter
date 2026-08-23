@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { productImagesBucket } from "@/lib/product-image-urls";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { createServiceRoleClient } from "@/lib/supabase/service-role";
 
 export const dynamic = "force-dynamic";
 
@@ -13,7 +13,7 @@ export async function GET(_request: Request, context: RouteContext) {
   const path = (params.path ?? []).join("/");
   if (!path || path.includes("..")) return NextResponse.json({ error: "Invalid image path." }, { status: 400 });
 
-  const supabase = createAdminClient();
+  const supabase = createServiceRoleClient();
   const { data, error } = await supabase.storage.from(productImagesBucket()).download(path);
   if (error || !data) return NextResponse.json({ error: "Product image not found." }, { status: 404 });
 

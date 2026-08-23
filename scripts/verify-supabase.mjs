@@ -26,12 +26,12 @@ const requiredEnums = {
   order_status: ["pending", "processing", "paid", "fulfilled", "cancelled"],
   payment_method: ["mpesa", "card"],
   product_condition: ["new", "refurbished"],
-  profile_role: ["customer", "admin"],
+  profile_role: ["customer"],
   quote_status: ["new", "contacted", "closed"],
   stock_status: ["in_stock", "backorder", "out_of_stock"]
 };
 
-const requiredFunctions = ["set_updated_at", "is_admin", "handle_new_user"];
+const requiredFunctions = ["set_updated_at", "handle_new_user"];
 const requiredTriggers = ["products_set_updated_at", "cart_items_set_updated_at", "on_auth_user_created"];
 const requiredIndexes = [
   "products_category_id_idx",
@@ -44,27 +44,17 @@ const requiredIndexes = [
 
 const requiredPolicies = [
   "Public can read categories",
-  "Admins manage categories",
   "Public can read brands",
-  "Admins manage brands",
   "Public can read products",
-  "Admins manage products",
   "Customers read own profile",
   "Customers update own profile",
   "Customers insert own profile",
-  "Admins delete profiles",
   "Customers read own orders",
   "Customers create own orders",
   "Customers update own pending orders",
-  "Admins delete orders",
   "Customers read own order items",
   "Customers create own order items",
-  "Admins update order items",
-  "Admins delete order items",
   "Public can create quote requests",
-  "Admins read quote requests",
-  "Admins update quote requests",
-  "Admins delete quote requests",
   "Customers manage own cart"
 ];
 

@@ -254,6 +254,8 @@ model Profile {
   changed_prices        PriceHistory[]  @relation("PriceChangedBy")
   audit_logs            AuditLog[]
   notifications         NotificationHistory[]
+  sales_commissions     SalesCommission[]
+  sales_commission_payments SalesCommissionPayment[]
 
   @@map("profiles")
   @@schema("public")
@@ -453,6 +455,8 @@ model Customer {
   transactions        Transaction[]
   documents           Document[]
   company_documents   CompanyDocument[]
+  credit_notes        SalesCreditNote[]
+  recurring_invoices  RecurringInvoiceSchedule[]
 
   @@index([profile_id])
   @@index([email])
@@ -627,6 +631,8 @@ model Invoice {
   journal_entries       JournalEntry[]
   etims_records         EtimsRecord[]
   mpesa_transactions    MpesaTransaction[]
+  credit_notes          SalesCreditNote[]
+  sales_commissions     SalesCommission[]
 
   @@index([quote_id])
   @@index([proforma_invoice_id])
@@ -681,6 +687,7 @@ model Payment {
   documents             Document[]
   journal_entries       JournalEntry[]
   mpesa_transaction     MpesaTransaction?
+  credit_notes          SalesCreditNote[]
 
   @@index([invoice_id])
   @@index([proforma_invoice_id])
@@ -862,6 +869,7 @@ model Supplier {
   stock_movements      StockMovement[]
   documents            Document[]
   company_documents    CompanyDocument[]
+  debit_notes          PurchaseDebitNote[]
 
   @@index([company_name])
   @@index([email])
@@ -911,6 +919,7 @@ model PurchaseOrder {
   supplier_invoices      SupplierInvoice[]
   stock_movements        StockMovement[]
   documents              Document[]
+  debit_notes            PurchaseDebitNote[]
 
   @@index([supplier_id])
   @@index([purchase_request_id])
@@ -1009,6 +1018,7 @@ model SupplierInvoice {
   transactions            Transaction[]
   journal_entries         JournalEntry[]
   documents               Document[]
+  debit_notes             PurchaseDebitNote[]
 
   @@index([supplier_id])
   @@index([purchase_order_id])
@@ -1060,6 +1070,150 @@ model SupplierPayment {
   @@index([supplier_invoice_id])
   @@index([paid_at])
   @@map("supplier_payments")
+  @@schema("public")
+}
+
+model SalesCreditNote {
+  id                 String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  credit_note_number String    @unique
+  customer_id        String    @db.Uuid
+  invoice_id         String?   @db.Uuid
+  payment_id         String?   @db.Uuid
+  amount_kes         Int
+  reason             String
+  reference          String?
+  status             String    @default("draft")
+  issued_at          DateTime? @db.Timestamptz(6)
+  created_by_id      String?   @db.Uuid
+  created_at         DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at         DateTime  @default(now()) @updatedAt @db.Timestamptz(6)
+  customer           Customer  @relation(fields: [customer_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  invoice            Invoice?  @relation(fields: [invoice_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  payment            Payment?  @relation(fields: [payment_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
+
+  @@index([customer_id])
+  @@index([invoice_id])
+  @@index([payment_id])
+  @@index([status])
+  @@map("sales_credit_notes")
+  @@schema("public")
+}
+
+model PurchaseDebitNote {
+  id                 String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  debit_note_number  String           @unique
+  supplier_id        String           @db.Uuid
+  supplier_invoice_id String?         @db.Uuid
+  purchase_order_id  String?          @db.Uuid
+  amount_kes         Int
+  reason             String
+  reference          String?
+  status             String           @default("draft")
+  issued_at          DateTime?        @db.Timestamptz(6)
+  created_by_id      String?          @db.Uuid
+  created_at         DateTime         @default(now()) @db.Timestamptz(6)
+  updated_at         DateTime         @default(now()) @updatedAt @db.Timestamptz(6)
+  supplier           Supplier         @relation(fields: [supplier_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  supplier_invoice   SupplierInvoice? @relation(fields: [supplier_invoice_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  purchase_order     PurchaseOrder?   @relation(fields: [purchase_order_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
+
+  @@index([supplier_id])
+  @@index([supplier_invoice_id])
+  @@index([purchase_order_id])
+  @@index([status])
+  @@map("purchase_debit_notes")
+  @@schema("public")
+}
+
+model RecurringInvoiceSchedule {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  customer_id    String    @db.Uuid
+  name           String
+  frequency      String    @default("monthly")
+  next_run_at    DateTime  @db.Date
+  amount_kes     Int
+  status         String    @default("active")
+  notes          String?
+  created_by_id  String?   @db.Uuid
+  created_at     DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at     DateTime  @default(now()) @updatedAt @db.Timestamptz(6)
+  customer       Customer  @relation(fields: [customer_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
+
+  @@index([customer_id])
+  @@index([status, next_run_at])
+  @@map("recurring_invoice_schedules")
+  @@schema("public")
+}
+
+model SalesCommissionRate {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name           String
+  rate_percent   Decimal   @db.Decimal(6, 3)
+  applies_to     String    @default("paid_invoices")
+  is_active      Boolean   @default(true)
+  created_by_id  String?   @db.Uuid
+  created_at     DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at     DateTime  @default(now()) @updatedAt @db.Timestamptz(6)
+
+  @@index([is_active])
+  @@map("sales_commission_rates")
+  @@schema("public")
+}
+
+model SalesCommissionTier {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name            String
+  threshold_kes   Int
+  rate_percent    Decimal   @db.Decimal(6, 3)
+  is_active       Boolean   @default(true)
+  created_by_id   String?   @db.Uuid
+  created_at      DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at      DateTime  @default(now()) @updatedAt @db.Timestamptz(6)
+
+  @@index([is_active, threshold_kes])
+  @@map("sales_commission_tiers")
+  @@schema("public")
+}
+
+model SalesCommission {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  profile_id     String?   @db.Uuid
+  invoice_id     String?   @db.Uuid
+  commission_ref String
+  base_amount_kes Int
+  rate_percent   Decimal   @db.Decimal(6, 3)
+  amount_kes      Int
+  status          String    @default("earned")
+  earned_at       DateTime  @default(now()) @db.Timestamptz(6)
+  paid_at         DateTime? @db.Timestamptz(6)
+  notes           String?
+  created_at      DateTime  @default(now()) @db.Timestamptz(6)
+  profile         Profile?  @relation(fields: [profile_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  invoice         Invoice?  @relation(fields: [invoice_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
+
+  @@index([profile_id])
+  @@index([invoice_id])
+  @@index([status])
+  @@map("sales_commissions")
+  @@schema("public")
+}
+
+model SalesCommissionPayment {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  payment_number String    @unique
+  profile_id     String?   @db.Uuid
+  amount_kes     Int
+  method         BusinessPaymentMethod @default(bank_transfer)
+  reference      String?
+  notes          String?
+  paid_at        DateTime  @default(now()) @db.Timestamptz(6)
+  created_by_id  String?   @db.Uuid
+  created_at     DateTime  @default(now()) @db.Timestamptz(6)
+  profile        Profile?  @relation(fields: [profile_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
+
+  @@index([profile_id])
+  @@index([paid_at])
+  @@map("sales_commission_payments")
   @@schema("public")
 }
 

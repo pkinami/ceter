@@ -1,6 +1,6 @@
 # Ceter Technologies Storefront
 
-Next.js storefront and admin console with Business Suite CRM, sales documents, procurement, accounting preparation, compliance tracking and document vault modules.
+Next.js storefront with customer accounts, catalogue browsing, checkout, quote requests, payments, generated business documents, and document vault storage.
 
 ## Local Setup
 
@@ -65,4 +65,4 @@ npx prisma migrate status
 
 For hosted environments, use the pooled database URL for `DATABASE_URL` and the direct database URL for `POSTGRES_URL_NON_POOLING`.
 
-Generated invoices, receipts, statements and vault files should be stored in a private Supabase bucket. The app renders short-lived signed URLs only after customer ownership or admin authorization checks.
+Generated invoices, receipts, statements and vault files should be stored in a private Supabase bucket. The app renders short-lived signed URLs only after customer ownership checks.

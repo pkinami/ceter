@@ -1,5 +1,4 @@
 import { notFound } from "next/navigation";
-import { PageHeader } from "@/components/admin/AdminPrimitives";
 import { ProductForm } from "@/components/admin/ProductForm";
 import { getProductFormLookups } from "@/lib/admin/data";
 import { requireAdminSession } from "@/lib/admin/auth";
@@ -14,15 +13,21 @@ export default async function EditProductPage({ params, searchParams }: { params
   ]);
   if (!product) notFound();
   return (
-    <>
-      <PageHeader title="Edit Product" copy="Changes persist to PostgreSQL and revalidate storefront catalogue routes." />
+    <div className="ceter-admin-page">
+      <div className="ceter-admin-greeting">
+        <div>
+          <p>Storefront</p>
+          <h1>Edit Product</h1>
+          <span>Changes persist to PostgreSQL, audit price and stock movement where applicable, and revalidate storefront catalogue routes.</span>
+        </div>
+      </div>
       <AdminNotice success={query.success} error={query.error} />
       <ProductForm product={product} brands={lookups.brands} categories={lookups.categories} />
-    </>
+    </div>
   );
 }
 
 function AdminNotice({ success, error }: { success?: string; error?: string }) {
   if (!success && !error) return null;
-  return <div className={error ? "admin-card border-red-200 bg-red-50 p-3 text-sm font-semibold text-red-700" : "admin-card border-green-200 bg-green-50 p-3 text-sm font-semibold text-green-700"}>{error ?? success}</div>;
+  return <div className={`ceter-admin-message ${error ? "error" : "success"}`}>{error ?? success}</div>;
 }

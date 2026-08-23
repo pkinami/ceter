@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
+import { CustomerStatusBadge } from "@/components/CustomerStatusBadge";
 import { ProductImageFrame } from "@/components/ProductImageFrame";
 import { signedBusinessDocumentUrl } from "@/lib/business/documents";
 import { productImageRenderUrls } from "@/lib/product-image-urls";
@@ -79,7 +80,10 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
           <article key={order.id} className="border-b border-line p-5 last:border-b-0">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div><p className="font-black text-ink">Order {order.id.slice(0, 8)}</p><p className="text-xs font-semibold uppercase text-slate-500">{order.created_at.toLocaleDateString("en-KE")}</p></div>
-              <div className="text-right"><p className="font-black text-signal">{formatKes(order.total_kes)}</p><span className="rounded-full bg-panel px-2.5 py-1 text-xs font-bold capitalize text-ink">{order.status}</span></div>
+              <div className="flex flex-col items-start gap-2 sm:items-end">
+                <p className="font-black text-signal">{formatKes(order.total_kes)}</p>
+                <CustomerStatusBadge status={order.status} context="order" />
+              </div>
             </div>
             <div className="mt-4 grid gap-2 text-sm">
               {order.order_items.map((item) => (
@@ -96,13 +100,13 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
 
       <PortalSection title="My Quotations">
         <PortalTable headers={["Quote", "Date", "Amount", "Status", "Actions"]}>
-          {quotesWithLinks.map((quote) => <tr key={quote.id}><td>{quote.quote_number}</td><td>{quote.created_at.toLocaleDateString("en-KE")}</td><td>{formatKes(quote.total_kes)}</td><td>{quote.status}</td><td><DocumentLink documents={quote.documents} /></td></tr>)}
+          {quotesWithLinks.map((quote) => <tr key={quote.id}><td>{quote.quote_number}</td><td>{quote.created_at.toLocaleDateString("en-KE")}</td><td>{formatKes(quote.total_kes)}</td><td><CustomerStatusBadge status={quote.status} context="quote" /></td><td><DocumentLink documents={quote.documents} /></td></tr>)}
         </PortalTable>
       </PortalSection>
 
       <PortalSection title="My Invoices">
         <PortalTable headers={["Invoice", "Date", "Amount", "Outstanding", "Status", "Actions"]}>
-          {invoicesWithLinks.map((invoice) => <tr key={invoice.id}><td>{invoice.invoice_number}</td><td>{invoice.created_at.toLocaleDateString("en-KE")}</td><td>{formatKes(invoice.total_kes)}</td><td>{formatKes(invoice.balance_kes)}</td><td>{invoice.status}</td><td><DocumentLink documents={invoice.documents} /></td></tr>)}
+          {invoicesWithLinks.map((invoice) => <tr key={invoice.id}><td>{invoice.invoice_number}</td><td>{invoice.created_at.toLocaleDateString("en-KE")}</td><td>{formatKes(invoice.total_kes)}</td><td>{formatKes(invoice.balance_kes)}</td><td><CustomerStatusBadge status={invoice.status} context="invoice" /></td><td><DocumentLink documents={invoice.documents} /></td></tr>)}
         </PortalTable>
       </PortalSection>
 

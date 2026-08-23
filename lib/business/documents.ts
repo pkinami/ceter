@@ -1,5 +1,5 @@
 import type { DocumentType, Prisma } from "@prisma/client";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { createServiceRoleClient } from "@/lib/supabase/service-role";
 
 export const BUSINESS_DOCUMENT_BUCKET = process.env.SUPABASE_BUSINESS_DOCUMENTS_BUCKET || "business-documents";
 
@@ -63,7 +63,7 @@ export function brandedPdfBytes(input: BusinessDocumentInput) {
 }
 
 export async function uploadBusinessDocument(path: string, bytes: Buffer) {
-  const supabase = createAdminClient();
+  const supabase = createServiceRoleClient();
   const { error } = await supabase.storage.from(BUSINESS_DOCUMENT_BUCKET).upload(path, bytes, {
     contentType: "application/pdf",
     upsert: true,
@@ -75,7 +75,7 @@ export async function uploadBusinessDocument(path: string, bytes: Buffer) {
 
 export async function signedBusinessDocumentUrl(path: string, bucket = BUSINESS_DOCUMENT_BUCKET) {
   const expiresIn = Math.max(60, Number.parseInt(process.env.BUSINESS_DOCUMENT_SIGNED_URL_SECONDS ?? "300", 10));
-  const supabase = createAdminClient();
+  const supabase = createServiceRoleClient();
   const { data, error } = await supabase.storage.from(bucket).createSignedUrl(path, expiresIn, { download: true });
   if (error) throw new Error(`Document download link could not be created: ${error.message}`);
   return data.signedUrl;

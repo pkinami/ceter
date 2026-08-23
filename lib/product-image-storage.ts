@@ -1,5 +1,5 @@
 import { createHash } from "crypto";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { createServiceRoleClient } from "@/lib/supabase/service-role";
 import { productImagesBucket } from "@/lib/product-image-urls";
 
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
@@ -36,7 +36,7 @@ export async function storeProductImage(input: {
   const current = input.currentImages?.find((image) => image.includes(path));
   if (current) return { sourceUrl: input.sourceUrl, storedUrl: current, path, skipped: true };
 
-  const supabase = createAdminClient();
+  const supabase = createServiceRoleClient();
   const bucket = productImagesBucket();
   const { error } = await supabase.storage.from(bucket).upload(path, downloaded.bytes, {
     contentType: downloaded.contentType,

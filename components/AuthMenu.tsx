@@ -7,7 +7,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { User } from "@supabase/supabase-js";
 
-type Profile = { full_name: string | null; role: "customer" | "admin" | "owner" | "manager" | "sales" | "store" };
+type Profile = { full_name: string | null; role: "customer" };
 
 function initials(name?: string | null, email?: string | null) {
   const source = name?.trim() || email?.trim() || "CT";

@@ -30,7 +30,7 @@ public/banners/hero/office-printer-wide-1920.webp
 
 Ceter Technologies Limited is a Nairobi supplier of office printing equipment, photocopiers, printers, toner cartridges, consumables, spare parts, and related IT services. The site is a storefront and quote channel, not a lifestyle campaign page, so the banners must feel practical, credible, and procurement-ready.
 
-The audience includes government offices, county teams, institutions, schools, corporate buyers, operations managers, procurement officers, and IT administrators. These buyers need to quickly understand that Ceter can supply dependable equipment, consumables, installation, maintenance, and support for real business environments.
+The audience includes government offices, county teams, institutions, schools, corporate buyers, operations managers, procurement officers, and IT leads. These buyers need to quickly understand that Ceter can supply dependable equipment, consumables, installation, maintenance, and support for real business environments.
 
 ## Current Website Architecture
 
@@ -202,7 +202,6 @@ These routes exist, but they do not currently have a sensible banner slot in the
 |---|---|
 | `/about` | Existing page uses a compact information and contact layout. A banner would duplicate the page heading. |
 | `/account` | Account workflow page. Decorative banners would distract from account tasks. |
-| `/admin` | Operational admin console. No marketing artwork should be added. |
 | `/cart` | Checkout/cart workflow. Keep focused on cart contents and actions. |
 | `/login` | Auth page with logo only. No banner slot. |
 | `/signup` | Auth page with logo only. No banner slot. |

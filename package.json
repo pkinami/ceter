@@ -15,8 +15,7 @@
     "db:migrate": "prisma migrate deploy",
     "db:seed": "prisma db execute --file prisma/seed.sql",
     "verify:db": "node scripts/verify-supabase.mjs",
-    "test:codex:phase3a": "node scripts/test-codex-phase3a.mjs",
-    "setup:admin": "node scripts/setup-admin.mjs"
+    "test:codex:phase3a": "node scripts/test-codex-phase3a.mjs"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.9.1",
@@ -28,6 +27,7 @@
     "lucide-react": "^0.468.0",
     "next": "^15.0.3",
     "pg": "^8.16.3",
+    "playwright": "^1.62.1",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "sonner": "^1.7.0",

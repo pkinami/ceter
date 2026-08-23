@@ -166,6 +166,7 @@ export async function adminSignInAction(formData: FormData) {
     redirect("/admin/login?error=This account is not authorized for the admin console.");
   }
 
+  revalidatePath("/", "layout");
   redirect("/admin");
 }
 

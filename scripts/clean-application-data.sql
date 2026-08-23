@@ -10,8 +10,7 @@
 --
 -- Important:
 --   public.profiles is application data and is cleared. Supabase auth.users is
---   left intact. Run `npm.cmd run setup:admin` after this reset to create or
---   promote an admin profile for your chosen Supabase Auth user.
+--   left intact.
 
 begin;
 
