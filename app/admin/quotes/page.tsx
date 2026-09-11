@@ -1,5 +1,5 @@
-import { CeterAdminWorkspace } from "@/components/admin/CeterAdminWorkspace";
+import { QuotesPage } from "@/components/admin/SalesBillingPages";
 
-export default function QuotesPage() {
-  return <CeterAdminWorkspace module="sales" />;
+export default function QuotesRoutePage() {
+  return <QuotesPage />;
 }

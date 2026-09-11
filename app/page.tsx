@@ -73,6 +73,7 @@ export default async function HomePage() {
       </Suspense>
       <JsonLd data={organizationJsonLd()} />
       <div className="min-w-0 flex-1 space-y-4 sm:space-y-7">
+        <h1 className="sr-only">Ceter Technologies Limited printers, photocopiers, consumables and IT support</h1>
         {banners.main.length ? <BannerCarousel banners={banners.main} variant="main" /> : null}
 
         <section>

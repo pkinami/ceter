@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { formatKes } from "@/lib/utils";
 import { brandedPdfBytes, documentCreateData, uploadBusinessDocument } from "@/lib/business/documents";
 import { queueNotification } from "@/lib/business/notifications";
+import { createBusinessNumber } from "@/lib/business/numbering";
 
 const JOURNAL_ACCOUNTS = {
   cash: "1000",
@@ -11,25 +12,6 @@ const JOURNAL_ACCOUNTS = {
 } as const;
 
 type Tx = Prisma.TransactionClient;
-
-async function nextNumber(tx: Tx, prefix: string, table: "payment" | "receipt") {
-  const year = new Date().getFullYear();
-  const startsWith = `${prefix}-${year}-`;
-  const latest = table === "payment"
-    ? await tx.payment.findFirst({ where: { payment_number: { startsWith } }, orderBy: { created_at: "desc" }, select: { payment_number: true } })
-    : await tx.receipt.findFirst({ where: { receipt_number: { startsWith } }, orderBy: { created_at: "desc" }, select: { receipt_number: true } });
-  const currentValue = Object.values(latest ?? {})[0];
-  const current = Number(String(currentValue ?? "").split("-").pop() ?? "0");
-  return `${prefix}-${year}-${String(current + 1).padStart(4, "0")}`;
-}
-
-async function nextJournalNumber(tx: Tx) {
-  const year = new Date().getFullYear();
-  const startsWith = `JRN-${year}-`;
-  const latest = await tx.journalEntry.findFirst({ where: { entry_number: { startsWith } }, orderBy: { created_at: "desc" }, select: { entry_number: true } });
-  const current = Number(String(latest?.entry_number ?? "").split("-").pop() ?? "0");
-  return `JRN-${year}-${String(current + 1).padStart(4, "0")}`;
-}
 
 async function accountIds(tx: Tx, codes: string[]) {
   const accounts = await tx.account.findMany({ where: { code: { in: codes } }, select: { id: true, code: true } });
@@ -60,7 +42,7 @@ export async function settleInvoicePayment(input: {
 
     const payment = await tx.payment.create({
       data: {
-        payment_number: await nextNumber(tx, "PAY", "payment"),
+        payment_number: createBusinessNumber("PAY"),
         invoice_id: invoice.id,
         customer_id: invoice.customer_id,
         amount_kes: input.amountKes,
@@ -74,11 +56,16 @@ export async function settleInvoicePayment(input: {
     const balanceKes = Math.max(0, invoice.total_kes - paidKes);
     const updatedInvoice = await tx.invoice.update({
       where: { id: invoice.id },
-      data: { paid_kes: paidKes, balance_kes: balanceKes, status: balanceKes === 0 ? "paid" : "partially_paid" }
+      data: {
+        paid_kes: paidKes,
+        balance_kes: balanceKes,
+        status: balanceKes === 0 ? "paid" : "partially_paid",
+        payment_status: balanceKes === 0 ? "paid" : "partially_paid"
+      }
     });
     const receipt = await tx.receipt.create({
       data: {
-        receipt_number: await nextNumber(tx, "RCT", "receipt"),
+        receipt_number: createBusinessNumber("RCT"),
         payment_id: payment.id,
         invoice_id: invoice.id,
         customer_id: invoice.customer_id,
@@ -96,7 +83,7 @@ export async function settleInvoicePayment(input: {
     const accounts = await accountIds(tx, [input.method === "cash" ? JOURNAL_ACCOUNTS.cash : JOURNAL_ACCOUNTS.bank, JOURNAL_ACCOUNTS.receivables]);
     const journal = await tx.journalEntry.create({
       data: {
-        entry_number: await nextJournalNumber(tx),
+        entry_number: createBusinessNumber("JRN"),
         source_type: "customer_payment",
         memo: `Customer payment ${payment.payment_number}`,
         entry_date: new Date(),
@@ -114,21 +101,42 @@ export async function settleInvoicePayment(input: {
     return { invoice, updatedInvoice, payment, receipt, journal };
   });
 
-  const pdf = brandedPdfBytes({
+  const pdf = await brandedPdfBytes({
     type: "receipt",
     title: "Receipt",
     number: result.receipt.receipt_number,
+    meta: [
+      ["Payment No.", result.payment.payment_number],
+      ["Invoice", result.invoice.invoice_number],
+      ["Method", input.method],
+      ["Reference", input.reference ?? result.payment.payment_number]
+    ],
     customerName: result.invoice.customer.name,
     customerCompany: result.invoice.customer.company_name,
     customerEmail: result.invoice.customer.email,
     customerPhone: result.invoice.customer.phone,
-    totals: [["Amount", formatKes(input.amountKes)], ["Payment method", input.method], ["Reference", input.reference ?? result.payment.payment_number]]
+    lines: [{
+      // Receipt rows are receipt-specific: detail | related invoice/reference.
+      description: `Payment received | ${result.invoice.invoice_number}`,
+      quantity: 1,
+      unitPrice: formatKes(result.invoice.total_kes),
+      discount: "KSh 0",
+      vat: "",
+      total: formatKes(input.amountKes)
+    }],
+    totals: [
+      ["Invoice total", formatKes(result.invoice.total_kes)],
+      ["Amount paid", formatKes(input.amountKes)],
+      ["Balance", formatKes(result.updatedInvoice.balance_kes)]
+    ],
+    footer: [input.notes].filter(Boolean) as string[]
   });
   const storagePath = `receipts/${result.receipt.receipt_number}.pdf`;
   const publicUrl = await uploadBusinessDocument(storagePath, pdf);
   await prisma.document.create({
     data: documentCreateData({
       document_type: "receipt",
+      document_number: result.receipt.receipt_number,
       title: `Receipt ${result.receipt.receipt_number}`,
       storage_path: storagePath,
       public_url: publicUrl,

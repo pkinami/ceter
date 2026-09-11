@@ -2,9 +2,9 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import type { BannerPlacement, OrderStatus, Prisma, ProductCondition, QuoteStatus, StockStatus } from "@prisma/client";
+import type { BannerPlacement, OrderStatus, Prisma, ProductCondition, QuoteStatus, StockMovementReason, StockStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { requireCapability } from "@/lib/admin/auth";
+import { hasPermission, requireCapability, requirePermission } from "@/lib/admin/auth";
 import type { HomepageSectionType } from "@/lib/types";
 import { revalidateStorefront } from "@/lib/storefront-revalidation";
 import { stockStatusForQuantity } from "@/lib/admin/data";
@@ -12,6 +12,9 @@ import { DELIVERY_REGIONS } from "@/lib/delivery";
 import { normalizePublicAssetUrl } from "@/lib/banner-schema";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { BANNER_ALLOWED_TYPES, BANNER_IMAGE_SLOTS, BANNER_MAX_FILE_SIZE, HOMEPAGE_BANNER_REQUIREMENTS, type BannerImageSlot } from "@/lib/banner-requirements";
+import { safePathSegment, validateImageBytes } from "@/lib/image-validation";
+import { productImagesBucket } from "@/lib/product-image-urls";
+import { storeProductImage } from "@/lib/product-image-storage";
 
 function parseImages(value: FormDataEntryValue | null) {
   const text = String(value ?? "").trim();
@@ -64,21 +67,33 @@ async function imageValueFromForm(formData: FormData, field: string, fallback?: 
 
 async function uploadedProductImageUrl(file: FormDataEntryValue | null, slug: string) {
   if (!(file instanceof File) || file.size === 0) return null;
-  if (!file.type.startsWith("image/")) throw new Error("Product image upload must be an image file.");
   if (file.size > 5 * 1024 * 1024) throw new Error("Product image uploads must be 5 MB or smaller.");
 
-  const extension = file.name.split(".").pop()?.toLowerCase().replace(/[^a-z0-9]/g, "") || extensionForImageType(file.type);
-  const path = `products/${slug}/${Date.now()}-${crypto.randomUUID()}.${extension}`;
+  const bytes = Buffer.from(await file.arrayBuffer());
+  const metadata = validateImageBytes(bytes, file.type);
+  const path = `products/${safePathSegment(slug)}/${metadata.sha256}.${metadata.extension}`;
   const supabase = createAdminClient();
-  const bucket = process.env.SUPABASE_PRODUCT_IMAGES_BUCKET || "product-images";
-  const { error } = await supabase.storage.from(bucket).upload(path, Buffer.from(await file.arrayBuffer()), {
-    contentType: file.type || "application/octet-stream",
+  const bucket = productImagesBucket();
+  const existing = await supabase.storage.from(bucket).list(`products/${safePathSegment(slug)}`, { search: `${metadata.sha256}.${metadata.extension}`, limit: 1 });
+  if (!existing.error && existing.data?.some((item) => item.name === `${metadata.sha256}.${metadata.extension}`)) {
+    const { data } = supabase.storage.from(bucket).getPublicUrl(path);
+    return data.publicUrl;
+  }
+  const { error } = await supabase.storage.from(bucket).upload(path, bytes, {
+    contentType: metadata.contentType,
     upsert: false,
     cacheControl: "31536000"
   });
   if (error) throw new Error(`Product image upload failed: ${error.message}`);
   const { data } = supabase.storage.from(bucket).getPublicUrl(path);
   return data.publicUrl;
+}
+
+async function storedProductImageUrlFromForm(value: string | null, slug: string, currentImages: string[]) {
+  if (!value) return null;
+  if (!/^https?:\/\//i.test(value)) return value;
+  const stored = await storeProductImage({ slug, sourceUrl: value, index: 0, currentImages });
+  return stored.storedUrl;
 }
 
 function extensionForImageType(type: string) {
@@ -92,7 +107,7 @@ function extensionForImageType(type: string) {
 function bannerImageValueFromForm(formData: FormData, field: string, fallback?: string | null) {
   const value = normalizePublicAssetUrl(nullableString(formData.get(field)) ?? fallback);
   if (!value) return null;
-  if (!value.startsWith("/banners/") && !/^https?:\/\//i.test(value)) throw new Error("Banner images must be uploaded files, public URLs, or files from /public/banners.");
+  if (!value.startsWith("/banners/") && !value.startsWith("/New_banner/") && !/^https?:\/\//i.test(value)) throw new Error("Banner images must be uploaded files, public URLs, or checked-in banner assets.");
   return value;
 }
 
@@ -103,24 +118,27 @@ async function uploadedBannerImageUrl(file: FormDataEntryValue | null, slug: str
   if (file.size > BANNER_MAX_FILE_SIZE) throw new Error(`${requirement.label} must be 3 MB or smaller.`);
 
   const bytes = Buffer.from(await file.arrayBuffer());
-  const dimensions = imageDimensions(bytes, file.type);
-  if (!dimensions) throw new Error(`${requirement.label} dimensions could not be read.`);
-  if (dimensions.width !== requirement.width || dimensions.height !== requirement.height) {
-    throw new Error(`${requirement.label} must be exactly ${requirement.width}x${requirement.height}px (${requirement.aspectRatio}). Selected image is ${dimensions.width}x${dimensions.height}px.`);
+  const metadata = validateImageBytes(bytes, file.type);
+  if (metadata.width !== requirement.width || metadata.height !== requirement.height) {
+    throw new Error(`${requirement.label} must be exactly ${requirement.width}x${requirement.height}px (${requirement.aspectRatio}). Selected image is ${metadata.width}x${metadata.height}px.`);
   }
 
-  const extension = file.name.split(".").pop()?.toLowerCase().replace(/[^a-z0-9]/g, "") || extensionForImageType(file.type);
-  const path = `banners/${slug}/${slot}-${Date.now()}-${crypto.randomUUID()}.${extension}`;
+  const path = `${safePathSegment(slug)}/${slot}/${metadata.sha256}.${metadata.extension}`;
   const supabase = createAdminClient();
-  const bucket = process.env.SUPABASE_BANNER_IMAGES_BUCKET || "banner-images";
+  const bucket = bannerImagesBucket();
+  const existing = await supabase.storage.from(bucket).list(`${safePathSegment(slug)}/${slot}`, { search: `${metadata.sha256}.${metadata.extension}`, limit: 1 });
+  if (!existing.error && existing.data?.some((item) => item.name === `${metadata.sha256}.${metadata.extension}`)) {
+    const { data } = supabase.storage.from(bucket).getPublicUrl(path);
+    return { url: data.publicUrl, path, width: metadata.width, height: metadata.height, sha256: metadata.sha256, contentType: metadata.contentType };
+  }
   const { error } = await retrySupabaseStorageWrite(() => supabase.storage.from(bucket).upload(path, bytes, {
-    contentType: file.type || "application/octet-stream",
+    contentType: metadata.contentType,
     upsert: false,
     cacheControl: "31536000"
   }));
   if (error) throw new Error(`Banner image upload failed: ${error.message}`);
   const { data } = supabase.storage.from(bucket).getPublicUrl(path);
-  return data.publicUrl;
+  return { url: data.publicUrl, path, width: metadata.width, height: metadata.height, sha256: metadata.sha256, contentType: metadata.contentType };
 }
 
 async function uploadedBannerMasterImageUrl(file: FormDataEntryValue | null, slug: string) {
@@ -180,32 +198,69 @@ function bannerBadgeColor(value: FormDataEntryValue | null) {
   return /^#[0-9a-f]{6}$/i.test(text) ? text : "#0f766e";
 }
 
+function normalizeBannerPlacement(value: FormDataEntryValue | null): BannerPlacement {
+  const text = String(value ?? "main").trim();
+  if (text === "service") return "services" as BannerPlacement;
+  if (text === "main" || text === "category" || text === "services") return text as BannerPlacement;
+  return "main" as BannerPlacement;
+}
+
+function parseDateTime(value: FormDataEntryValue | null) {
+  const text = String(value ?? "").trim();
+  if (!text) return null;
+  const date = new Date(text);
+  if (Number.isNaN(date.getTime())) throw new Error("Schedule date/time is invalid.");
+  return date;
+}
+
+function normalizeDestination(typeValue: FormDataEntryValue | null, hrefValue: FormDataEntryValue | null) {
+  const destinationType = String(typeValue ?? "internal").trim();
+  if (!["internal", "external", "category", "service"].includes(destinationType)) throw new Error("Destination type is invalid.");
+  const href = nullableString(hrefValue);
+  if (!href) return { destination_type: destinationType, cta_href: null };
+  if (destinationType === "external") {
+    let url: URL;
+    try {
+      url = new URL(href);
+    } catch {
+      throw new Error("External CTA destination must be a valid HTTPS URL.");
+    }
+    if (url.protocol !== "https:") throw new Error("External CTA destination must use HTTPS.");
+    if (url.username || url.password) throw new Error("External CTA destination cannot include credentials.");
+    return { destination_type: destinationType, cta_href: url.toString() };
+  }
+  if (!href.startsWith("/") || href.startsWith("//") || href.includes("\\") || href.includes("\n")) {
+    throw new Error("Internal CTA destination must be a safe site-relative path.");
+  }
+  return { destination_type: destinationType, cta_href: href };
+}
+
 async function bannerImageVariantsFromForm(formData: FormData, slug: string) {
   const existing = new Map(parseBannerVariants(formData.get("existing_image_variants")).map((variant) => [String(variant.slot), variant]));
   const variants = [];
   for (const slot of BANNER_IMAGE_SLOTS) {
+    if (formData.get(`remove_${slot}`) === "on") continue;
     const requirement = HOMEPAGE_BANNER_REQUIREMENTS[slot];
     const uploaded = await uploadedBannerImageUrl(formData.get(requirement.field), slug, slot);
-    const url = uploaded ?? String((existing.get(slot) as { url?: unknown } | undefined)?.url ?? "").trim();
+    const existingVariant = existing.get(slot) as { url?: unknown; path?: unknown } | undefined;
+    const url = uploaded?.url ?? String(existingVariant?.url ?? "").trim();
     if (!url) continue;
     variants.push({
       slot,
       url,
+      path: uploaded?.path ?? (typeof existingVariant?.path === "string" ? existingVariant.path : null),
       width: requirement.width,
       height: requirement.height,
       aspectRatio: requirement.aspectRatio,
-      shape: requirement.shape
+      shape: requirement.shape,
+      sha256: uploaded?.sha256 ?? null
     });
   }
   return variants;
 }
 
 function bannerImagesBucket() {
-  return process.env.SUPABASE_BANNER_IMAGES_BUCKET || "banner-images";
-}
-
-function productImagesBucket() {
-  return process.env.SUPABASE_PRODUCT_IMAGES_BUCKET || "product-images";
+  return process.env.SUPABASE_BANNER_IMAGES_BUCKET || "storefront-banners";
 }
 
 function storageObjectPathFromPublicUrl(value: string | null | undefined, bucket: string) {
@@ -297,8 +352,9 @@ function webpDimensions(bytes: Buffer) {
 }
 
 export async function upsertProductAction(formData: FormData) {
-  const session = await requireCapability("price", ["edit"]);
   const id = String(formData.get("id") ?? "");
+  const session = await requirePermission(id ? "products.update" : "products.create");
+  const canManageCost = hasPermission(session, "products.cost_price.view");
   const returnTo = String(formData.get("return_to") ?? "/admin/products");
   const images = parseImages(formData.get("images"));
   const name = String(formData.get("name") ?? "").trim();
@@ -312,7 +368,13 @@ export async function upsertProductAction(formData: FormData) {
     messageRedirect(returnTo, "error", prismaMessage(error, "Product image could not be uploaded."));
   }
   const primaryImageUrl = nullableString(formData.get("primary_image"));
-  const selectedPrimaryImage = uploadedImage ?? primaryImageUrl;
+  let storedPrimaryImage: string | null = null;
+  try {
+    storedPrimaryImage = uploadedImage ? null : await storedProductImageUrlFromForm(primaryImageUrl, slug, images);
+  } catch (error) {
+    messageRedirect(returnTo, "error", prismaMessage(error, "Public product image URL could not be downloaded into storage."));
+  }
+  const selectedPrimaryImage = uploadedImage ?? storedPrimaryImage;
   const replacedPrimaryImage = uploadedImage ? primaryImageUrl : null;
   const productImages = selectedPrimaryImage
     ? [selectedPrimaryImage, ...images.filter((image) => image !== selectedPrimaryImage && image !== replacedPrimaryImage)]
@@ -326,7 +388,7 @@ export async function upsertProductAction(formData: FormData) {
     price_kes: Number(formData.get("price_kes") ?? 0),
     mpn: nullableString(formData.get("mpn")),
     sku: nullableString(formData.get("sku")),
-    cost_price_kes: nullableNumber(formData.get("cost_price_kes")),
+    cost_price_kes: canManageCost ? nullableNumber(formData.get("cost_price_kes")) : null,
     supplier_name: nullableString(formData.get("supplier_name")),
     supplier_lead_time_days: nullableNumber(formData.get("supplier_lead_time_days")),
     reorder_level: Number(formData.get("reorder_level") ?? 0),
@@ -344,14 +406,33 @@ export async function upsertProductAction(formData: FormData) {
 
   if (!payload.description) messageRedirect(returnTo, "error", "Product description is required.");
   if (payload.price_kes < 0 || payload.stock_quantity < 0 || (payload.cost_price_kes ?? 0) < 0) messageRedirect(returnTo, "error", "Negative stock and prices are not allowed.");
+  const duplicateChecks: Prisma.ProductWhereInput[] = [{ slug: payload.slug }];
+  if (payload.sku) duplicateChecks.push({ sku: payload.sku });
+  if (payload.mpn) duplicateChecks.push({ mpn: payload.mpn });
+  const duplicate = await prisma.product.findFirst({
+    where: {
+      id: id ? { not: id } : undefined,
+      OR: duplicateChecks
+    },
+    select: { slug: true, sku: true, mpn: true }
+  });
+  if (duplicate) {
+    if (duplicate.slug === payload.slug) messageRedirect(returnTo, "error", "Product slug is already in use.");
+    if (payload.sku && duplicate.sku === payload.sku) messageRedirect(returnTo, "error", "SKU is already in use.");
+    if (payload.mpn && duplicate.mpn === payload.mpn) messageRedirect(returnTo, "error", "MPN/model is already in use.");
+  }
   let savedId = id;
   let savedCategorySlug: string | null = null;
   try {
   if (id) {
     const before = await prisma.product.findUnique({ where: { id } });
+    const updatePayload: Prisma.ProductUncheckedUpdateInput = { ...payload };
+    delete (updatePayload as { stock_quantity?: number }).stock_quantity;
+    delete (updatePayload as { stock_status?: StockStatus }).stock_status;
+    if (!canManageCost) delete (updatePayload as { cost_price_kes?: number | null }).cost_price_kes;
     const updated = await prisma.product.update({
       where: { id },
-      data: payload,
+      data: updatePayload,
       include: { category: { select: { slug: true } } }
     });
     const retainedImages = new Set(productImageUrls(updated.images));
@@ -364,9 +445,6 @@ export async function upsertProductAction(formData: FormData) {
         prisma.priceHistory.create({ data: { product_id: id, price_kes: updated.price_kes, changed_by: session.userId, note: "Product form price change" } }),
         prisma.auditLog.create({ data: { user_id: session.userId, entity: "Product", entity_id: id, action: "price.change", before: { price_kes: before.price_kes }, after: { price_kes: updated.price_kes } } })
       );
-    }
-    if (before && before.stock_quantity !== updated.stock_quantity) {
-      writes.push(prisma.stockMovement.create({ data: { product_id: id, delta: updated.stock_quantity - before.stock_quantity, reason: "CORRECTION", reference: "Product form", user_id: session.userId } }));
     }
     if (writes.length) await prisma.$transaction(writes);
   } else {
@@ -388,31 +466,33 @@ export async function upsertProductAction(formData: FormData) {
     messageRedirect(returnTo, "error", prismaMessage(error, "Product could not be saved."));
   }
   revalidateStorefront([`/product/${slug}`, savedCategorySlug ? `/category/${savedCategorySlug}` : null]);
-  messageRedirect(savedId ? `/admin/products/${savedId}/edit` : "/admin/products", "success", id ? "Product updated." : "Product created.");
+  messageRedirect(returnTo.startsWith("/admin/business") ? returnTo : savedId ? `/admin/products/${savedId}/edit` : "/admin/products", "success", id ? "Product updated." : "Product created.");
 }
 
 export async function deleteProductAction(formData: FormData) {
-  await requireCapability("price", ["edit"]);
+  const session = await requirePermission("products.archive");
   const id = String(formData.get("id") ?? "");
   if (!id) messageRedirect("/admin/products", "error", "Product id is required.");
   const product = await prisma.product.findUnique({
     where: { id },
-    select: { slug: true, images: true, category: { select: { slug: true } } }
+    select: { slug: true, archived_at: true, category: { select: { slug: true } } }
   });
   try {
-    await prisma.product.delete({ where: { id } });
-    await removeProductStorageObjects(productImageUrls(product?.images));
+    await prisma.$transaction([
+      prisma.product.update({ where: { id }, data: { is_published: false, archived_at: new Date() } }),
+      prisma.auditLog.create({ data: { user_id: session.userId, entity: "Product", entity_id: id, action: "product.archive", before: { archived_at: product?.archived_at ?? null }, after: { archived_at: "now", is_published: false } } })
+    ]);
   } catch (error) {
-    messageRedirect("/admin/products", "error", prismaMessage(error, "Product could not be deleted."));
+    messageRedirect("/admin/products", "error", prismaMessage(error, "Product could not be archived."));
   }
   revalidateStorefront([product?.slug ? `/product/${product.slug}` : null, product?.category?.slug ? `/category/${product.category.slug}` : null]);
-  messageRedirect("/admin/products", "success", "Product deleted.");
+  messageRedirect("/admin/products", "success", "Product archived.");
 }
 
 export async function updateProductPublicationAction(formData: FormData) {
-  const session = await requireCapability("price", ["edit"]);
-  const id = String(formData.get("id") ?? "");
   const next = String(formData.get("next") ?? "") as "publish" | "unpublish" | "archive";
+  const session = await requirePermission(next === "archive" ? "products.archive" : "products.publish");
+  const id = String(formData.get("id") ?? "");
   const before = await prisma.product.findUnique({ where: { id }, select: { is_published: true, archived_at: true } });
   if (!before) throw new Error("Product not found.");
   const data = next === "publish"
@@ -426,6 +506,23 @@ export async function updateProductPublicationAction(formData: FormData) {
   ]);
   revalidateStorefront();
   revalidatePath("/admin/products");
+}
+
+export async function updateProductFeaturedAction(formData: FormData) {
+  const session = await requirePermission("storefront.featured.manage");
+  const id = String(formData.get("id") ?? "");
+  const featured = String(formData.get("featured") ?? "") === "true";
+  const returnTo = String(formData.get("return_to") ?? "/admin/storefront/featured");
+  if (!id) throw new Error("Product id is required.");
+  const before = await prisma.product.findUnique({ where: { id }, select: { is_featured: true, slug: true } });
+  if (!before) throw new Error("Product not found.");
+  await prisma.$transaction([
+    prisma.product.update({ where: { id }, data: { is_featured: featured } }),
+    prisma.auditLog.create({ data: { user_id: session.userId, entity: "Product", entity_id: id, action: featured ? "product.feature" : "product.unfeature", before, after: { is_featured: featured } } })
+  ]);
+  revalidateStorefront(["/", before.slug ? `/product/${before.slug}` : null]);
+  revalidatePath("/admin/storefront/featured");
+  messageRedirect(returnTo, "success", featured ? "Product added to Featured Products." : "Product removed from Featured Products.");
 }
 
 export async function updateOrderStatusAction(formData: FormData) {
@@ -455,7 +552,7 @@ export async function updateQuoteStatusAction(formData: FormData) {
 }
 
 export async function upsertCategoryAction(formData: FormData) {
-  await requireCapability("price", ["edit"]);
+  const session = await requirePermission("categories.manage");
   const id = String(formData.get("id") ?? "");
   const returnTo = String(formData.get("return_to") ?? "/admin/categories");
   const image = await imageValueFromForm(formData, "image", String(formData.get("existing_image") ?? "") || null);
@@ -477,23 +574,35 @@ export async function upsertCategoryAction(formData: FormData) {
     const parent = await prisma.category.findUnique({ where: { id: payload.parent_id }, include: { parent: true } });
     if (!parent) messageRedirect(returnTo, "error", "Parent category was not found.");
     if (parent.parent?.parent_id) messageRedirect(returnTo, "error", "Categories support only main > subcategory > leaf category.");
+    if (id) {
+      let cursor: { id: string; parent_id: string | null } | null = parent;
+      while (cursor) {
+        if (cursor.id === id) messageRedirect(returnTo, "error", "A category cannot be moved beneath itself or one of its descendants.");
+        cursor = cursor.parent_id ? await prisma.category.findUnique({ where: { id: cursor.parent_id }, select: { id: true, parent_id: true } }) : null;
+      }
+    }
   }
 
   try {
   if (id) {
-    await prisma.category.update({ where: { id }, data: payload });
+    const before = await prisma.category.findUnique({ where: { id } });
+    await prisma.$transaction([
+      prisma.category.update({ where: { id }, data: payload }),
+      prisma.auditLog.create({ data: { user_id: session.userId, entity: "Category", entity_id: id, action: "category.update", before: before ?? {}, after: payload } })
+    ]);
   } else {
-    await prisma.category.create({ data: payload });
+    const created = await prisma.category.create({ data: payload });
+    await prisma.auditLog.create({ data: { user_id: session.userId, entity: "Category", entity_id: created.id, action: "category.create", after: payload } });
   }
   } catch (error) {
     messageRedirect(returnTo, "error", prismaMessage(error, "Category could not be saved."));
   }
   revalidateStorefront();
-  messageRedirect("/admin/categories", "success", id ? "Category updated." : "Category created.");
+  messageRedirect(returnTo.startsWith("/admin/business") ? returnTo : "/admin/categories", "success", id ? "Category updated." : "Category created.");
 }
 
 export async function deleteCategoryAction(formData: FormData) {
-  await requireCapability("price", ["edit"]);
+  const session = await requirePermission("categories.manage");
   const id = String(formData.get("id") ?? "");
   if (!id) messageRedirect("/admin/categories", "error", "Category id is required.");
   const [children, products] = await Promise.all([
@@ -503,7 +612,10 @@ export async function deleteCategoryAction(formData: FormData) {
   if (children) messageRedirect("/admin/categories", "error", "Move or delete child categories before deleting this category.");
   if (products) messageRedirect("/admin/categories", "error", "Move products out of this category before deleting it.");
   try {
-    await prisma.category.delete({ where: { id } });
+    await prisma.$transaction([
+      prisma.category.delete({ where: { id } }),
+      prisma.auditLog.create({ data: { user_id: session.userId, entity: "Category", entity_id: id, action: "category.archive", after: { deleted: true } } })
+    ]);
   } catch (error) {
     messageRedirect("/admin/categories", "error", prismaMessage(error, "Category could not be deleted."));
   }
@@ -512,7 +624,7 @@ export async function deleteCategoryAction(formData: FormData) {
 }
 
 export async function upsertBrandAction(formData: FormData) {
-  await requireCapability("price", ["edit"]);
+  const session = await requirePermission("brands.manage");
   const id = String(formData.get("id") ?? "");
   const returnTo = String(formData.get("return_to") ?? "/admin/brands");
   const icon = await imageValueFromForm(formData, "icon", String(formData.get("existing_icon") ?? "") || null);
@@ -527,9 +639,14 @@ export async function upsertBrandAction(formData: FormData) {
   if (!payload.slug) messageRedirect(returnTo, "error", "Brand slug is required.");
   try {
   if (id) {
-    await prisma.brand.update({ where: { id }, data: payload });
+    const before = await prisma.brand.findUnique({ where: { id } });
+    await prisma.$transaction([
+      prisma.brand.update({ where: { id }, data: payload }),
+      prisma.auditLog.create({ data: { user_id: session.userId, entity: "Brand", entity_id: id, action: "brand.update", before: before ?? {}, after: payload } })
+    ]);
   } else {
-    await prisma.brand.create({ data: payload });
+    const created = await prisma.brand.create({ data: payload });
+    await prisma.auditLog.create({ data: { user_id: session.userId, entity: "Brand", entity_id: created.id, action: "brand.create", after: payload } });
   }
   } catch (error) {
     messageRedirect(returnTo, "error", prismaMessage(error, "Brand could not be saved."));
@@ -539,13 +656,16 @@ export async function upsertBrandAction(formData: FormData) {
 }
 
 export async function deleteBrandAction(formData: FormData) {
-  await requireCapability("price", ["edit"]);
+  const session = await requirePermission("brands.manage");
   const id = String(formData.get("id") ?? "");
   if (!id) messageRedirect("/admin/brands", "error", "Brand id is required.");
   const products = await prisma.product.count({ where: { brand_id: id, archived_at: null } });
   if (products) messageRedirect("/admin/brands", "error", "Move products out of this brand before deleting it.");
   try {
-    await prisma.brand.delete({ where: { id } });
+    await prisma.$transaction([
+      prisma.brand.delete({ where: { id } }),
+      prisma.auditLog.create({ data: { user_id: session.userId, entity: "Brand", entity_id: id, action: "brand.archive", after: { deleted: true } } })
+    ]);
   } catch (error) {
     messageRedirect("/admin/brands", "error", prismaMessage(error, "Brand could not be deleted."));
   }
@@ -603,7 +723,7 @@ export async function deleteServiceAction(formData: FormData) {
 }
 
 export async function upsertHomepageSectionAction(formData: FormData) {
-  await requireCapability("price", ["edit"]);
+  const session = await requirePermission("storefront.homepage.manage");
   const id = String(formData.get("id") ?? "");
   const returnTo = String(formData.get("return_to") ?? "/admin/homepage");
   const title = String(formData.get("title") ?? "").trim();
@@ -622,28 +742,36 @@ export async function upsertHomepageSectionAction(formData: FormData) {
 
   try {
     if (id) {
-      await prisma.homepageSection.update({ where: { id }, data: payload });
+      const before = await prisma.homepageSection.findUnique({ where: { id } });
+      await prisma.$transaction([
+        prisma.homepageSection.update({ where: { id }, data: payload }),
+        prisma.auditLog.create({ data: { user_id: session.userId, entity: "HomepageSection", entity_id: id, action: "homepage.update", before: before ?? {}, after: payload } })
+      ]);
     } else {
-      await prisma.homepageSection.create({ data: payload });
+      const created = await prisma.homepageSection.create({ data: payload });
+      await prisma.auditLog.create({ data: { user_id: session.userId, entity: "HomepageSection", entity_id: created.id, action: "homepage.create", after: payload } });
     }
   } catch (error) {
     messageRedirect(returnTo, "error", prismaMessage(error, "Homepage section could not be saved."));
   }
   revalidateStorefront();
-  messageRedirect("/admin/homepage", "success", id ? "Homepage section updated." : "Homepage section created.");
+  messageRedirect(returnTo, "success", id ? "Homepage section updated." : "Homepage section created.");
 }
 
 export async function deleteHomepageSectionAction(formData: FormData) {
-  await requireCapability("price", ["edit"]);
+  const session = await requirePermission("storefront.homepage.manage");
   const id = String(formData.get("id") ?? "");
   if (!id) messageRedirect("/admin/homepage", "error", "Homepage section id is required.");
   try {
-    await prisma.homepageSection.delete({ where: { id } });
+    await prisma.$transaction([
+      prisma.homepageSection.delete({ where: { id } }),
+      prisma.auditLog.create({ data: { user_id: session.userId, entity: "HomepageSection", entity_id: id, action: "homepage.archive", after: { deleted: true } } })
+    ]);
   } catch (error) {
     messageRedirect("/admin/homepage", "error", prismaMessage(error, "Homepage section could not be deleted."));
   }
   revalidateStorefront();
-  messageRedirect("/admin/homepage", "success", "Homepage section deleted.");
+  messageRedirect("/admin/storefront/homepage", "success", "Homepage section deleted.");
 }
 
 export type InventoryMatrixEdit = {
@@ -924,18 +1052,243 @@ export async function updateProductStockAction(formData: FormData) {
   revalidatePath("/admin/inventory");
 }
 
+export async function adjustInventoryStockAction(formData: FormData) {
+  const session = await requireCapability("stock", ["edit"]);
+  const id = String(formData.get("product_id") ?? "");
+  const returnTo = String(formData.get("return_to") ?? "/admin/inventory");
+  const stock_quantity = Number(formData.get("stock_quantity") ?? 0);
+  const reorder_level = Number(formData.get("reorder_level") ?? 0);
+  const reorder_quantity = Number(formData.get("reorder_quantity") ?? 0);
+  const requestedReason = String(formData.get("reason") ?? "CORRECTION") as StockMovementReason;
+  const reason: StockMovementReason = ["SALE", "PURCHASE", "RETURN", "DAMAGE", "CORRECTION", "OPENING_BALANCE"].includes(requestedReason) ? requestedReason : "CORRECTION";
+  const reference = nullableString(formData.get("reference")) ?? "Admin stock adjustment";
+  if (!id) messageRedirect(returnTo, "error", "Choose an inventory item.");
+  if (!Number.isFinite(stock_quantity) || !Number.isFinite(reorder_level) || !Number.isFinite(reorder_quantity)) messageRedirect(returnTo, "error", "Inventory values must be numeric.");
+  if (stock_quantity < 0 || reorder_level < 0 || reorder_quantity < 0) messageRedirect(returnTo, "error", "Negative inventory values are not allowed.");
+
+  const before = await prisma.product.findUnique({ where: { id }, select: { stock_quantity: true, reorder_level: true, reorder_quantity: true, stock_status: true, name: true } });
+  if (!before) messageRedirect(returnTo, "error", "Product not found.");
+  const stock_status = stockStatusForQuantity(stock_quantity, before.stock_status);
+  const delta = stock_quantity - before.stock_quantity;
+  try {
+    await prisma.$transaction([
+      prisma.product.update({ where: { id }, data: { stock_quantity, reorder_level, reorder_quantity, stock_status } }),
+      prisma.stockMovement.create({ data: { product_id: id, delta, reason, reference, user_id: session.userId } }),
+      prisma.auditLog.create({
+        data: {
+          user_id: session.userId,
+          entity: "Product",
+          entity_id: id,
+          action: "inventory_control.adjust",
+          before,
+          after: { stock_quantity, reorder_level, reorder_quantity, stock_status, reason, reference }
+        }
+      })
+    ]);
+  } catch (error) {
+    messageRedirect(returnTo, "error", prismaMessage(error, "Stock movement could not be saved."));
+  }
+  revalidateStorefront();
+  revalidatePath("/admin/inventory");
+  messageRedirect(returnTo, "success", `${before.name} stock ${delta === 0 ? "confirmed" : "updated"}.`);
+}
+
+export async function createStockTransferAction(formData: FormData) {
+  const session = await requireCapability("stock", ["edit"]);
+  const returnTo = String(formData.get("return_to") ?? "/admin/inventory");
+  const source = nullableString(formData.get("source_location"));
+  const destination = nullableString(formData.get("destination_location"));
+  const transferDate = nullableString(formData.get("transfer_date"));
+  const status = String(formData.get("status") ?? "submitted");
+  if (!source || !destination) messageRedirect(returnTo, "error", "Source and destination are required.");
+  if (source === destination) messageRedirect(returnTo, "error", "Source and destination cannot be the same.");
+  const rows = Array.from({ length: 6 }, (_, index) => ({
+    productId: nullableString(formData.get(`transfer_product_id_${index}`)),
+    quantity: Number(formData.get(`transfer_quantity_${index}`) ?? 0)
+  })).filter((row): row is { productId: string; quantity: number } => Boolean(row.productId));
+  if (!rows.length) messageRedirect(returnTo, "error", "Add at least one inventory item.");
+  if (rows.some((row) => !Number.isFinite(row.quantity) || row.quantity <= 0)) messageRedirect(returnTo, "error", "Transfer quantities must be positive.");
+  if (!["draft", "submitted", "in_transit"].includes(status)) messageRedirect(returnTo, "error", "Invalid initial transfer status.");
+  try {
+    const transferNumber = `TRF-${new Date().getFullYear()}-${Date.now()}`;
+    await prisma.$transaction(async (tx) => {
+      const products = await tx.product.findMany({ where: { id: { in: rows.map((row) => row.productId) } }, select: { id: true, name: true, stock_quantity: true, stock_status: true } });
+      const productMap = new Map(products.map((product) => [product.id, product]));
+      for (const row of rows) {
+        const product = productMap.get(row.productId);
+        if (!product) throw new Error("Transfer includes a product that does not exist.");
+        if (product.stock_status !== "backorder" && product.stock_quantity < row.quantity) throw new Error(`${product.name} has only ${product.stock_quantity} units available.`);
+      }
+      const transfer = await tx.stockTransfer.create({
+        data: {
+          transfer_number: transferNumber,
+          source_location: source,
+          destination_location: destination,
+          status,
+          transfer_date: transferDate ? new Date(`${transferDate}T00:00:00.000Z`) : new Date(),
+          notes: nullableString(formData.get("notes")),
+          responsible_user_id: nullableString(formData.get("responsible_user_id")) ?? session.userId,
+          created_by_id: session.userId,
+          submitted_at: status === "draft" ? null : new Date(),
+          items: { create: rows.map((row) => ({ product_id: row.productId, quantity: row.quantity, available_at_submit: productMap.get(row.productId)?.stock_quantity })) }
+        },
+        include: { items: true }
+      });
+      if (status !== "draft") {
+        for (const row of rows) {
+          const product = productMap.get(row.productId)!;
+          const nextQuantity = product.stock_quantity - row.quantity;
+          const update = product.stock_status === "backorder"
+            ? await tx.product.update({ where: { id: row.productId }, data: { stock_quantity: { decrement: row.quantity } } })
+            : await tx.product.updateMany({ where: { id: row.productId, stock_quantity: { gte: row.quantity } }, data: { stock_quantity: { decrement: row.quantity }, stock_status: nextQuantity > 0 ? "in_stock" : "out_of_stock" } });
+          if ("count" in update && update.count !== 1) throw new Error(`${product.name} stock changed while submitting the transfer.`);
+          await tx.stockMovement.create({ data: { product_id: row.productId, delta: -row.quantity, reason: "CORRECTION", reference: `Stock transfer ${transfer.transfer_number}: ${source} to ${destination}`, user_id: session.userId } });
+        }
+      }
+      await tx.auditLog.create({ data: { user_id: session.userId, entity: "StockTransfer", entity_id: transfer.id, action: "stock_transfer.create", after: { transfer_number: transfer.transfer_number, status, source, destination, items: rows } } });
+    });
+  } catch (error) {
+    messageRedirect(returnTo, "error", prismaMessage(error, "Stock transfer could not be created."));
+  }
+  revalidateStorefront();
+  revalidatePath("/admin/inventory");
+  messageRedirect(returnTo, "success", "Stock transfer saved.");
+}
+
+export async function updateStockTransferStatusAction(formData: FormData) {
+  const session = await requireCapability("stock", ["edit"]);
+  const id = String(formData.get("id") ?? "");
+  const status = String(formData.get("status") ?? "");
+  if (!id) messageRedirect("/admin/inventory", "error", "Transfer id is required.");
+  if (!["submitted", "in_transit", "received", "completed", "cancelled"].includes(status)) messageRedirect("/admin/inventory", "error", "Invalid transfer status.");
+  try {
+    await prisma.stockTransfer.update({
+      where: { id },
+      data: {
+        status,
+        submitted_at: ["submitted", "in_transit", "received", "completed"].includes(status) ? new Date() : undefined,
+        received_at: ["received", "completed"].includes(status) ? new Date() : undefined,
+        cancelled_at: status === "cancelled" ? new Date() : undefined
+      }
+    });
+    await prisma.auditLog.create({ data: { user_id: session.userId, entity: "StockTransfer", entity_id: id, action: "stock_transfer.status", after: { status } } });
+  } catch (error) {
+    messageRedirect("/admin/inventory", "error", prismaMessage(error, "Transfer status could not be updated."));
+  }
+  revalidatePath("/admin/inventory");
+  messageRedirect("/admin/inventory", "success", "Transfer status updated.");
+}
+
+export async function createStockTakeAction(formData: FormData) {
+  const session = await requireCapability("stock", ["edit"]);
+  const name = nullableString(formData.get("name"));
+  const location = nullableString(formData.get("location"));
+  const date = nullableString(formData.get("stock_take_date"));
+  if (!name || !location) messageRedirect("/admin/inventory?view=stock-takes", "error", "Stock take name and location are required.");
+  try {
+    const products = await prisma.product.findMany({ where: { archived_at: null }, select: { id: true, stock_quantity: true } });
+    const number = `STK-${new Date().getFullYear()}-${Date.now()}`;
+    const stockTake = await prisma.stockTake.create({
+      data: {
+        stock_take_number: number,
+        name,
+        location,
+        status: "in_progress",
+        stock_take_date: date ? new Date(`${date}T00:00:00.000Z`) : new Date(),
+        assigned_user_id: nullableString(formData.get("assigned_user_id")) ?? session.userId,
+        created_by_id: session.userId,
+        started_at: new Date(),
+        notes: nullableString(formData.get("notes")),
+        items: { create: products.map((product) => ({ product_id: product.id, expected_quantity: product.stock_quantity })) }
+      }
+    });
+    await prisma.auditLog.create({ data: { user_id: session.userId, entity: "StockTake", entity_id: stockTake.id, action: "stock_take.create", after: { number, product_count: products.length } } });
+  } catch (error) {
+    messageRedirect("/admin/inventory?view=stock-takes", "error", prismaMessage(error, "Stock take could not be created."));
+  }
+  revalidatePath("/admin/inventory");
+  messageRedirect("/admin/inventory?view=stock-takes", "success", "Stock take opened.");
+}
+
+export async function saveStockTakeCountsAction(formData: FormData) {
+  const session = await requireCapability("stock", ["edit"]);
+  const id = String(formData.get("id") ?? "");
+  if (!id) messageRedirect("/admin/inventory?view=stock-takes", "error", "Stock take id is required.");
+  try {
+    const stockTake = await prisma.stockTake.findUnique({ where: { id }, include: { items: true } });
+    if (!stockTake) throw new Error("Stock take not found.");
+    if (["completed", "cancelled"].includes(stockTake.status)) throw new Error("Completed or cancelled stock takes cannot be edited.");
+    await prisma.$transaction(stockTake.items.map((item) => {
+      const raw = formData.get(`counted_${item.id}`);
+      const counted = raw === null || String(raw).trim() === "" ? null : Number(raw);
+      if (counted !== null && (!Number.isFinite(counted) || counted < 0)) throw new Error("Counted quantities cannot be negative.");
+      return prisma.stockTakeItem.update({
+        where: { id: item.id },
+        data: {
+          counted_quantity: counted,
+          variance_quantity: counted === null ? null : counted - item.expected_quantity,
+          counted_at: counted === null ? null : new Date()
+        }
+      });
+    }));
+    await prisma.stockTake.update({ where: { id }, data: { status: "under_review", submitted_at: new Date() } });
+    await prisma.auditLog.create({ data: { user_id: session.userId, entity: "StockTake", entity_id: id, action: "stock_take.counts.save", after: { status: "under_review" } } });
+  } catch (error) {
+    messageRedirect("/admin/inventory?view=stock-takes", "error", prismaMessage(error, "Stock take counts could not be saved."));
+  }
+  revalidatePath("/admin/inventory");
+  messageRedirect("/admin/inventory?view=stock-takes", "success", "Stock take counts saved for review.");
+}
+
+export async function reconcileStockTakeAction(formData: FormData) {
+  const session = await requireCapability("stock", ["edit"]);
+  const id = String(formData.get("id") ?? "");
+  if (!id) messageRedirect("/admin/inventory?view=stock-takes", "error", "Stock take id is required.");
+  try {
+    await prisma.$transaction(async (tx) => {
+      const stockTake = await tx.stockTake.findUnique({ where: { id }, include: { items: { include: { product: true } } } });
+      if (!stockTake) throw new Error("Stock take not found.");
+      if (stockTake.status === "completed") throw new Error("Stock take is already completed.");
+      if (stockTake.status === "cancelled") throw new Error("Cancelled stock takes cannot be reconciled.");
+      for (const item of stockTake.items) {
+        if (item.counted_quantity === null) throw new Error("All stock take items need counted quantities before reconciliation.");
+        const variance = item.counted_quantity - item.product.stock_quantity;
+        await tx.product.update({ where: { id: item.product_id }, data: { stock_quantity: item.counted_quantity, stock_status: stockStatusForQuantity(item.counted_quantity, item.product.stock_status) } });
+        await tx.stockTakeItem.update({ where: { id: item.id }, data: { approved_quantity: item.counted_quantity, variance_quantity: item.counted_quantity - item.expected_quantity, reconciled_at: new Date() } });
+        if (variance !== 0) await tx.stockMovement.create({ data: { product_id: item.product_id, delta: variance, reason: "CORRECTION", reference: `Stock take ${stockTake.stock_take_number}`, user_id: session.userId } });
+      }
+      await tx.stockTake.update({ where: { id }, data: { status: "completed", approved_by_id: session.userId, completed_at: new Date() } });
+      await tx.auditLog.create({ data: { user_id: session.userId, entity: "StockTake", entity_id: id, action: "stock_take.reconcile", after: { status: "completed" } } });
+    });
+  } catch (error) {
+    messageRedirect("/admin/inventory?view=stock-takes", "error", prismaMessage(error, "Stock take could not be reconciled."));
+  }
+  revalidateStorefront();
+  revalidatePath("/admin/inventory");
+  messageRedirect("/admin/inventory?view=stock-takes", "success", "Stock take reconciled.");
+}
+
 export async function upsertBannerAction(formData: FormData) {
-  await requireCapability("price", ["edit"]);
+  const session = await requirePermission("storefront.banners.manage");
   const id = String(formData.get("id") ?? "");
   const returnTo = String(formData.get("return_to") ?? "/admin/banners");
   const title = String(formData.get("title") ?? "").trim();
-  const slug = slugify(title || id || "banner");
-  const placement = String(formData.get("placement") ?? "main") as BannerPlacement;
+  const internalName = nullableString(formData.get("internal_name")) ?? title;
+  const requestedKey = nullableString(formData.get("banner_key"));
+  const slug = slugify((requestedKey ?? internalName ?? title ?? id) || "banner");
+  const placement = normalizeBannerPlacement(formData.get("placement"));
   const isEnabled = formData.get("is_enabled") === "on";
   const categoryId = String(formData.get("category_id") ?? "") || null;
+  const startsAt = parseDateTime(formData.get("starts_at"));
+  const endsAt = parseDateTime(formData.get("ends_at"));
+  if (startsAt && endsAt && startsAt >= endsAt) messageRedirect(returnTo, "error", "Start date/time must be before end date/time.");
+  const destination = normalizeDestination(formData.get("destination_type") ?? formData.get("link_type"), formData.get("cta_href"));
   let image: string | null = null;
   let laptop_image: string | null = null;
   let mobile_image: string | null = null;
+  let image_path: string | null = null;
+  let laptop_image_path: string | null = null;
+  let mobile_image_path: string | null = null;
   let image_variants: Array<{ slot: string; url: string; width: number; height: number; aspectRatio: string; shape?: string; focalMode?: string; focalX?: number; focalY?: number; crop?: string | null }> = [];
   try {
     const existingVariants = parseBannerVariants(formData.get("existing_image_variants"));
@@ -961,32 +1314,45 @@ export async function upsertBannerAction(formData: FormData) {
       crop: nullableString(formData.get("crop_metadata"))
     }, ...responsiveVariants] : responsiveVariants;
 
-    image = image_variants.find((variant) => variant.slot === "wide_1600")?.url
+    image = image_variants.find((variant) => variant.slot === "ultrawide")?.url
       ?? image_variants.find((variant) => variant.shape === "wide")?.url
       ?? masterUrl
       ?? bannerImageValueFromForm(formData, "image", String(formData.get("existing_image") ?? "") || null);
-    laptop_image = image_variants.find((variant) => variant.slot === "mid_1280")?.url
+    laptop_image = image_variants.find((variant) => variant.slot === "landscape")?.url
       ?? image_variants.find((variant) => variant.shape === "mid")?.url
       ?? masterUrl
       ?? bannerImageValueFromForm(formData, "laptop_image", String(formData.get("existing_laptop_image") ?? "") || null);
-    mobile_image = image_variants.find((variant) => variant.slot === "tall_720")?.url
+    mobile_image = image_variants.find((variant) => variant.slot === "mobile")?.url
       ?? image_variants.find((variant) => variant.shape === "tall")?.url
       ?? masterUrl
       ?? bannerImageValueFromForm(formData, "mobile_image", String(formData.get("existing_mobile_image") ?? "") || null);
+    image_path = String((image_variants.find((variant) => variant.slot === "ultrawide") as { path?: unknown } | undefined)?.path ?? "") || null;
+    laptop_image_path = String((image_variants.find((variant) => variant.slot === "landscape") as { path?: unknown } | undefined)?.path ?? "") || null;
+    mobile_image_path = String((image_variants.find((variant) => variant.slot === "mobile") as { path?: unknown } | undefined)?.path ?? "") || null;
   } catch (error) {
     await removeBannerStorageObjects([image, laptop_image, mobile_image, ...image_variants.map((variant) => variant.url)]).catch(() => undefined);
     messageRedirect(returnTo, "error", prismaMessage(error, "Banner image could not be uploaded."));
   }
   const payload = {
+    banner_key: slug,
+    internal_name: internalName,
     title,
     kicker: nullableString(formData.get("kicker")),
     body: String(formData.get("body") ?? "").trim(),
     cta_label: nullableString(formData.get("cta_label")),
-    cta_href: nullableString(formData.get("cta_href")),
+    cta_href: destination.cta_href,
+    destination_type: destination.destination_type,
     image,
     laptop_image,
     mobile_image,
+    image_path,
+    laptop_image_path,
+    mobile_image_path,
     image_variants: image_variants as Prisma.InputJsonValue,
+    alt_text: nullableString(formData.get("alt_text")) ?? title,
+    mobile_focal_position: nullableString(formData.get("mobile_focal_position")) ?? "center center",
+    landscape_focal_position: nullableString(formData.get("landscape_focal_position")) ?? "center center",
+    ultrawide_focal_position: nullableString(formData.get("ultrawide_focal_position")) ?? "center center",
     text_position: bannerTextPosition(formData.get("text_position")),
     overlay_opacity: bannerOverlayOpacity(formData.get("overlay_opacity")),
     badge_enabled: formData.get("badge_enabled") === "on",
@@ -996,7 +1362,11 @@ export async function upsertBannerAction(formData: FormData) {
     placement,
     category_id: categoryId,
     sort_order: Number(formData.get("sort_order") ?? 0),
-    is_enabled: isEnabled
+    starts_at: startsAt,
+    ends_at: endsAt,
+    is_enabled: isEnabled,
+    archived_at: null,
+    updated_by_id: session.userId
   };
   if (!payload.title || !payload.body) messageRedirect(returnTo, "error", "Banner title and body are required.");
   if (payload.is_enabled && !payload.image) {
@@ -1005,29 +1375,111 @@ export async function upsertBannerAction(formData: FormData) {
   try {
     if (id) {
       const before = await prisma.banner.findUnique({ where: { id }, select: { image: true, laptop_image: true, mobile_image: true, image_variants: true } });
-      await prisma.banner.update({ where: { id }, data: payload });
+      await prisma.$transaction([
+        prisma.banner.update({ where: { id }, data: payload }),
+        prisma.auditLog.create({ data: { user_id: session.userId, entity: "Banner", entity_id: id, action: "banner.update", before: before ?? {}, after: payload } })
+      ]);
       const retained = new Set([payload.image, payload.laptop_image, payload.mobile_image, ...image_variants.map((variant) => variant.url)].filter(Boolean));
       const beforeVariants = parseBannerVariants(before?.image_variants ? JSON.stringify(before.image_variants) : null).map((variant) => typeof variant.url === "string" ? variant.url : null);
       await removeBannerStorageObjects([before?.image, before?.laptop_image, before?.mobile_image, ...beforeVariants].filter((url) => url && !retained.has(url)));
-    } else await prisma.banner.create({ data: payload });
+    } else {
+      const created = await prisma.banner.create({ data: { ...payload, created_by_id: session.userId } });
+      await prisma.auditLog.create({ data: { user_id: session.userId, entity: "Banner", entity_id: created.id, action: "banner.create", after: payload } });
+    }
   } catch (error) {
     messageRedirect(returnTo, "error", prismaMessage(error, "Banner could not be saved."));
   }
   revalidateStorefront();
   revalidatePath("/admin/banners");
-  messageRedirect("/admin/banners", "success", id ? "Banner updated." : "Banner created.");
+  revalidatePath("/admin/storefront/banners");
+  messageRedirect(returnTo, "success", id ? "Banner updated." : "Banner created.");
 }
 
 export async function deleteBannerAction(formData: FormData) {
-  await requireCapability("price", ["edit"]);
+  return archiveBannerAction(formData);
+}
+
+export async function archiveBannerAction(formData: FormData) {
+  const session = await requirePermission("storefront.banners.manage");
   const id = String(formData.get("id") ?? "");
-  const banner = await prisma.banner.findUnique({ where: { id }, select: { image: true, laptop_image: true, mobile_image: true, image_variants: true } });
-  await prisma.banner.delete({ where: { id } });
-  const variants = parseBannerVariants(banner?.image_variants ? JSON.stringify(banner.image_variants) : null).map((variant) => typeof variant.url === "string" ? variant.url : null);
-  await removeBannerStorageObjects([banner?.image, banner?.laptop_image, banner?.mobile_image, ...variants]);
+  const banner = await prisma.banner.findUnique({ where: { id } });
+  if (!banner) messageRedirect("/admin/storefront/banners", "error", "Banner not found.");
+  await prisma.$transaction([
+    prisma.banner.update({ where: { id }, data: { is_enabled: false, archived_at: new Date(), updated_by_id: session.userId } }),
+    prisma.auditLog.create({ data: { user_id: session.userId, entity: "Banner", entity_id: id, action: "banner.archive", before: banner, after: { archived_at: "now", is_enabled: false } } })
+  ]);
   revalidateStorefront();
-  revalidatePath("/admin/banners");
-  messageRedirect("/admin/banners", "success", "Banner deleted.");
+  revalidatePath("/admin/storefront/banners");
+  messageRedirect("/admin/storefront/banners", "success", "Banner archived.");
+}
+
+export async function restoreBannerAction(formData: FormData) {
+  const session = await requirePermission("storefront.banners.manage");
+  const id = String(formData.get("id") ?? "");
+  const before = await prisma.banner.findUnique({ where: { id } });
+  if (!before) messageRedirect("/admin/storefront/banners", "error", "Banner not found.");
+  await prisma.$transaction([
+    prisma.banner.update({ where: { id }, data: { archived_at: null, updated_by_id: session.userId } }),
+    prisma.auditLog.create({ data: { user_id: session.userId, entity: "Banner", entity_id: id, action: "banner.restore", before, after: { archived_at: null } } })
+  ]);
+  revalidateStorefront();
+  revalidatePath("/admin/storefront/banners");
+  messageRedirect("/admin/storefront/banners", "success", "Banner restored.");
+}
+
+export async function duplicateBannerAction(formData: FormData) {
+  const session = await requirePermission("storefront.banners.manage");
+  const id = String(formData.get("id") ?? "");
+  const source = await prisma.banner.findUnique({ where: { id } });
+  if (!source) messageRedirect("/admin/storefront/banners", "error", "Banner not found.");
+  const copy = {
+    banner_key: source.banner_key,
+    internal_name: source.internal_name,
+    title: source.title,
+    kicker: source.kicker,
+    body: source.body,
+    cta_label: source.cta_label,
+    cta_href: source.cta_href,
+    destination_type: source.destination_type,
+    image: source.image,
+    laptop_image: source.laptop_image,
+    mobile_image: source.mobile_image,
+    image_path: source.image_path,
+    laptop_image_path: source.laptop_image_path,
+    mobile_image_path: source.mobile_image_path,
+    image_variants: source.image_variants as Prisma.InputJsonValue,
+    alt_text: source.alt_text,
+    mobile_focal_position: source.mobile_focal_position,
+    landscape_focal_position: source.landscape_focal_position,
+    ultrawide_focal_position: source.ultrawide_focal_position,
+    text_position: source.text_position,
+    overlay_opacity: source.overlay_opacity,
+    badge_enabled: source.badge_enabled,
+    badge_text: source.badge_text,
+    badge_color: source.badge_color,
+    badge_position: source.badge_position,
+    placement: source.placement,
+    category_id: source.category_id,
+    sort_order: source.sort_order,
+    starts_at: source.starts_at,
+    ends_at: source.ends_at
+  };
+  const created = await prisma.banner.create({
+    data: {
+      ...copy,
+      banner_key: `${source.banner_key ?? slugify(source.title)}-copy-${crypto.randomUUID().slice(0, 8)}`,
+      internal_name: `${source.internal_name ?? source.title} copy`,
+      title: `${source.title} copy`,
+      is_enabled: false,
+      archived_at: null,
+      created_by_id: session.userId,
+      updated_by_id: session.userId
+    }
+  });
+  await prisma.auditLog.create({ data: { user_id: session.userId, entity: "Banner", entity_id: created.id, action: "banner.duplicate", before: { id }, after: { id: created.id, banner_key: created.banner_key } } });
+  revalidateStorefront();
+  revalidatePath("/admin/storefront/banners");
+  messageRedirect(`/admin/storefront/banners?edit=${created.id}`, "success", "Banner duplicated as a draft.");
 }
 
 export async function updateDeliveryFeesAction(formData: FormData) {

@@ -79,7 +79,7 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
         {orderList.length ? orderList.map((order) => (
           <article key={order.id} className="border-b border-line p-5 last:border-b-0">
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <div><p className="font-black text-ink">Order {order.id.slice(0, 8)}</p><p className="text-xs font-semibold uppercase text-slate-500">{order.created_at.toLocaleDateString("en-KE")}</p></div>
+              <div><p className="font-black text-ink">Order {order.order_number}</p><p className="text-xs font-semibold uppercase text-slate-500">{order.created_at.toLocaleDateString("en-KE")}</p></div>
               <div className="flex flex-col items-start gap-2 sm:items-end">
                 <p className="font-black text-signal">{formatKes(order.total_kes)}</p>
                 <CustomerStatusBadge status={order.status} context="order" />

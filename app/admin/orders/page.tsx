@@ -1,5 +1,5 @@
-import { CeterAdminWorkspace } from "@/components/admin/CeterAdminWorkspace";
+import { redirect } from "next/navigation";
 
-export default function SalesPage() {
-  return <CeterAdminWorkspace module="sales" />;
+export default function OrdersCompatibilityPage() {
+  redirect("/admin/sales");
 }

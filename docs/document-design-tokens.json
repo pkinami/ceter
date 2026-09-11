@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "source": "Ceter_Combined_Quotation.pdf page 1, measured 2026-09-10 with PyMuPDF",
+  "coordinateSystem": "PDF points; renderer coordinates use a bottom-left origin, measurements below use the reference top-left origin unless named rendererY",
+  "page": { "width": 612, "height": 792, "left": 55.125, "right": 557.625 },
+  "colors": { "teal": "#14B8A6", "body": "#383838", "border": "#C7C7C7", "panelText": "#383838", "footer": "#707078" },
+  "fonts": {
+    "companyName": { "source": "Arial-Black", "size": 18, "x": 55.125, "top": 67.94 },
+    "body": { "source": "Arial/Arial Bold", "size": 9, "lineHeight": 15 },
+    "panel": { "source": "Poppins", "headingSize": 8.43, "bodySize": 7.49 }
+  },
+  "header": { "companyRendererY": 728, "detailRendererYs": [692, 677, 662, 647], "dividerRendererY": 584, "title": { "right": 557.625, "rendererY": 586.5, "size": 14 } },
+  "party": { "labelX": 55.125, "valueX": 96.961, "labelRendererY": 543, "lineHeight": 15 },
+  "metadata": { "labelRight": 502.58, "valueX": 517.582, "rendererYs": [543, 528, 513, 498] },
+  "table": { "x": 55.125, "width": 502.5, "headerRendererTop": 497, "rowHeight": 21.75, "headerHeight": 21.75, "columns": [59.625, 212.004, 318.082, 478.125], "stroke": 0.5 },
+  "totals": { "labelX": 317.707, "valueX": 477.75, "rowHeight": 21.75, "separatorOffset": 6 },
+  "payment": { "x": 55.125, "width": 502.5, "headingTop": 583.35, "bodyTop": 605.87, "lineHeight": 10.3 },
+  "terms": { "x": 55.125, "width": 502.5, "headingTop": 662.02 },
+  "footer": { "dividerRendererY": 43, "timestampX": 57.448, "timestampRendererY": 29.8, "textCenterX": 390.422, "textRendererY": 19.4 }
+}

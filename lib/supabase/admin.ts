@@ -1,12 +1,9 @@
 import { createClient } from "@supabase/supabase-js";
+import { requiredEnv, requiredUrlEnv } from "@/lib/env";
 
 export function createAdminClient() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-  if (!url || !serviceRoleKey) {
-    throw new Error("Missing Supabase admin environment variables");
-  }
+  const url = requiredUrlEnv("NEXT_PUBLIC_SUPABASE_URL");
+  const serviceRoleKey = requiredEnv("SUPABASE_SERVICE_ROLE_KEY", { format: "Supabase service role JWT" });
 
   return createClient(url, serviceRoleKey, {
     auth: {

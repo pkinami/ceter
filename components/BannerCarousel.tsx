@@ -4,10 +4,9 @@ import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, 
 import { motion, PanInfo, useReducedMotion } from "framer-motion";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import Link from "next/link";
-import { getImageProps } from "next/image";
 import { cn } from "@/lib/utils";
 import type { Banner } from "@/lib/types";
-import { getBannerAssetUrl, getBannerFallbackUrl, getBannerSrcSet, normalizePublicAssetUrl, type BannerManifestEntry, type LoadingPriority } from "@/lib/banner-schema";
+import { getBannerAssetUrl, getBannerFallbackUrl, normalizePublicAssetUrl, type BannerManifestEntry, type LoadingPriority } from "@/lib/banner-schema";
 
 type BannerVariant = "main" | "category" | "services";
 
@@ -15,10 +14,10 @@ const variantConfig = {
   main: {
     interval: 15000,
     duration: 0.55,
-    sectionClass: "h-[clamp(276px,66vw,300px)] min-h-0 sm:h-[clamp(258px,34vw,306px)] md:h-[268px] lg:h-[280px] min-[1366px]:h-[292px] min-[1600px]:h-[312px]",
-    contentClass: "h-full w-[76%] max-w-[36rem] px-7 py-7 sm:w-[68%] sm:max-w-[40rem] sm:px-10 md:w-[62%] md:max-w-[42rem] md:px-11 lg:w-[58%] xl:w-[54%]",
-    titleClass: "text-[clamp(21px,5.4vw,27px)] leading-[1.16] sm:text-[clamp(29px,3.4vw,36px)] sm:leading-[1.1] lg:text-[clamp(34px,2.35vw,38px)] lg:leading-[1.08] min-[1600px]:text-[40px]",
-    bodyClass: "text-[clamp(13px,3.35vw,15px)] leading-[1.55] sm:text-[clamp(15px,1.6vw,16px)] md:text-[clamp(15px,1.05vw,16px)]",
+    sectionClass: "h-[clamp(248px,64vw,284px)] min-h-0 sm:h-[clamp(258px,34vw,306px)] md:h-[268px] lg:h-[280px] min-[1366px]:h-[292px] min-[1600px]:h-[312px]",
+    contentClass: "h-full w-[82%] max-w-[36rem] px-8 py-6 pb-10 sm:w-[68%] sm:max-w-[40rem] sm:px-10 sm:py-7 md:w-[62%] md:max-w-[42rem] md:px-11 lg:w-[58%] xl:w-[54%]",
+    titleClass: "text-[clamp(18px,5vw,22px)] leading-[1.12] sm:text-[clamp(28px,3.25vw,35px)] sm:leading-[1.1] lg:text-[clamp(32px,2.25vw,37px)] lg:leading-[1.08] min-[1600px]:text-[39px]",
+    bodyClass: "text-[clamp(12px,3.25vw,14px)] leading-[1.38] sm:text-[clamp(14px,1.45vw,16px)] md:text-[clamp(15px,1.05vw,16px)]",
     imageClass: "",
     imageWrapClass: "",
     overlayClass: "bg-gradient-to-r from-ink/86 via-ink/42 to-ink/8",
@@ -28,10 +27,10 @@ const variantConfig = {
   category: {
     interval: 15000,
     duration: 0.6,
-    sectionClass: "h-[clamp(268px,64vw,294px)] min-h-0 sm:h-[clamp(252px,32vw,298px)] md:h-[260px] lg:h-[272px] min-[1366px]:h-[286px] min-[1600px]:h-[304px]",
-    contentClass: "h-full w-[76%] max-w-[36rem] px-7 py-7 sm:w-[68%] sm:max-w-[40rem] sm:px-10 md:w-[62%] md:max-w-[42rem] lg:w-[58%] xl:w-[54%]",
-    titleClass: "text-[clamp(21px,5.3vw,27px)] leading-[1.16] sm:text-[clamp(29px,3.3vw,35px)] sm:leading-[1.1] lg:text-[clamp(33px,2.25vw,37px)] lg:leading-[1.08] min-[1600px]:text-[39px]",
-    bodyClass: "text-[clamp(13px,3.3vw,15px)] leading-[1.55] sm:text-[clamp(15px,1.55vw,16px)] md:text-[clamp(15px,1vw,16px)]",
+    sectionClass: "h-[clamp(240px,62vw,278px)] min-h-0 sm:h-[clamp(252px,32vw,298px)] md:h-[260px] lg:h-[272px] min-[1366px]:h-[286px] min-[1600px]:h-[304px]",
+    contentClass: "h-full w-[82%] max-w-[36rem] px-8 py-6 pb-10 sm:w-[68%] sm:max-w-[40rem] sm:px-10 sm:py-7 md:w-[62%] md:max-w-[42rem] lg:w-[58%] xl:w-[54%]",
+    titleClass: "text-[clamp(18px,4.9vw,22px)] leading-[1.12] sm:text-[clamp(28px,3.15vw,34px)] sm:leading-[1.1] lg:text-[clamp(31px,2.15vw,36px)] lg:leading-[1.08] min-[1600px]:text-[38px]",
+    bodyClass: "text-[clamp(12px,3.2vw,14px)] leading-[1.38] sm:text-[clamp(14px,1.45vw,16px)] md:text-[clamp(15px,1vw,16px)]",
     imageClass: "scale-100",
     imageWrapClass: "",
     overlayClass: "bg-gradient-to-r from-ink/88 via-ink/44 to-ink/8",
@@ -41,10 +40,10 @@ const variantConfig = {
   services: {
     interval: 15000,
     duration: 0.8,
-    sectionClass: "h-[clamp(268px,64vw,294px)] min-h-0 sm:h-[clamp(252px,32vw,298px)] md:h-[260px] lg:h-[272px] min-[1366px]:h-[286px] min-[1600px]:h-[304px]",
-    contentClass: "h-full w-[76%] max-w-[36rem] px-7 py-7 sm:w-[68%] sm:max-w-[40rem] sm:px-10 md:w-[62%] md:max-w-[42rem] lg:w-[58%] xl:w-[54%]",
-    titleClass: "text-[clamp(21px,5.3vw,27px)] leading-[1.16] sm:text-[clamp(29px,3.3vw,35px)] sm:leading-[1.1] lg:text-[clamp(33px,2.25vw,37px)] lg:leading-[1.08] min-[1600px]:text-[39px]",
-    bodyClass: "text-[clamp(13px,3.3vw,15px)] leading-[1.55] sm:text-[clamp(15px,1.55vw,16px)] md:text-[clamp(15px,1vw,16px)]",
+    sectionClass: "h-[clamp(240px,62vw,278px)] min-h-0 sm:h-[clamp(252px,32vw,298px)] md:h-[260px] lg:h-[272px] min-[1366px]:h-[286px] min-[1600px]:h-[304px]",
+    contentClass: "h-full w-[82%] max-w-[36rem] px-8 py-6 pb-10 sm:w-[68%] sm:max-w-[40rem] sm:px-10 sm:py-7 md:w-[62%] md:max-w-[42rem] lg:w-[58%] xl:w-[54%]",
+    titleClass: "text-[clamp(18px,4.9vw,22px)] leading-[1.12] sm:text-[clamp(28px,3.15vw,34px)] sm:leading-[1.1] lg:text-[clamp(31px,2.15vw,36px)] lg:leading-[1.08] min-[1600px]:text-[38px]",
+    bodyClass: "text-[clamp(12px,3.2vw,14px)] leading-[1.38] sm:text-[clamp(14px,1.45vw,16px)] md:text-[clamp(15px,1vw,16px)]",
     imageClass: "scale-[1.02]",
     imageWrapClass: "",
     overlayClass: "bg-gradient-to-r from-ink/88 via-ink/44 to-ink/8",
@@ -160,20 +159,24 @@ export function BannerCarousel({
           aria-hidden={index !== active}
           data-banner-slide={index}
         >
-          {index === active ? <BannerImage banner={item} imageClass={config.imageClass} imageWrapClass={config.imageWrapClass} reduceMotion={Boolean(reduceMotion)} active={index === active} /> : null}
+          {index === active ? <BannerImage banner={item} imageClass={config.imageClass} imageWrapClass={config.imageWrapClass} reduceMotion={Boolean(reduceMotion)} active={index === active} critical={variant === "main" && index === 0} /> : null}
           <div className="pointer-events-none absolute inset-0 z-10" style={bannerOverlayStyle(item)} />
           <BannerBadge banner={item} />
-          <div className={cn("relative z-20 flex h-full max-w-4xl flex-col justify-center drop-shadow-[0_2px_10px_rgba(0,0,0,0.55)]", config.contentClass, item.badge?.enabled && item.badge.position === "top-left" && item.textPosition !== "right" && "pt-12 sm:pt-14 md:pt-16", bannerContentClass(item))}>
+          <div className={cn("relative z-20 flex h-full max-w-4xl flex-col justify-center drop-shadow-[0_2px_10px_rgba(0,0,0,0.55)]", config.contentClass, isTopLeftBadge(item) && item.textPosition !== "right" && "justify-start pt-12 sm:pt-16 md:pt-16", bannerContentClass(item))}>
             {item.kicker ? <p className="line-clamp-1 text-[10px] font-bold uppercase leading-none tracking-normal text-teal-200 sm:text-[11px] md:text-xs">{item.kicker}</p> : null}
-            <h1 className={cn("mt-3 w-full max-w-[min(620px,100%)] font-semibold tracking-normal sm:mt-3.5", config.titleClass)}>{item.title}</h1>
-            <p className={cn("mt-3 w-full max-w-[min(560px,100%)] text-slate-100 sm:mt-3.5", config.bodyClass)}>{item.body}</p>
+            <h1 className={cn("mt-2.5 line-clamp-3 w-full max-w-[min(620px,100%)] font-semibold tracking-normal sm:mt-3.5 sm:line-clamp-none", config.titleClass)}>
+              {item.title}
+            </h1>
+            <p className={cn("mt-2.5 line-clamp-2 w-full max-w-[min(560px,100%)] text-slate-100 sm:mt-3.5 sm:line-clamp-none", config.bodyClass)}>
+              {item.body}
+            </p>
             {item.ctaLabel && item.ctaHref ? (
-              <div className="mt-4 flex flex-wrap gap-2 sm:mt-5 md:mt-5">
-                <Link href={item.ctaHref} className="inline-flex h-10 min-h-10 w-fit items-center rounded-md bg-white px-3.5 text-sm font-semibold text-ink shadow hover:bg-slate-100 sm:h-10 sm:min-h-10 sm:px-4 md:h-11 md:min-h-11">
+              <div className="mt-3 flex flex-wrap gap-2 sm:mt-5 md:mt-5">
+                <Link href={item.ctaHref} className="inline-flex h-9 min-h-9 w-fit items-center rounded-md bg-white px-3 text-xs font-semibold text-ink shadow hover:bg-slate-100 sm:h-10 sm:min-h-10 sm:px-4 sm:text-sm md:h-11 md:min-h-11">
                   {item.ctaLabel}
                 </Link>
                 {item.secondaryCtaLabel && item.secondaryCtaHref ? (
-                  <Link href={item.secondaryCtaHref} className="inline-flex h-10 min-h-10 w-fit items-center rounded-md border border-white/80 bg-white/15 px-3.5 text-sm font-semibold text-white shadow hover:bg-white/25 sm:h-10 sm:min-h-10 sm:px-4 md:h-11 md:min-h-11">
+                  <Link href={item.secondaryCtaHref} className="inline-flex h-9 min-h-9 w-fit items-center rounded-md border border-white/80 bg-white/15 px-3 text-xs font-semibold text-white shadow hover:bg-white/25 sm:h-10 sm:min-h-10 sm:px-4 sm:text-sm md:h-11 md:min-h-11">
                     {item.secondaryCtaLabel}
                   </Link>
                 ) : null}
@@ -218,7 +221,7 @@ export function BannerCarousel({
   );
 }
 
-function BannerImage({ banner, imageClass, imageWrapClass, reduceMotion, active }: { banner: Banner; imageClass: string; imageWrapClass: string; reduceMotion: boolean; active: boolean }) {
+function BannerImage({ banner, imageClass, imageWrapClass, reduceMotion, active, critical }: { banner: Banner; imageClass: string; imageWrapClass: string; reduceMotion: boolean; active: boolean; critical: boolean }) {
   const manifestBanner = hasResponsiveAssets(banner) ? banner : null;
   const variantImages = banner.imageVariants ?? [];
   const fallbackImage = normalizePublicAssetUrl(manifestBanner ? getBannerFallbackUrl(manifestBanner) : variantImages.find((variant) => variant.shape === "wide")?.url ?? variantImages[0]?.url ?? banner.image);
@@ -246,6 +249,7 @@ function BannerImage({ banner, imageClass, imageWrapClass, reduceMotion, active 
         imageClass={imageClass}
         priority={priority}
         active={active}
+        critical={critical}
         reduceMotion={reduceMotion}
         onError={(failedUrl) => {
           setImageMode(useResponsiveSources && failedUrl !== new URL(fallbackImage, window.location.href).href ? "fallback" : "hidden");
@@ -294,7 +298,7 @@ function BannerBadge({ banner }: { banner: Banner }) {
         banner.badge.position === "top-right" && "right-4 top-4",
         banner.badge.position === "bottom-left" && "bottom-4 left-4",
         banner.badge.position === "bottom-right" && "bottom-4 right-4",
-        banner.badge.position === "top-left" && "left-4 top-4"
+        isTopLeftBadge(banner) && "left-4 top-2 md:left-auto md:right-4"
       )}
       style={{ backgroundColor: banner.badge.color }}
       data-banner-badge
@@ -302,6 +306,10 @@ function BannerBadge({ banner }: { banner: Banner }) {
       {banner.badge.text}
     </div>
   );
+}
+
+function isTopLeftBadge(banner: Banner) {
+  return Boolean(banner.badge?.enabled && banner.badge.position !== "top-right" && banner.badge.position !== "bottom-left" && banner.badge.position !== "bottom-right");
 }
 
 function OptimizedBannerPicture({
@@ -314,6 +322,7 @@ function OptimizedBannerPicture({
   imageClass,
   priority,
   active,
+  critical,
   reduceMotion,
   onError
 }: {
@@ -326,41 +335,31 @@ function OptimizedBannerPicture({
   imageClass: string;
   priority: LoadingPriority;
   active: boolean;
+  critical: boolean;
   reduceMotion: boolean;
   onError: (failedUrl: string) => void;
 }) {
   const wide = manifestBanner ? getBannerFallbackUrl(manifestBanner) : pickVariant(variantImages, "wide")?.url ?? normalizePublicAssetUrl(banner.image) ?? fallbackImage;
   const mid = manifestBanner ? getBannerAssetUrl(manifestBanner, "mid", manifestBanner.assets.mid.widths[manifestBanner.assets.mid.widths.length - 1]) : pickVariant(variantImages, "mid")?.url ?? normalizePublicAssetUrl(banner.laptopImage) ?? wide;
   const tall = manifestBanner ? getBannerAssetUrl(manifestBanner, "tall", manifestBanner.assets.tall.widths[manifestBanner.assets.tall.widths.length - 1]) : pickVariant(variantImages, "tall")?.url ?? normalizePublicAssetUrl(banner.mobileImage) ?? mid;
-  const common = {
-    alt: banner.alt,
-    quality: 92,
-    sizes: "100vw",
-    priority: active || priority === "high"
-  };
-  const wideProps = getImageProps({ ...common, src: wide, width: 1920, height: 720 }).props;
-  const midProps = getImageProps({ ...common, src: mid, width: 1280, height: 549 }).props;
-  const tallProps = getImageProps({ ...common, src: tall, width: 1080, height: 1350 }).props;
-
   return (
     <>
       {manifestBanner && useResponsiveSources ? (
         <>
-          <source media={manifestBanner.assets.wide.media} srcSet={wideProps.srcSet} sizes={wideProps.sizes} type="image/webp" />
-          <source media={manifestBanner.assets.mid.media} srcSet={midProps.srcSet} sizes={midProps.sizes} type="image/webp" />
-          <source media={manifestBanner.assets.tall.media} srcSet={tallProps.srcSet} sizes={tallProps.sizes} type="image/webp" />
+          <source media={manifestBanner.assets.wide.media} srcSet={wide} sizes="100vw" type="image/webp" />
+          <source media={manifestBanner.assets.mid.media} srcSet={mid} sizes="100vw" type="image/webp" />
+          <source media={manifestBanner.assets.tall.media} srcSet={tall} sizes="100vw" type="image/webp" />
         </>
       ) : (
         <>
-          <source media="(min-width: 1280px)" srcSet={wideProps.srcSet} sizes={wideProps.sizes} />
-          <source media="(min-width: 640px)" srcSet={midProps.srcSet} sizes={midProps.sizes} />
-          <source srcSet={tallProps.srcSet} sizes={tallProps.sizes} />
+          <source media="(min-width: 1280px)" srcSet={wide} sizes="100vw" />
+          <source media="(min-width: 768px)" srcSet={mid} sizes="100vw" />
+          <source srcSet={tall} sizes="100vw" />
         </>
       )}
       <motion.img
-        src={tallProps.src}
-        srcSet={tallProps.srcSet}
-        sizes={tallProps.sizes}
+        src={tall}
+        sizes="100vw"
         width={1080}
         height={1350}
         alt={banner.alt}
@@ -370,8 +369,8 @@ function OptimizedBannerPicture({
         }}
         className={cn("absolute inset-0 h-full w-full transform-gpu object-cover object-[var(--banner-focal)] [backface-visibility:hidden] will-change-transform max-sm:object-[38%_center]", imageClass)}
         style={{ "--banner-focal": focalPosition } as CSSProperties}
-        loading={active || priority === "high" ? "eager" : "lazy"}
-        fetchPriority={active || priority === "high" ? "high" : "auto"}
+        loading={critical || priority === "high" ? "eager" : "lazy"}
+        fetchPriority={critical || priority === "high" ? "high" : "auto"}
         decoding="async"
         initial={false}
         animate={{ scale: 1 }}
@@ -386,7 +385,7 @@ function pickVariant(variants: Banner["imageVariants"], shape: "wide" | "mid" | 
 }
 
 async function preloadBanner(banner: Banner) {
-  const urls = getBannerImageUrls(banner);
+  const urls = getBannerImageUrlsForViewport(banner);
   if (!urls.length) return true;
   const results = await Promise.allSettled(urls.map(preloadImage));
   return results.some((result) => result.status === "fulfilled");
@@ -405,28 +404,13 @@ function preloadImage(src: string) {
   });
 }
 
-function getBannerImageUrls(banner: Banner) {
-  const manifestBanner = hasResponsiveAssets(banner) ? banner : null;
-  const urls = new Set<string>();
-  const fallbackImage = normalizePublicAssetUrl(manifestBanner ? getBannerFallbackUrl(manifestBanner) : banner.image);
-  if (fallbackImage) urls.add(fallbackImage);
-  if (manifestBanner) {
-    for (const variant of ["wide", "mid", "tall"] as const) {
-      for (const entry of getBannerSrcSet(manifestBanner, variant).split(",")) {
-        const [url] = entry.trim().split(/\s+/);
-        if (url) urls.add(url);
-      }
-    }
-  } else {
-    for (const variant of banner.imageVariants ?? []) {
-      if (variant.url) urls.add(variant.url);
-    }
-    for (const url of [banner.image, banner.laptopImage, banner.mobileImage]) {
-      const normalized = normalizePublicAssetUrl(url);
-      if (normalized) urls.add(normalized);
-    }
-  }
-  return [...urls];
+function getBannerImageUrlsForViewport(banner: Banner) {
+  const width = typeof window === "undefined" ? 1280 : window.innerWidth;
+  const variants = banner.imageVariants ?? [];
+  const shape = width >= 1280 ? "wide" : width >= 768 ? "mid" : "tall";
+  const responsive = pickVariant(variants, shape)?.url;
+  const fallback = shape === "wide" ? banner.image : shape === "mid" ? banner.laptopImage ?? banner.image : banner.mobileImage ?? banner.laptopImage ?? banner.image;
+  return [normalizePublicAssetUrl(responsive ?? fallback)].filter((url): url is string => Boolean(url));
 }
 
 function hasResponsiveAssets(banner: Banner): banner is BannerManifestEntry {

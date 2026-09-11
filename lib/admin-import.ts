@@ -1,4 +1,5 @@
 import { Prisma, type ProductCondition, type StockStatus } from "@prisma/client";
+import { createHash } from "node:crypto";
 import { storeProductImage } from "@/lib/product-image-storage";
 import { prisma } from "@/lib/prisma";
 import { readFirstWorksheet, rowsToObjects, writeWorkbook } from "@/lib/xlsx";
@@ -29,7 +30,6 @@ export const PRODUCT_IMPORT_COLUMNS = [
 ] as const;
 
 export const CATEGORY_IMPORT_COLUMNS = ["name", "slug", "parent_slug", "description", "icon", "sort_order"] as const;
-
 const PRODUCT_CONDITIONS: ProductCondition[] = ["new", "refurbished"];
 const STOCK_STATUSES: StockStatus[] = ["in_stock", "backorder", "out_of_stock"];
 const MAX_ROWS = 500;
@@ -42,6 +42,7 @@ type Lookup = {
   brands: Array<{ id: string; name: string; slug: string }>;
   existingProductSlugs: Set<string>;
   existingCategorySlugs: Set<string>;
+  existingProductKeys: Map<string, { slug: string; sku: string | null; mpn: string | null }>;
   categoryDepths: Map<string, number>;
 };
 
@@ -57,9 +58,11 @@ export type ImportProgress = {
 
 export type PreviewRow = {
   rowNumber: number;
-  operation: "create" | "update";
+  operation: "create" | "update" | "unchanged";
   data: Record<string, string | number | boolean | string[] | Record<string, string> | null>;
   errors: string[];
+  warnings: string[];
+  conflicts: string[];
 };
 
 export type PreviewResult = {
@@ -72,6 +75,11 @@ export type PreviewResult = {
 export type CommitImportResult = PreviewResult & {
   importedCount: number;
   updatedCount: number;
+  createdCount: number;
+  unchangedCount: number;
+  warningCount: number;
+  conflictCount: number;
+  invalidCount: number;
   skippedCount: number;
   failedCount: number;
   affectedSlugs: string[];
@@ -82,16 +90,12 @@ function key(value: string) {
   return value.trim().toLowerCase();
 }
 
-function isSlug(value: string) {
-  return /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(value.trim());
+function json(value: unknown): Prisma.InputJsonValue {
+  return value as Prisma.InputJsonValue;
 }
 
-function slugify(value: string) {
-  return key(value)
-    .replace(/&/g, " and ")
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .replace(/-{2,}/g, "-");
+function isSlug(value: string) {
+  return /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(value.trim());
 }
 
 function titleFromSlug(value: string) {
@@ -186,11 +190,16 @@ function parseWorkbook(buffer: Buffer, expectedColumns: readonly string[]) {
 async function makeLookup(kind: ImportKind, workbookRows: WorkbookRow[]): Promise<Lookup> {
   if (kind === "categories") await ensureBuiltInParentCategories();
   const productSlugs = kind === "products" ? workbookRows.map((row) => key(row.values.slug ?? "")).filter(Boolean) : [];
+  const productSkus = kind === "products" ? workbookRows.map((row) => key(row.values.sku ?? "")).filter(Boolean) : [];
+  const productMpns = kind === "products" ? workbookRows.map((row) => key(row.values.mpn ?? "")).filter(Boolean) : [];
   const [categories, brands, products] = await Promise.all([
     prisma.category.findMany({ select: { id: true, name: true, slug: true, parent_id: true } }),
     kind === "products" ? prisma.brand.findMany({ select: { id: true, name: true, slug: true } }) : Promise.resolve([]),
-    productSlugs.length
-      ? prisma.product.findMany({ where: { slug: { in: productSlugs } }, select: { slug: true } })
+    productSlugs.length || productSkus.length || productMpns.length
+      ? prisma.product.findMany({
+        where: { OR: productKeyWhere(productSlugs, productSkus, productMpns) },
+        select: { slug: true, sku: true, mpn: true }
+      })
       : Promise.resolve([])
   ]);
   const bySlug = new Map(categories.map((category) => [key(category.slug), category]));
@@ -200,18 +209,35 @@ async function makeLookup(kind: ImportKind, workbookRows: WorkbookRow[]): Promis
     brands,
     existingProductSlugs: new Set(products.map((product) => key(product.slug))),
     existingCategorySlugs: new Set(categories.map((category) => key(category.slug))),
+    existingProductKeys: new Map(products.flatMap((product) => [
+      [`slug:${key(product.slug)}`, product],
+      product.sku ? [`sku:${key(product.sku)}`, product] : null,
+      product.mpn ? [`mpn:${key(product.mpn)}`, product] : null
+    ].filter((item): item is [string, typeof product] => Boolean(item)))),
     categoryDepths: new Map(categories.map((category) => [key(category.slug), categoryDepth(category, byId, bySlug)]))
   };
+}
+
+function productKeyWhere(productSlugs: string[], productSkus: string[], productMpns: string[]): Prisma.ProductWhereInput[] {
+  const where: Prisma.ProductWhereInput[] = [];
+  if (productSlugs.length) where.push({ slug: { in: productSlugs } });
+  if (productSkus.length) where.push({ sku: { in: productSkus } });
+  if (productMpns.length) where.push({ mpn: { in: productMpns } });
+  return where;
 }
 
 function validateProductRows(workbookRows: WorkbookRow[], lookup: Lookup): PreviewRow[] {
   const seenSlugs = new Set<string>();
   const seenSkus = new Set<string>();
+  const seenMpns = new Set<string>();
 
   return workbookRows.map(({ rowNumber, values }) => {
     const errors: string[] = [];
+    const warnings: string[] = [];
+    const conflicts: string[] = [];
     const slug = values.slug.trim();
     const sku = values.sku.trim();
+    const mpn = values.mpn.trim();
     required(values.name, "name", errors);
     required(slug, "slug", errors);
     required(values.description, "description", errors);
@@ -221,13 +247,21 @@ function validateProductRows(workbookRows: WorkbookRow[], lookup: Lookup): Previ
     if (slug) seenSlugs.add(key(slug));
     if (sku && seenSkus.has(key(sku))) errors.push("sku is duplicated in this workbook.");
     if (sku) seenSkus.add(key(sku));
+    if (mpn && seenMpns.has(key(mpn))) errors.push("mpn is duplicated in this workbook.");
+    if (mpn) seenMpns.add(key(mpn));
 
     const category = values.category.trim() ? findBySlugOrName(lookup.categories, values.category) : null;
     const brand = values.brand.trim() ? findBySlugOrName(lookup.brands, values.brand) : null;
-    const categorySlug = category?.slug ?? (values.category.trim() && isSlug(values.category) ? values.category.trim() : "");
-    const brandSlug = brand?.slug ?? (values.brand.trim() ? slugify(values.brand) : "");
-    if (values.category.trim() && !categorySlug) errors.push(`category must match an existing category by slug/name or be a valid new category slug: ${values.category}`);
-    if (values.brand.trim() && !brandSlug) errors.push(`brand must match an existing brand by slug/name or be convertible to a slug: ${values.brand}`);
+    const categorySlug = category?.slug ?? "";
+    const brandSlug = brand?.slug ?? "";
+    if (!values.category.trim()) errors.push("category is required.");
+    if (values.category.trim() && !category) conflicts.push(`category must match an existing category by slug/name: ${values.category}`);
+    if (values.brand.trim() && !brand) conflicts.push(`brand must match an existing brand by slug/name: ${values.brand}`);
+    const existingBySlug = slug ? lookup.existingProductKeys.get(`slug:${key(slug)}`) : null;
+    const existingBySku = sku ? lookup.existingProductKeys.get(`sku:${key(sku)}`) : null;
+    const existingByMpn = mpn ? lookup.existingProductKeys.get(`mpn:${key(mpn)}`) : null;
+    if (existingBySku && key(existingBySku.slug) !== key(slug)) conflicts.push(`sku is already used by product slug ${existingBySku.slug}.`);
+    if (existingByMpn && key(existingByMpn.slug) !== key(slug)) conflicts.push(`mpn is already used by product slug ${existingByMpn.slug}.`);
 
     const priceKes = parseInteger(values.price_kes, "price_kes", errors);
     const costPriceKes = parseOptionalInteger(values.cost_price_kes, "cost_price_kes", errors);
@@ -242,11 +276,16 @@ function validateProductRows(workbookRows: WorkbookRow[], lookup: Lookup): Previ
 
     const images = parseImages(values.images, errors, true);
     const isFeatured = parseBoolean(values.is_featured, "is_featured", errors);
-    const isPublished = values.is_published.trim() ? parseBoolean(values.is_published, "is_published", errors) : true;
+    let isPublished = values.is_published.trim() ? parseBoolean(values.is_published, "is_published", errors) : true;
+    if (!images.length) warnings.push("No image supplied; existing image will be preserved or storefront placeholder will be used for a new product.");
+    if (condition === "refurbished") {
+      isPublished = false;
+      warnings.push("Refurbished product quarantined for review and imported unpublished.");
+    }
 
     return {
       rowNumber,
-      operation: lookup.existingProductSlugs.has(key(slug)) ? "update" : "create",
+      operation: existingBySlug ? "update" : "create",
       data: {
         name: values.name.trim(),
         slug,
@@ -257,7 +296,7 @@ function validateProductRows(workbookRows: WorkbookRow[], lookup: Lookup): Previ
         brand_id: brand?.id ?? null,
         brand: brand?.name ?? (brandSlug ? titleFromSlug(values.brand) : null),
         brand_slug: brandSlug || null,
-        mpn: values.mpn.trim() || null,
+        mpn: mpn || null,
         sku: sku || null,
         price_kes: priceKes,
         cost_price_kes: costPriceKes,
@@ -273,7 +312,9 @@ function validateProductRows(workbookRows: WorkbookRow[], lookup: Lookup): Previ
         is_featured: isFeatured,
         is_published: isPublished
       },
-      errors
+      errors,
+      warnings,
+      conflicts
     };
   });
 }
@@ -284,6 +325,8 @@ function validateCategoryRows(workbookRows: WorkbookRow[], lookup: Lookup): Prev
 
   return workbookRows.map(({ rowNumber, values }) => {
     const errors: string[] = [];
+    const warnings: string[] = [];
+    const conflicts: string[] = [];
     const slug = values.slug.trim();
     const parentSlug = values.parent_slug.trim();
     required(values.name, "name", errors);
@@ -295,7 +338,7 @@ function validateCategoryRows(workbookRows: WorkbookRow[], lookup: Lookup): Prev
     if (parentSlug && key(parentSlug) === key(slug)) errors.push("parent_slug cannot match slug.");
     const parent = parentSlug ? findBySlugOrName(lookup.categories, parentSlug) : null;
     const parentDepth = parentSlug ? workbookDepths.get(key(parentSlug)) ?? lookup.categoryDepths.get(key(parentSlug)) : null;
-    if (parentSlug && !parent && parentDepth == null) errors.push("parent_slug must match an existing category or an earlier row in this workbook.");
+    if (parentSlug && !parent && parentDepth == null) conflicts.push("parent_slug must match an existing category or an earlier row in this workbook.");
     if (parentDepth != null && parentDepth >= 2) errors.push("parent_slug cannot point to a sub-subcategory; category imports support root, subcategory, and sub-subcategory levels only.");
     const sortOrder = parseInteger(values.sort_order, "sort_order", errors, 0);
     const builtIn = builtInParentCategoryBySlug(slug);
@@ -314,7 +357,9 @@ function validateCategoryRows(workbookRows: WorkbookRow[], lookup: Lookup): Prev
         is_builtin_parent: BUILT_IN_PARENT_CATEGORY_SLUGS.some((parentSlug) => parentSlug === slug),
         sort_order: sortOrder
       },
-      errors
+      errors,
+      warnings,
+      conflicts
     };
   });
 }
@@ -323,7 +368,7 @@ export async function previewImport(kind: ImportKind, buffer: Buffer): Promise<P
   const workbookRows = parseWorkbook(buffer, kind === "products" ? PRODUCT_IMPORT_COLUMNS : CATEGORY_IMPORT_COLUMNS);
   const lookup = await makeLookup(kind, workbookRows);
   const rows = kind === "products" ? validateProductRows(workbookRows, lookup) : validateCategoryRows(workbookRows, lookup);
-  return { kind, rows, errorCount: rows.reduce((sum, row) => sum + row.errors.length, 0), rowLimit: MAX_ROWS };
+  return { kind, rows, errorCount: rows.reduce((sum, row) => sum + row.errors.length + row.conflicts.length, 0), rowLimit: MAX_ROWS };
 }
 
 export async function commitImport(
@@ -333,10 +378,11 @@ export async function commitImport(
 ) {
   options.onProgress?.({ stage: "Validating", processed: 0, total: 0 });
   const preview = await previewImport(kind, buffer);
-  const validRows = preview.rows.filter((row) => row.errors.length === 0);
+  const importLog = await createImportLog(kind, buffer, preview, options.userId ?? null);
+  const validRows = preview.rows.filter((row) => row.errors.length === 0 && row.conflicts.length === 0);
   const validationErrors = preview.rows
-    .filter((row) => row.errors.length > 0)
-    .map((row) => ({ rowNumber: row.rowNumber, errors: row.errors }));
+    .filter((row) => row.errors.length > 0 || row.conflicts.length > 0)
+    .map((row) => ({ rowNumber: row.rowNumber, errors: [...row.errors, ...row.conflicts] }));
 
   const result =
     kind === "products"
@@ -344,14 +390,119 @@ export async function commitImport(
       : await commitCategoryRows(validRows, preview, options);
 
   const importedCount = result.importedCount;
-  const updatedCount = validRows.filter((row) => row.operation === "update").length - result.importErrors.length;
+  const failedRowNumbers = new Set(result.importErrors.map((error) => error.rowNumber));
+  const createdCount = validRows.filter((row) => row.operation === "create" && !failedRowNumbers.has(row.rowNumber)).length;
+  const updatedCount = validRows.filter((row) => row.operation === "update" && !failedRowNumbers.has(row.rowNumber)).length;
+  const unchangedCount = validRows.filter((row) => row.operation === "unchanged" && !failedRowNumbers.has(row.rowNumber)).length;
   const importErrors = [...validationErrors, ...result.importErrors];
   const failedCount = importErrors.length;
   const skippedCount = preview.rows.length - importedCount;
   const affectedSlugs = validRows.filter((row) => !result.importErrors.some((error) => error.rowNumber === row.rowNumber)).map((row) => String(row.data.slug));
   options.onProgress?.({ stage: "Complete", processed: importedCount, total: validRows.length });
+  await finalizeImportLog(importLog.id, preview, {
+    importedCount,
+    createdCount,
+    updatedCount,
+    unchangedCount,
+    warningCount: preview.rows.reduce((sum, row) => sum + row.warnings.length, 0),
+    conflictCount: preview.rows.reduce((sum, row) => sum + row.conflicts.length, 0),
+    invalidCount: preview.rows.filter((row) => row.errors.length > 0).length,
+    importErrors
+  });
 
-  return { ...preview, importedCount, updatedCount: Math.max(0, updatedCount), skippedCount, failedCount, affectedSlugs, importErrors } satisfies CommitImportResult;
+  return {
+    ...preview,
+    importedCount,
+    createdCount,
+    updatedCount: Math.max(0, updatedCount),
+    unchangedCount,
+    warningCount: preview.rows.reduce((sum, row) => sum + row.warnings.length, 0),
+    conflictCount: preview.rows.reduce((sum, row) => sum + row.conflicts.length, 0),
+    invalidCount: preview.rows.filter((row) => row.errors.length > 0).length,
+    skippedCount,
+    failedCount,
+    affectedSlugs,
+    importErrors
+  } satisfies CommitImportResult;
+}
+
+async function createImportLog(kind: ImportKind, buffer: Buffer, preview: PreviewResult, userId: string | null) {
+  const sourceSha256 = createHash("sha256").update(buffer).digest("hex");
+  return prisma.importLog.create({
+    data: {
+      import_kind: kind,
+      source_sha256: sourceSha256,
+      total_rows: preview.rows.length,
+      create_count: preview.rows.filter((row) => row.operation === "create").length,
+      update_count: preview.rows.filter((row) => row.operation === "update").length,
+      unchanged_count: preview.rows.filter((row) => row.operation === "unchanged").length,
+      warning_count: preview.rows.reduce((sum, row) => sum + row.warnings.length, 0),
+      conflict_count: preview.rows.reduce((sum, row) => sum + row.conflicts.length, 0),
+      invalid_count: preview.rows.filter((row) => row.errors.length > 0).length,
+      started_by_id: userId,
+      summary: json({
+        rowLimit: preview.rowLimit,
+        createdAt: new Date().toISOString()
+      })
+    }
+  });
+}
+
+async function finalizeImportLog(
+  importLogId: string,
+  preview: PreviewResult,
+  counts: {
+    importedCount: number;
+    createdCount: number;
+    updatedCount: number;
+    unchangedCount: number;
+    warningCount: number;
+    conflictCount: number;
+    invalidCount: number;
+    importErrors: Array<{ rowNumber: number; errors: string[] }>;
+  }
+) {
+  const rowErrors = [
+    ...preview.rows.flatMap((row) => [
+      ...row.warnings.map((message) => ({ rowNumber: row.rowNumber, severity: "warning" as const, code: "IMPORT_WARNING", message, snapshot: row.data })),
+      ...row.conflicts.map((message) => ({ rowNumber: row.rowNumber, severity: "conflict" as const, code: "IMPORT_CONFLICT", message, snapshot: row.data })),
+      ...row.errors.map((message) => ({ rowNumber: row.rowNumber, severity: "invalid" as const, code: "IMPORT_INVALID", message, snapshot: row.data }))
+    ]),
+    ...counts.importErrors.flatMap((row) => row.errors.map((message) => ({ rowNumber: row.rowNumber, severity: "invalid" as const, code: "IMPORT_COMMIT_FAILED", message, snapshot: null })))
+  ];
+
+  await prisma.$transaction([
+    prisma.importLog.update({
+      where: { id: importLogId },
+      data: {
+        status: counts.importErrors.length || counts.conflictCount || counts.invalidCount ? "completed_with_warnings" : "completed",
+        completed_at: new Date(),
+        create_count: counts.createdCount,
+        update_count: counts.updatedCount,
+        unchanged_count: counts.unchangedCount,
+        warning_count: counts.warningCount,
+        conflict_count: counts.conflictCount,
+        invalid_count: counts.invalidCount,
+        summary: json({
+          importedCount: counts.importedCount,
+          failedCount: counts.importErrors.length,
+          completedAt: new Date().toISOString()
+        })
+      }
+    }),
+    ...(rowErrors.length
+      ? [prisma.importRowError.createMany({
+        data: rowErrors.map((row) => ({
+          import_log_id: importLogId,
+          row_number: row.rowNumber,
+          severity: row.severity,
+          code: row.code,
+          message: row.message,
+          row_snapshot: row.snapshot ? json(row.snapshot) : undefined
+        }))
+      })]
+      : [])
+  ]);
 }
 
 async function commitProductRows(
@@ -397,28 +548,7 @@ async function commitProductRows(
 }
 
 async function prepareProductLookups(rows: PreviewRow[]) {
-  const categories = uniqueBySlug(rows
-    .map((row) => row.data)
-    .filter((data) => !data.category_id && data.category_slug && data.category)
-    .map((data) => ({
-      name: String(data.category),
-      slug: String(data.category_slug),
-      description: `${String(data.category)} products.`,
-      icon: null as string | null
-    })));
-  const brands = uniqueBySlug(rows
-    .map((row) => row.data)
-    .filter((data) => !data.brand_id && data.brand_slug && data.brand)
-    .map((data) => ({
-      name: String(data.brand),
-      slug: String(data.brand_slug),
-      icon: null as string | null
-    })));
-
-  await Promise.all([
-    categories.length ? prisma.category.createMany({ data: categories, skipDuplicates: true }) : Promise.resolve(),
-    brands.length ? prisma.brand.createMany({ data: brands, skipDuplicates: true }) : Promise.resolve()
-  ]);
+  void rows;
 }
 
 async function upsertProductBatch(
@@ -504,7 +634,8 @@ async function currentProductImages(rows: PreviewRow[]) {
 
 function initialImagesForProduct(importImages: string[], currentImages: string[]) {
   if (currentImages.length) return currentImages;
-  return importImages;
+  void importImages;
+  return [];
 }
 
 async function downloadAndSaveProductImages(
@@ -534,8 +665,9 @@ async function downloadAndSaveProductImages(
           currentImages: existing
         });
         storedImages.push(stored.storedUrl);
+        await prisma.auditLog.create({ data: { entity: "Product", entity_id: String(data.slug), action: "excel_import.image_ingested", after: { rowNumber: row.rowNumber, slug: data.slug, sku: data.sku, sourceUrl: sanitizeSourceUrl(sourceUrl), storagePath: stored.path, sha256: stored.sha256, reused: stored.skipped } } });
       } catch (error) {
-        errors.push(`image ${index + 1} (${sourceUrl}): ${error instanceof Error ? error.message : "Download failed."}`);
+        errors.push(`image ${index + 1} (${sanitizeSourceUrl(sourceUrl)}): ${error instanceof Error ? error.message : "Download failed."}`);
       }
     }
 
@@ -554,6 +686,18 @@ async function downloadAndSaveProductImages(
 
   await options.onProgress?.({ stage: "Saving", processed: rowsWithImages.length, total: rowsWithImages.length });
   return { importErrors };
+}
+
+function sanitizeSourceUrl(value: string) {
+  try {
+    const url = new URL(value);
+    url.username = "";
+    url.password = "";
+    url.hash = "";
+    return url.toString();
+  } catch {
+    return "[invalid URL]";
+  }
 }
 
 function asImages(value: Prisma.JsonValue | null | undefined) {
@@ -672,10 +816,6 @@ async function createImportAuditLogs(entity: "Product" | "Category", rows: Previ
   });
 }
 
-function uniqueBySlug<T extends { slug: string }>(items: T[]) {
-  return [...new Map(items.map((item) => [key(item.slug), item])).values()];
-}
-
 function productData(data: PreviewRow["data"], images: string[], categoryId: string | null, brandId: string | null): Prisma.ProductUncheckedCreateInput {
   return {
     name: String(data.name),
@@ -713,12 +853,39 @@ function categoryData(data: PreviewRow["data"], image: string | null, parentId: 
   };
 }
 
-export function productTemplateWorkbook() {
+export function productTemplateWorkbook(sample?: { category: string; brand?: string | null }) {
+  const sampleRows = sample?.category
+    ? [
+      [
+        "LIVE-UAT sample mono laser printer",
+        "live-uat-sample-mono-laser-printer",
+        "Sample import row for validation. Replace this row before importing live catalog data.",
+        sample.category,
+        sample.brand ?? "",
+        "LIVE-UAT-MPN-001",
+        "LIVE-UAT-SKU-001",
+        "25000",
+        "18000",
+        "",
+        "",
+        "2",
+        "5",
+        "new",
+        "in_stock",
+        "3",
+        "",
+        "Print speed: 32 ppm; Connectivity: USB and network",
+        "false",
+        "false"
+      ]
+    ]
+    : [];
   return writeWorkbook([
     {
       name: "Products",
       rows: [
-        [...PRODUCT_IMPORT_COLUMNS]
+        [...PRODUCT_IMPORT_COLUMNS],
+        ...sampleRows
       ]
     },
     {
@@ -728,7 +895,7 @@ export function productTemplateWorkbook() {
         ["name", "Required", "Product name."],
         ["slug", "Required", "Unique lowercase slug. Existing products with the same slug are updated."],
         ["description", "Required", "Plain product description."],
-        ["category", "Optional", "Match an existing category by slug or name."],
+        ["category", "Required", "Match an existing category by slug or name. Download a fresh template so the sample row uses a category from this database."],
         ["brand", "Optional", "Match an existing brand by slug or name."],
         ["mpn", "Optional", "Manufacturer part number or model. Keep this separate from slug and SKU."],
         ["sku", "Optional", "Internal stock keeping unit. Must be unique if your database has SKU uniqueness enabled."],
@@ -741,7 +908,7 @@ export function productTemplateWorkbook() {
         ["condition", "Optional", `Allowed values: ${PRODUCT_CONDITIONS.join(", ")}. Default: new.`],
         ["stock_status", "Optional", `Allowed values: ${STOCK_STATUSES.join(", ")}. Default: in_stock.`],
         ["stock_quantity", "Optional", "Whole number, greater than or equal to 0. Default: 0."],
-        ["images", "Optional", "Use 1-3 public http(s) image URLs separated by semicolons. Confirmed imports download and store images in Supabase Storage. Blank stores no product images."],
+        ["images", "Optional", "Use 1-3 public http(s) image URLs separated by semicolons. Public HTTPS is required in production. Blank stores no product images and the storefront uses its visual fallback."],
         ["specs", "Optional", "Use semicolon-separated Key: Value pairs."],
         ["is_featured", "Optional", "Allowed values: true/false, yes/no, 1/0. Default: false."],
         ["is_published", "Optional", "Allowed values: true/false, yes/no, 1/0. Default: true."]

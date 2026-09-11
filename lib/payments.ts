@@ -1,9 +1,9 @@
 import { randomUUID } from "node:crypto";
 import type { DeliveryRegion, FulfillmentMethod, PaymentStatus, Prisma, Product, StockStatus } from "@prisma/client";
 import { getDeliveryFee } from "@/lib/delivery";
+import { assertOrderNumber, createStorefrontOrderNumber } from "@/lib/order-numbers";
+import { calculateOrderTotal } from "@/lib/pricing";
 import { prisma } from "@/lib/prisma";
-
-const VAT_RATE = Number(process.env.VAT_RATE ?? process.env.NEXT_PUBLIC_VAT_RATE ?? 0.16);
 
 type CheckoutCustomer = {
   userId: string;
@@ -86,7 +86,6 @@ export async function createOrderFromCart(customer: CheckoutCustomer, checkout: 
   }
 
   const subtotal = activeCart.reduce((sum, item) => sum + item.product.price_kes * item.quantity, 0);
-  const vatKes = Math.round(subtotal * VAT_RATE);
   let deliveryFeeKes = 0;
   if (checkout.fulfillmentMethod === "delivery") {
     if (!checkout.delivery?.region) throw new Error("Choose a delivery region.");
@@ -96,9 +95,12 @@ export async function createOrderFromCart(customer: CheckoutCustomer, checkout: 
     if (!checkout.delivery.location) throw new Error("Enter delivery location or address details.");
     deliveryFeeKes = await getDeliveryFee(checkout.delivery.region);
   }
-  const totalKes = subtotal + vatKes + deliveryFeeKes;
+  const totals = calculateOrderTotal({ subtotalKes: subtotal, deliveryFeeKes });
+  const totalKes = totals.payableKes;
 
   return prisma.$transaction(async (tx) => {
+    const orderNumber = await createUniqueStorefrontOrderNumber(tx);
+    assertOrderNumber(orderNumber);
     if (checkout.fulfillmentMethod === "delivery" && checkout.delivery) {
       await tx.profile.upsert({
         where: { id: customer.userId },
@@ -124,6 +126,7 @@ export async function createOrderFromCart(customer: CheckoutCustomer, checkout: 
     }
     const order = await tx.order.create({
       data: {
+        order_number: orderNumber,
         user_id: customer.userId,
         status: "pending",
         fulfillment_method: checkout.fulfillmentMethod,
@@ -168,6 +171,15 @@ export async function createOrderFromCart(customer: CheckoutCustomer, checkout: 
     await tx.cartItem.deleteMany({ where: { user_id: customer.userId } });
     return order;
   });
+}
+
+async function createUniqueStorefrontOrderNumber(tx: Prisma.TransactionClient) {
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    const orderNumber = createStorefrontOrderNumber();
+    const existing = await tx.order.findUnique({ where: { order_number: orderNumber }, select: { id: true } });
+    if (!existing) return orderNumber;
+  }
+  throw new Error("Could not allocate a unique order number.");
 }
 
 export async function createPayOnDeliveryPayment(orderId: string) {

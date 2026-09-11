@@ -23,6 +23,7 @@ export type Brand = {
   name: string;
   slug: string;
   icon: string | null;
+  publishedProductCount?: number;
 };
 
 export type Product = {
@@ -78,8 +79,10 @@ export type CartLine = {
 export type Banner = {
   id: string;
   title: string;
+  mobileTitle?: string | null;
   kicker: string | null;
   body: string;
+  mobileBody?: string | null;
   alt: string;
   ctaLabel: string | null;
   ctaHref: string | null;

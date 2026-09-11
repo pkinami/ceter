@@ -1,0 +1,11 @@
+services:
+  docx-converter:
+    build: .
+    restart: unless-stopped
+    environment:
+      DOCX_CONVERTER_TOKEN: ${DOCX_CONVERTER_TOKEN:?set a 32+ character secret}
+      DOCX_CONVERTER_FONTS: Arial,Calibri,Courier New,Symbol,Wingdings
+    volumes:
+      # Ceter-controlled licensed font files only; never commit them.
+      - ${CETER_FONT_DIR:?set path to Ceter licensed fonts}:/usr/local/share/fonts/ceter:ro
+    expose: ["8080"]

@@ -8,6 +8,7 @@ import { AddToCartButton } from "@/components/AddToCartButton";
 import { ProductImageFrame } from "@/components/ProductImageFrame";
 import { ProductRail } from "@/components/ProductRail";
 import { WhatsAppOrderButton } from "@/components/WhatsAppOrderButton";
+import { taxCopy } from "@/lib/pricing";
 import { formatKes } from "@/lib/utils";
 
 export function ProductDetail({ product, related }: { product: Product; related: Product[] }) {
@@ -48,6 +49,7 @@ export function ProductDetail({ product, related }: { product: Product; related:
           </div>
           <h1 className="mt-2 text-[clamp(1.75rem,4vw,2.5rem)] font-black leading-tight text-ink">{product.name}</h1>
           <p className="mt-3 text-[clamp(1.75rem,4vw,2.5rem)] font-black text-slate-950">{formatKes(product.price)}</p>
+          <p className="mt-1 text-sm font-semibold text-slate-600">{taxCopy()}</p>
           {product.previousPrice ? <p className="mt-1 text-sm text-slate-500"><span className="line-through">{formatKes(product.previousPrice)}</span> previous price</p> : null}
           <p className={product.stockStatus === "in_stock" ? "mt-2 text-sm font-bold text-teal-700" : "mt-2 text-sm font-bold text-red-600"}>
             {product.stockStatus === "in_stock" ? `Available in stock (${product.stockQuantity})` : product.stockStatus === "backorder" ? "Available on backorder" : "Out of stock"}

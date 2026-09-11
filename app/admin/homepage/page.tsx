@@ -1,5 +1,7 @@
-import { CeterAdminWorkspace } from "@/components/admin/CeterAdminWorkspace";
+import { redirect } from "next/navigation";
+import { requireRouteAccess } from "@/lib/admin/auth";
 
-export default function CustomizationPage() {
-  return <CeterAdminWorkspace module="customization" />;
+export default async function LegacyHomepagePage() {
+  await requireRouteAccess("/admin/storefront/homepage");
+  redirect("/admin/storefront/homepage");
 }

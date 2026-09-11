@@ -67,7 +67,7 @@ function statusStyle(status: string, context: CustomerStatusBadgeProps["context"
     return {
       label: "Dispatched",
       description: "On the way",
-      className: "border-blue-200 bg-blue-50 text-blue-900 ring-blue-600/10",
+      className: "border-teal-200 bg-teal-50 text-teal-900 ring-teal-600/10",
       icon: Truck
     };
   }

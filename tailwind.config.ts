@@ -8,6 +8,9 @@ const config: Config = {
   ],
   theme: {
     extend: {
+      fontFamily: {
+        sans: ["var(--font-sans)", "Poppins", "ui-sans-serif", "system-ui", "sans-serif"]
+      },
       colors: {
         navy: "#0B1E39",
         panel: "#0F2A4A",
@@ -16,6 +19,11 @@ const config: Config = {
         mist: "#F7F8FA",
         line: "rgba(15, 42, 74, 0.14)",
         ink: "#0B1E39",
+        body: "#273449",
+        muted: "#64748B",
+        disabled: "#8A98AA",
+        surface: "#FFFFFF",
+        "surface-muted": "#F7F8FA",
         success: "#16A34A",
         warning: "#D97706",
         danger: "#DC2626"

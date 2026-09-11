@@ -28,6 +28,7 @@ export function ProductImageFrame({
           fill
           priority={priority}
           sizes={sizes}
+          unoptimized={src.startsWith("/api/product-images/")}
           className={cn("object-contain object-center p-2", imageClassName)}
         />
       ) : (

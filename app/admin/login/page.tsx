@@ -1,8 +1,10 @@
 import Image from "next/image";
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { adminSignInAction } from "@/app/actions";
 import { BrandIcon } from "@/components/BrandIcon";
 import { FormSubmitButton } from "@/components/FormSubmitButton";
+import { isAdminAuthBypassed } from "@/lib/admin/auth";
 
 export const metadata = {
   title: "Admin Login",
@@ -10,6 +12,8 @@ export const metadata = {
 };
 
 export default async function AdminLoginPage({ searchParams }: { searchParams: Promise<{ error?: string }> }) {
+  if (isAdminAuthBypassed()) redirect("/admin");
+
   const params = await searchParams;
 
   return (

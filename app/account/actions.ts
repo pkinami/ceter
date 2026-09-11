@@ -32,26 +32,33 @@ export async function generatePortalStatementAction(formData: FormData) {
   const openingBalance = (openingInvoices._sum.total_kes ?? 0) - (openingPayments._sum.amount_kes ?? 0);
   const charges = invoices.reduce((sum, invoice) => sum + invoice.total_kes, 0);
   const paymentTotal = payments.reduce((sum, payment) => sum + payment.amount_kes, 0);
+  const closingBalance = openingBalance + charges - paymentTotal;
   const statementNumber = `STM-${new Date().getFullYear()}-${Date.now()}`;
   const rows = [
     ...invoices.map((invoice) => ({ date: invoice.created_at, description: `Invoice ${invoice.invoice_number}`, debit: invoice.total_kes, credit: 0, reference: invoice.invoice_number })),
     ...payments.map((payment) => ({ date: payment.paid_at, description: `${payment.receipt?.receipt_number ? `Receipt ${payment.receipt.receipt_number}` : `Payment ${payment.payment_number}`}${payment.invoice?.invoice_number ? ` for ${payment.invoice.invoice_number}` : ""}`, debit: 0, credit: payment.amount_kes, reference: payment.reference ?? payment.payment_number }))
   ].sort((a, b) => a.date.getTime() - b.date.getTime());
-  const pdf = brandedPdfBytes({
+  const pdf = await brandedPdfBytes({
     type: "customer_statement",
     title: "Customer Statement",
     number: statementNumber,
+    issueDate: new Date().toLocaleDateString("en-KE"),
+    meta: [
+      ["Period", `${periodStart.toLocaleDateString("en-KE")} - ${periodEnd.toLocaleDateString("en-KE")}`],
+      ["Opening", formatKes(openingBalance)],
+      ["Closing", formatKes(closingBalance)]
+    ],
     customerName: customer.name,
     customerCompany: customer.company_name,
     customerEmail: customer.email,
     customerPhone: customer.phone,
     customerAddress: customer.addresses[0]?.address_line_1,
     lines: rows.map((row) => ({ description: `${row.date.toLocaleDateString("en-KE")} | ${row.description} | ${row.reference}`, quantity: 1, unitPrice: row.debit ? formatKes(row.debit) : "", vat: "", total: row.credit ? `(${formatKes(row.credit)})` : formatKes(row.debit) })),
-    totals: [["Opening balance", formatKes(openingBalance)], ["Charges", formatKes(charges)], ["Payments", formatKes(paymentTotal)], ["Closing balance", formatKes(openingBalance + charges - paymentTotal)]]
+    totals: [["Opening balance", formatKes(openingBalance)], ["Charges", formatKes(charges)], ["Payments", formatKes(paymentTotal)], ["Closing balance", formatKes(closingBalance)]]
   });
   const storagePath = `customer-statements/${statementNumber}.pdf`;
   const publicUrl = await uploadBusinessDocument(storagePath, pdf);
-  await prisma.document.create({ data: documentCreateData({ document_type: "customer_statement", title: `Customer Statement ${statementNumber}`, storage_path: storagePath, public_url: publicUrl, customer_id: customer.id, category: "customer" }) });
+  await prisma.document.create({ data: documentCreateData({ document_type: "customer_statement", document_number: statementNumber, title: `Customer Statement ${statementNumber}`, storage_path: storagePath, public_url: publicUrl, customer_id: customer.id, category: "customer" }) });
   revalidatePath("/account");
   redirect("/account?success=Statement generated");
 }

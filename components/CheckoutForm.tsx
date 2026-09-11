@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { BrandIcon } from "@/components/BrandIcon";
 import { useCart } from "@/components/CartProvider";
 import { ProductImageFrame } from "@/components/ProductImageFrame";
+import { calculateOrderTotal, taxCopy } from "@/lib/pricing";
 import { formatKes } from "@/lib/utils";
 
 type PaymentMethod = "mpesa" | "card" | "pay_on_delivery";
@@ -42,9 +43,8 @@ export function CheckoutForm({ defaultProfile, deliveryFees }: { defaultProfile:
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const subtotal = items.reduce((sum, item) => sum + item.product.price * item.quantity, 0);
-  const vat = Math.round(subtotal * 0.16);
   const deliveryFee = fulfillmentMethod === "delivery" ? deliveryFees.find((fee) => fee.value === deliveryRegion && fee.isEnabled)?.feeKes ?? 0 : 0;
-  const total = subtotal + vat + deliveryFee;
+  const totals = calculateOrderTotal({ subtotalKes: subtotal, deliveryFeeKes: deliveryFee });
 
   async function submit() {
     setError(null);
@@ -209,10 +209,10 @@ export function CheckoutForm({ defaultProfile, deliveryFees }: { defaultProfile:
             </div>
           ))}
           <div className="border-t border-line pt-3">
-            <div className="flex justify-between"><span>Subtotal</span><strong>{formatKes(subtotal)}</strong></div>
-            <div className="mt-2 flex justify-between"><span>VAT estimate</span><strong>{formatKes(subtotal * 0.16)}</strong></div>
+            <div className="flex justify-between"><span>{totals.mode === "inclusive" ? "Items total" : "Subtotal"}</span><strong>{formatKes(totals.subtotalKes)}</strong></div>
+            <div className="mt-2 flex justify-between"><span>{taxCopy(totals.mode, totals.vatRate)}</span><strong>{formatKes(totals.vatKes)}</strong></div>
             <div className="mt-2 flex justify-between"><span>Delivery</span><strong>{formatKes(deliveryFee)}</strong></div>
-            <div className="mt-3 flex justify-between text-base font-black"><span>Total</span><span>{formatKes(total)}</span></div>
+            <div className="mt-3 flex justify-between text-base font-black"><span>Total</span><span>{formatKes(totals.payableKes)}</span></div>
           </div>
         </div>
       </aside>

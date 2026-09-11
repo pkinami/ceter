@@ -9,6 +9,7 @@ import { AddToCartButton } from "@/components/AddToCartButton";
 import { QuickViewPopover } from "@/components/QuickViewPopover";
 import { WhatsAppOrderButton } from "@/components/WhatsAppOrderButton";
 import { ProductImageFrame } from "@/components/ProductImageFrame";
+import { taxCopy } from "@/lib/pricing";
 import { formatKes } from "@/lib/utils";
 
 const TAP_MOVEMENT_THRESHOLD_PX = 10;
@@ -85,6 +86,7 @@ export function ProductCard({ product }: { product: Product }) {
             <p className="text-[19px] font-bold leading-6 text-signal">{formatKes(product.price)}</p>
             {product.previousPrice ? <p className="text-[11px] text-slate-500"><span className="line-through">{formatKes(product.previousPrice)}</span></p> : null}
           </div>
+          <p className="mt-0.5 text-[11px] font-semibold text-slate-500">{taxCopy()}</p>
           <p className={product.stockStatus === "in_stock" ? "mt-0.5 inline-flex items-center gap-1.5 text-[12px] font-semibold text-green-700" : product.stockStatus === "backorder" ? "mt-0.5 inline-flex items-center gap-1.5 text-[12px] font-semibold text-amber-700" : "mt-0.5 inline-flex items-center gap-1.5 text-[12px] font-semibold text-red-700"}>
             <span className={product.stockStatus === "in_stock" ? "h-1.5 w-1.5 rounded-full bg-green-500" : product.stockStatus === "backorder" ? "h-1.5 w-1.5 rounded-full bg-amber-500" : "h-1.5 w-1.5 rounded-full bg-red-500"} />
             {product.stockStatus === "in_stock" ? "In stock" : product.stockStatus === "backorder" ? "Backorder" : "Out of stock"}

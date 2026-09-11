@@ -1,5 +1,5 @@
-import { CeterAdminWorkspace } from "@/components/admin/CeterAdminWorkspace";
+import { redirect } from "next/navigation";
 
 export default function SettingsPage() {
-  return <CeterAdminWorkspace module="settings" />;
+  redirect("/admin/settings/business");
 }

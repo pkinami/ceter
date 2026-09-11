@@ -4,11 +4,13 @@ import Link from "next/link";
 import { Minus, Plus, Trash2 } from "lucide-react";
 import { useCart } from "@/components/CartProvider";
 import { ProductImageFrame } from "@/components/ProductImageFrame";
+import { calculateOrderTotal, taxCopy } from "@/lib/pricing";
 import { formatKes } from "@/lib/utils";
 
 export function CartView() {
   const { items, loading, updateItem, removeItem } = useCart();
   const subtotal = items.reduce((sum, item) => sum + item.product.price * item.quantity, 0);
+  const totals = calculateOrderTotal({ subtotalKes: subtotal });
 
   async function update(id: string, currentQuantity: number, direction: number) {
     await updateItem(id, Math.max(1, currentQuantity + direction));
@@ -50,9 +52,9 @@ export function CartView() {
       <aside className="h-fit rounded-lg border border-slate-300 bg-white p-5">
         <h2 className="text-lg font-black text-ink">Order summary</h2>
         <div className="mt-4 space-y-3 text-sm">
-          <div className="flex justify-between"><span>Subtotal</span><strong>{formatKes(subtotal)}</strong></div>
-          <div className="flex justify-between"><span>VAT estimate</span><strong>{formatKes(subtotal * 0.16)}</strong></div>
-          <div className="border-t border-line pt-3 text-base font-black"><div className="flex justify-between"><span>Total</span><span>{formatKes(subtotal * 1.16)}</span></div></div>
+          <div className="flex justify-between"><span>{totals.mode === "inclusive" ? "Items total" : "Subtotal"}</span><strong>{formatKes(totals.subtotalKes)}</strong></div>
+          <div className="flex justify-between"><span>{taxCopy(totals.mode, totals.vatRate)}</span><strong>{formatKes(totals.vatKes)}</strong></div>
+          <div className="border-t border-line pt-3 text-base font-black"><div className="flex justify-between"><span>Total</span><span>{formatKes(totals.payableKes)}</span></div></div>
         </div>
         <div className="mt-5 rounded bg-panel p-3">
           <p className="mb-2 text-xs font-bold uppercase text-slate-600">Checkout progress</p>

@@ -1,22 +1,23 @@
 import { ProductForm } from "@/components/admin/ProductForm";
 import { getProductFormLookups } from "@/lib/admin/data";
-import { requireAdminSession } from "@/lib/admin/auth";
+import { hasPermission, requirePermission } from "@/lib/admin/auth";
 
 export default async function NewProductPage({ searchParams }: { searchParams: Promise<{ success?: string; error?: string }> }) {
   const params = await searchParams;
-  await requireAdminSession();
+  const session = await requirePermission("products.create");
   const { brands, categories } = await getProductFormLookups();
   return (
-    <div className="ceter-admin-page">
-      <div className="ceter-admin-greeting">
+    <div className="ceter-admin-page ceter-product-form-page">
+      <div className="ceter-admin-greeting ceter-product-form-heading">
         <div>
-          <p>Storefront</p>
-          <h1>Add Product</h1>
-          <span>Create a real catalogue product. Published products appear on the Ceter storefront after save.</span>
+          <p>Inventory&nbsp;&nbsp;&gt;&nbsp;&nbsp;Products &amp; Services&nbsp;&nbsp;&gt;&nbsp;&nbsp;Add Item</p>
+          <h1>Add Item</h1>
+          <span>Create a catalogue item with pricing, opening stock, reorder levels and storefront visibility.</span>
         </div>
+        <a className="ceter-admin-secondary-button" href="/admin/products">Back</a>
       </div>
       <AdminNotice success={params.success} error={params.error} />
-      <ProductForm brands={brands} categories={categories} />
+      <ProductForm brands={brands} categories={categories} canEditCost={hasPermission(session, "products.cost_price.view")} />
     </div>
   );
 }

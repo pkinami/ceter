@@ -57,7 +57,7 @@ export default async function OrderConfirmationPage({
               <Icon className={isPaid ? "mt-0.5 h-10 w-10 shrink-0 text-green-600" : isFailed ? "mt-0.5 h-10 w-10 shrink-0 text-red-600" : "mt-0.5 h-10 w-10 shrink-0 text-amber-600"} />
               <div>
                 <h1 className="text-2xl font-black text-ink">{isPaid ? "Payment confirmed" : isFailed ? "Payment was not completed" : "Order received"}</h1>
-                <p className="mt-1 text-sm font-semibold text-slate-700">Order {order.id.slice(0, 8)}</p>
+                <p className="mt-1 text-sm font-semibold text-slate-700">Order {order.order_number}</p>
               </div>
             </div>
             <div className="flex flex-wrap gap-2 sm:justify-end">

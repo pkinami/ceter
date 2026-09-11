@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
-import { ChevronDown, Mail, MapPin, Phone, X } from "lucide-react";
+import { ChevronDown, Mail, MapPin, MessageCircle, Phone, X } from "lucide-react";
 import { memo, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { createPortal } from "react-dom";
@@ -137,9 +137,14 @@ export function Sidebar({
             >
               <div className="flex shrink-0 items-center justify-between border-b border-line px-4 py-3">
                 <p className="text-sm font-black uppercase text-ink">Categories</p>
-                <button ref={closeButtonRef} className="grid h-11 w-11 place-items-center rounded-md border border-slate-300" onClick={onClose} aria-label="Close categories">
-                  <X className="h-4 w-4" />
-                </button>
+                <div className="flex items-center gap-2">
+                  <a href="https://wa.me/254707143322" className="inline-flex h-11 items-center gap-2 rounded-md bg-green-600 px-3 text-xs font-semibold text-white shadow-sm hover:bg-green-700" aria-label="Chat with Ceter on WhatsApp">
+                    <MessageCircle className="h-4 w-4" /> WhatsApp
+                  </a>
+                  <button ref={closeButtonRef} className="grid h-11 w-11 place-items-center rounded-md border border-slate-300" onClick={onClose} aria-label="Close categories">
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
               </div>
               <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-4 pb-[calc(1rem+env(safe-area-inset-bottom))]">
                 {content}

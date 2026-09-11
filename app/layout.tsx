@@ -1,5 +1,9 @@
 import type { Metadata, Viewport } from "next";
-import { Poppins } from "next/font/google";
+import { headers } from "next/headers";
+import "@fontsource/poppins/400.css";
+import "@fontsource/poppins/500.css";
+import "@fontsource/poppins/600.css";
+import "@fontsource/poppins/700.css";
 import { Footer } from "@/components/Footer";
 import { Header } from "@/components/Header";
 import { NotificationSystem } from "@/components/NotificationSystem";
@@ -7,13 +11,6 @@ import { Providers } from "@/components/Providers";
 import { SiteChrome } from "@/components/SiteChrome";
 import { SITE_DESCRIPTION, SITE_LOGO_PATH, SITE_NAME, SITE_TITLE, SITE_URL } from "@/lib/seo";
 import "./globals.css";
-
-const poppins = Poppins({
-  subsets: ["latin"],
-  weight: ["400", "500", "600", "700", "800"],
-  variable: "--font-poppins",
-  display: "swap"
-});
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
@@ -60,12 +57,16 @@ export const viewport: Viewport = {
   themeColor: "#0B1E39"
 };
 
-export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+  const headerStore = await headers();
+  const pathname = headerStore.get("x-ceter-pathname") ?? "";
+  const isAdmin = pathname.startsWith("/admin");
+
   return (
-    <html lang="en" className={poppins.variable}>
+    <html lang="en">
       <body>
         <Providers>
-          <SiteChrome header={<Header />} footer={<Footer />}>
+          <SiteChrome header={isAdmin ? null : <Header />} footer={isAdmin ? null : <Footer />} chrome={!isAdmin}>
             {children}
           </SiteChrome>
           <NotificationSystem />

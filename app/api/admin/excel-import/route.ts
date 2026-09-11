@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { categoryTemplateWorkbook, commitImport, previewImport, productTemplateWorkbook, type ImportKind, type ImportProgress } from "@/lib/admin-import";
-import { getAdminSession, type AdminSession } from "@/lib/admin/auth";
+import { hasPermission, getAdminSession, type AdminSession } from "@/lib/admin/auth";
+import { prisma } from "@/lib/prisma";
 import { revalidateStorefront } from "@/lib/storefront-revalidation";
 
 export const maxDuration = 60;
@@ -55,6 +56,7 @@ async function readRequest(request: Request) {
 export async function POST(request: Request) {
   const session = await getAdminSession();
   if (!session) return NextResponse.json({ error: "Administrator access is required." }, { status: 403 });
+  if (!hasPermission(session, "products.import")) return NextResponse.json({ error: "Your role is not permitted to import catalogue data." }, { status: 403 });
 
   try {
     const parsed = await readRequest(request);
@@ -80,7 +82,9 @@ export async function POST(request: Request) {
 }
 
 export async function GET(request: Request) {
-  if (!(await getAdminSession())) return NextResponse.json({ error: "Administrator access is required." }, { status: 403 });
+  const session = await getAdminSession();
+  if (!session) return NextResponse.json({ error: "Administrator access is required." }, { status: 403 });
+  if (!hasPermission(session, "products.import")) return NextResponse.json({ error: "Your role is not permitted to import catalogue data." }, { status: 403 });
   const url = new URL(request.url);
   const jobId = url.searchParams.get("jobId");
   if (jobId) {
@@ -93,7 +97,8 @@ export async function GET(request: Request) {
   const kind = validKind(url.searchParams.get("kind"));
   if (!kind) return NextResponse.json({ error: "Invalid import kind." }, { status: 400 });
 
-  const buffer = kind === "products" ? productTemplateWorkbook() : categoryTemplateWorkbook();
+  const sample = kind === "products" ? await productTemplateSample() : undefined;
+  const buffer = kind === "products" ? productTemplateWorkbook(sample) : categoryTemplateWorkbook();
   const filename = kind === "products" ? "ceter-products-import-template.xlsx" : "ceter-categories-import-template-v2.xlsx";
   return new NextResponse(buffer, {
     headers: {
@@ -101,6 +106,15 @@ export async function GET(request: Request) {
       "content-disposition": `attachment; filename="${filename}"`
     }
   });
+}
+
+async function productTemplateSample() {
+  const [category, brand] = await Promise.all([
+    prisma.category.findFirst({ orderBy: [{ parent_id: "desc" }, { sort_order: "asc" }, { name: "asc" }], select: { slug: true, name: true } }),
+    prisma.brand.findFirst({ orderBy: { name: "asc" }, select: { slug: true, name: true } })
+  ]);
+  if (!category) return undefined;
+  return { category: category.slug || category.name, brand: brand?.slug || brand?.name || null };
 }
 
 function createJob(kind: ImportKind) {

@@ -1,4 +1,6 @@
 import { cache } from "react";
+import { PHASE_PRODUCTION_BUILD } from "next/constants";
+import { getStaticCategoryBanners, getStaticHomepageBanners } from "@/lib/banner-assets";
 import { normalizeBannerImageVariants, normalizePublicAssetUrl } from "@/lib/banner-schema";
 import { categoryAndDescendantKeys } from "@/lib/category-tree";
 import { prisma } from "@/lib/prisma";
@@ -45,10 +47,19 @@ export const getCategories = cache(async function getCategories(): Promise<Categ
 });
 
 export const getBrands = cache(async function getBrands(): Promise<Brand[]> {
-  return prismaRead(() => prisma.brand.findMany({
-    select: { id: true, name: true, slug: true, icon: true },
+  const brands = await prismaRead(() => prisma.brand.findMany({
+    select: {
+      id: true,
+      name: true,
+      slug: true,
+      icon: true,
+      _count: { select: { products: { where: PUBLIC_PRODUCT_WHERE } } }
+    },
     orderBy: { name: "asc" }
   }));
+  return brands
+    .map((brand) => ({ id: brand.id, name: brand.name, slug: brand.slug, icon: brand.icon, publishedProductCount: brand._count.products }))
+    .filter((brand) => brand.publishedProductCount > 0);
 });
 
 export const getProducts = cache(async function getProducts(options?: { featured?: boolean; category?: string | null; brand?: string | null; q?: string | null; limit?: number }): Promise<Product[]> {
@@ -112,6 +123,7 @@ export const getProducts = cache(async function getProducts(options?: { featured
     const brand = options.brand.toLowerCase();
     products = products.filter((product) => product.brand.toLowerCase() === brand || product.brandId === options.brand);
   }
+  if (query) products = rankSearchResults(products, query);
   return products;
 });
 
@@ -152,7 +164,7 @@ export const getProductBySlug = cache(async function getProductBySlug(slug: stri
 });
 
 export async function getRelatedProducts(product: Product): Promise<Product[]> {
-  const products = await getProducts({ category: product.categoryId, limit: 8 });
+  const products = await getProducts({ category: product.categoryId });
   return products.filter((item) => item.id !== product.id).slice(0, 4);
 }
 
@@ -182,9 +194,15 @@ type HomepageBannerGroups = {
 };
 
 export async function getHomepageBanners(): Promise<HomepageBannerGroups> {
-  if (isProductionBuild()) return emptyHomepageBanners();
+  if (isProductionBuild()) return getStaticHomepageBanners();
+  const now = new Date();
   const banners = await prismaRead(() => prisma.banner.findMany({
-    where: { is_enabled: true },
+    where: {
+      is_enabled: true,
+      archived_at: null,
+      OR: [{ starts_at: null }, { starts_at: { lte: now } }],
+      AND: [{ OR: [{ ends_at: null }, { ends_at: { gt: now } }] }]
+    },
     include: { category: true },
     orderBy: [{ placement: "asc" }, { sort_order: "asc" }, { title: "asc" }]
   }));
@@ -207,9 +225,17 @@ export async function getHomepageBanners(): Promise<HomepageBannerGroups> {
 }
 
 export async function getCategoryBanners(categorySlug: string): Promise<Banner[]> {
-  if (isProductionBuild()) return [];
+  if (isProductionBuild()) return getStaticCategoryBanners(categorySlug);
+  const now = new Date();
   const banners = await prismaRead(() => prisma.banner.findMany({
-    where: { is_enabled: true, placement: "category", category: { slug: categorySlug } },
+    where: {
+      is_enabled: true,
+      archived_at: null,
+      placement: "category",
+      category: { slug: categorySlug },
+      OR: [{ starts_at: null }, { starts_at: { lte: now } }],
+      AND: [{ OR: [{ ends_at: null }, { ends_at: { gt: now } }] }]
+    },
     include: { category: true },
     orderBy: [{ sort_order: "asc" }, { title: "asc" }]
   }));
@@ -229,7 +255,7 @@ function mapDbBanner(banner: DbBanner): Banner {
     title: banner.title,
     kicker: banner.kicker,
     body: banner.body,
-    alt: banner.title,
+    alt: typeof banner.alt_text === "string" ? banner.alt_text : banner.title,
     ctaLabel: banner.cta_label,
     ctaHref: banner.cta_href,
     secondaryCtaLabel: null,
@@ -297,7 +323,7 @@ function resolveDbBannerImages(banner: DbBanner) {
 function bannerAssetUrlOrNull(value: string | null | undefined) {
   const normalized = normalizePublicAssetUrl(value);
   if (!normalized) return null;
-  if (normalized.startsWith("/banners/") || /^https?:\/\//i.test(normalized)) return normalized;
+  if (normalized.startsWith("/banners/") || normalized.startsWith("/New_banner/") || /^https?:\/\//i.test(normalized)) return normalized;
   return null;
 }
 
@@ -368,7 +394,7 @@ async function hasPublicTable(tableName: string) {
 }
 
 function isProductionBuild() {
-  return process.env.NEXT_PHASE === "phase-production-build" || process.env.npm_lifecycle_event === "build";
+  return process.env.NEXT_PHASE === PHASE_PRODUCTION_BUILD || process.env.npm_lifecycle_event === "build";
 }
 
 function emptyHomepageBanners(): HomepageBannerGroups {
@@ -384,4 +410,28 @@ export function filterProductsByCategory(products: Product[], categories: Catego
   }
   const keys = categoryAndDescendantKeys(selected, categories);
   return products.filter((product) => keys.has(product.category.toLowerCase()) || Boolean(product.categorySlug && keys.has(product.categorySlug)) || Boolean(product.categoryId && keys.has(product.categoryId)));
+}
+
+export function rankSearchResults(products: Product[], query: string) {
+  const needle = query.trim().toLowerCase();
+  if (!needle) return products;
+  return [...products].sort((a, b) => searchScore(b, needle) - searchScore(a, needle) || a.name.localeCompare(b.name));
+}
+
+function searchScore(product: Product, needle: string) {
+  const name = product.name.toLowerCase();
+  const brand = product.brand.toLowerCase();
+  const category = product.category.toLowerCase();
+  const sku = Object.values(product.specs).join(" ").toLowerCase();
+  let score = 0;
+  if (brand === needle) score += 1000;
+  if (name === needle) score += 950;
+  if (name.startsWith(`${needle} `) || name.startsWith(needle)) score += 700;
+  if (brand.startsWith(needle)) score += 650;
+  if (name.includes(needle)) score += 350;
+  if (sku.includes(needle)) score += 250;
+  if (category.includes(needle)) score += 150;
+  if (product.description.toLowerCase().includes(needle)) score += 50;
+  if (product.isFeatured) score += 10;
+  return score;
 }

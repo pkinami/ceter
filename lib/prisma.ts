@@ -1,17 +1,14 @@
 import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import type { PoolConfig } from "pg";
+import { requiredDatabaseUrl } from "./env";
 import { normalizePostgresConnectionString } from "./postgres-url";
 
 const globalForPrisma = globalThis as unknown as {
   prisma?: PrismaClient;
 };
 
-const rawConnectionString = process.env.DATABASE_URL?.trim() || process.env.POSTGRES_URL_NON_POOLING?.trim();
-
-if (!rawConnectionString) {
-  throw new Error("DATABASE_URL or POSTGRES_URL_NON_POOLING is required to initialize Prisma.");
-}
+const rawConnectionString = requiredDatabaseUrl();
 
 const connectionString = normalizePostgresConnectionString(toSupabaseTransactionPooler(rawConnectionString));
 const poolMax = toPositiveInteger(process.env.PRISMA_POOL_MAX, process.env.NODE_ENV === "production" ? 1 : 5);

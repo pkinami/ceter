@@ -99,7 +99,7 @@ export function HeaderClient({ categories, brands }: { categories: Category[]; b
     window.location.href = "/category";
   }
 
-  const searchInput = (className: string) => (
+  const searchInput = (className: string, placeholder = "Search toners, models, parts...") => (
     <>
       <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
       <input
@@ -109,7 +109,7 @@ export function HeaderClient({ categories, brands }: { categories: Category[]; b
         value={query}
         onChange={(event) => setQuery(event.target.value)}
         className={className}
-        placeholder="Search toners, models, parts..."
+        placeholder={placeholder}
         aria-label="Search products"
       />
       {query ? (
@@ -149,7 +149,7 @@ export function HeaderClient({ categories, brands }: { categories: Category[]; b
           </Link>
         </div>
         <form className="relative hidden w-full sm:block" onSubmit={submitSearch}>
-          {searchInput("h-11 w-full rounded-md border border-slate-300 bg-white pl-10 pr-24 text-sm font-medium text-slate-950 placeholder:text-slate-500 outline-none focus:border-signal focus:ring-2 focus:ring-teal-100")}
+          {searchInput("h-11 w-full rounded-md border border-slate-300 bg-white !pl-10 !pr-28 text-sm font-medium text-slate-950 placeholder:text-slate-500 outline-none focus:border-signal focus:ring-2 focus:ring-teal-100")}
         </form>
         <div className="flex min-w-0 items-center justify-end gap-2 lg:gap-3">
           <nav className="hidden items-center gap-3 text-[13px] font-semibold text-slate-600 xl:flex xl:gap-4 xl:text-sm">
@@ -179,7 +179,7 @@ export function HeaderClient({ categories, brands }: { categories: Category[]; b
       </div>
       <div className="border-t border-line px-4 py-2 sm:hidden">
         <form className="relative block" onSubmit={submitSearch}>
-          {searchInput("h-12 w-full rounded-md border border-slate-300 bg-white pl-10 pr-24 text-sm font-medium text-slate-950 placeholder:text-slate-500 outline-none focus:border-signal focus:ring-2 focus:ring-teal-100")}
+          {searchInput("h-12 w-full rounded-md border border-slate-300 bg-white !pl-10 !pr-28 text-sm font-medium text-slate-950 placeholder:text-slate-500 outline-none focus:border-signal focus:ring-2 focus:ring-teal-100", "Search toners...")}
         </form>
       </div>
       <Suspense fallback={null}>

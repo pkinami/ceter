@@ -7,8 +7,6 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { User } from "@supabase/supabase-js";
 
-type Profile = { full_name: string | null; role: "customer" };
-
 function initials(name?: string | null, email?: string | null) {
   const source = name?.trim() || email?.trim() || "CT";
   return source.split(/\s+/).slice(0, 2).map((part) => part[0]?.toUpperCase()).join("");
@@ -19,21 +17,21 @@ export function AuthMenu() {
   const pathname = usePathname();
   const router = useRouter();
   const [email, setEmail] = useState<string | null>(null);
-  const [profile, setProfile] = useState<Profile | null>(null);
+  const [displayName, setDisplayName] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
   const [initialized, setInitialized] = useState(false);
 
   const loadForUser = useCallback(async (user: User | null) => {
     setEmail(user?.email ?? null);
     if (!user) {
-      setProfile(null);
+      setDisplayName(null);
       setInitialized(true);
       return;
     }
-    const { data: profileData } = await supabase.from("profiles").select("full_name,role").eq("id", user.id).maybeSingle();
-    setProfile(profileData as Profile | null);
+    const metadata = user.user_metadata as { full_name?: string; name?: string } | null;
+    setDisplayName(metadata?.full_name ?? metadata?.name ?? null);
     setInitialized(true);
-  }, [supabase]);
+  }, []);
 
   const load = useCallback(async () => {
     const { data } = await supabase.auth.getSession();
@@ -55,7 +53,7 @@ export function AuthMenu() {
 
   async function logout() {
     setEmail(null);
-    setProfile(null);
+    setDisplayName(null);
     setOpen(false);
     await supabase.auth.signOut();
     router.push("/");
@@ -83,7 +81,7 @@ export function AuthMenu() {
         className="flex h-10 w-10 items-center justify-center rounded-full border border-slate-300 bg-white text-xs font-bold text-ink shadow-sm hover:bg-slate-50 sm:h-11 sm:w-11"
         aria-label="Account menu"
       >
-        {initials(profile?.full_name, email)}
+        {initials(displayName, email)}
       </button>
       {open ? (
         <div className="absolute right-0 top-12 z-50 w-56 rounded-md border border-slate-300 bg-white p-2 text-sm shadow-industrial">

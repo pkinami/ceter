@@ -1,4 +1,5 @@
 import { config } from "dotenv";
+import fs from "node:fs";
 import pg from "pg";
 
 config({ path: ".env.local" });
@@ -64,10 +65,7 @@ const requiredSeedCounts = {
   products: 15
 };
 
-const client = new Client({
-  connectionString,
-  ssl: connectionString.includes("localhost") ? false : { rejectUnauthorized: false }
-});
+const client = new Client(databaseConfig(connectionString));
 
 function fail(message) {
   throw new Error(message);
@@ -138,4 +136,21 @@ try {
   console.log("Supabase database verification passed.");
 } finally {
   await client.end();
+}
+
+function databaseConfig(value) {
+  if (value.includes("localhost")) return { connectionString: value, ssl: false };
+
+  const url = new URL(value);
+  url.searchParams.delete("sslmode");
+
+  const caPath = process.env.PGSSLROOTCERT || process.env.SUPABASE_DB_CA_CERT_PATH || "supabase/certs/supabase-prod-ca-2021.crt";
+  const ca = fs.existsSync(caPath) ? fs.readFileSync(caPath, "utf8") : undefined;
+
+  return {
+    connectionString: url.toString(),
+    ssl: ca
+      ? { ca, rejectUnauthorized: true, servername: url.hostname }
+      : { rejectUnauthorized: false, servername: url.hostname }
+  };
 }

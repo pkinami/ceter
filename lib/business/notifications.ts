@@ -80,7 +80,7 @@ function brandedTemplate(type: NotificationType, context: NotificationContext) {
   const status = context.statusLabel ? `<p style="margin:0 0 16px;color:#475569;font-size:14px;">Status: <strong>${escapeHtml(context.statusLabel)}</strong></p>` : "";
   const html = `<!doctype html>
 <html>
-  <body style="margin:0;background:#f6f8fb;font-family:Arial,Helvetica,sans-serif;color:#0f172a;">
+  <body style="margin:0;background:#f6f8fb;font-family:Arial,Helvetica,sans-serif;color:#111827;">
     <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f6f8fb;padding:24px;">
       <tr>
         <td align="center">
@@ -89,7 +89,7 @@ function brandedTemplate(type: NotificationType, context: NotificationContext) {
             <tr>
               <td style="padding:30px 28px;">
                 <p style="margin:0 0 12px;color:#d9902f;font-weight:700;font-size:12px;text-transform:uppercase;">Ceter Technologies</p>
-                <h1 style="margin:0 0 18px;font-size:24px;line-height:1.25;color:#082635;">${escapeHtml(copy.title)}</h1>
+                <h1 style="margin:0 0 18px;font-size:24px;line-height:1.25;color:#14b8a6;">${escapeHtml(copy.title)}</h1>
                 <p style="margin:0 0 16px;font-size:15px;line-height:1.6;">Hello ${name},</p>
                 <p style="margin:0 0 20px;font-size:15px;line-height:1.6;">${escapeHtml(copy.body)}</p>
                 ${status}

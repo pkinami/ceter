@@ -17,12 +17,13 @@ import type {
 import { prisma } from "@/lib/prisma";
 import { requireAdminSession } from "@/lib/admin/auth";
 import { formatKes } from "@/lib/utils";
-import { brandedPdfBytes, documentCreateData, uploadBusinessDocument, BUSINESS_DOCUMENT_BUCKET } from "@/lib/business/documents";
+import { brandedPdfBytes, deleteBusinessDocuments, documentCreateData, uploadBusinessDocument, BUSINESS_DOCUMENT_BUCKET } from "@/lib/business/documents";
 import { createEtimsSubmission, retryEtimsSubmission, submitEtimsRecord } from "@/lib/business/etims";
 import { initiateInvoiceMpesa } from "@/lib/business/mpesa";
 import { queueNotification } from "@/lib/business/notifications";
 import { settleInvoicePayment } from "@/lib/business/settlement";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { createBusinessNumber } from "@/lib/business/numbering";
 
 const VAT_RATE = 0.16;
 const JOURNAL_ACCOUNTS = {
@@ -53,52 +54,30 @@ function dateValue(value: FormDataEntryValue | null) {
 }
 
 function messageRedirect(path: string, key: "success" | "error", message: string): never {
-  redirect(`${path}?${key}=${encodeURIComponent(message)}`);
+  redirect(`${path}${path.includes("?") ? "&" : "?"}${key}=${encodeURIComponent(message)}`);
+}
+
+function returnPath(formData: FormData, fallback: string) {
+  const requested = text(formData.get("return_to"));
+  return requested?.startsWith("/admin/") ? requested : fallback;
 }
 
 function formMessage(error: unknown, fallback: string) {
-  if (error instanceof Error) return error.message;
+  if (error instanceof Error) {
+    if (/prisma|transaction api|expired transaction|invocation/i.test(error.message)) {
+      return fallback;
+    }
+    return error.message;
+  }
   return fallback;
 }
 
-async function nextNumber(prefix: string, table: "quote" | "proformaInvoice" | "invoice" | "payment" | "receipt" | "expense") {
-  const year = new Date().getFullYear();
-  const startsWith = `${prefix}-${year}-`;
-  const latest = table === "quote"
-    ? await prisma.quote.findFirst({ where: { quote_number: { startsWith } }, orderBy: { created_at: "desc" }, select: { quote_number: true } })
-    : table === "proformaInvoice"
-      ? await prisma.proformaInvoice.findFirst({ where: { proforma_number: { startsWith } }, orderBy: { created_at: "desc" }, select: { proforma_number: true } })
-      : table === "invoice"
-        ? await prisma.invoice.findFirst({ where: { invoice_number: { startsWith } }, orderBy: { created_at: "desc" }, select: { invoice_number: true } })
-        : table === "payment"
-          ? await prisma.payment.findFirst({ where: { payment_number: { startsWith } }, orderBy: { created_at: "desc" }, select: { payment_number: true } })
-          : table === "receipt"
-            ? await prisma.receipt.findFirst({ where: { receipt_number: { startsWith } }, orderBy: { created_at: "desc" }, select: { receipt_number: true } })
-            : await prisma.expense.findFirst({ where: { expense_number: { startsWith } }, orderBy: { created_at: "desc" }, select: { expense_number: true } });
-  const currentValue = Object.values(latest ?? {})[0];
-  const current = Number(String(currentValue ?? "").split("-").pop() ?? "0");
-  return `${prefix}-${year}-${String(current + 1).padStart(4, "0")}`;
+async function nextNumber(prefix: string) {
+  return createBusinessNumber(prefix);
 }
 
-async function nextErpNumber(prefix: string, table: "purchaseRequest" | "purchaseOrder" | "goodsReceivedNote" | "supplierInvoice" | "supplierPayment" | "journalEntry" | "tender") {
-  const year = new Date().getFullYear();
-  const startsWith = `${prefix}-${year}-`;
-  const latest = table === "purchaseRequest"
-    ? await prisma.purchaseRequest.findFirst({ where: { request_number: { startsWith } }, orderBy: { created_at: "desc" }, select: { request_number: true } })
-    : table === "purchaseOrder"
-      ? await prisma.purchaseOrder.findFirst({ where: { po_number: { startsWith } }, orderBy: { created_at: "desc" }, select: { po_number: true } })
-      : table === "goodsReceivedNote"
-        ? await prisma.goodsReceivedNote.findFirst({ where: { grn_number: { startsWith } }, orderBy: { created_at: "desc" }, select: { grn_number: true } })
-        : table === "supplierInvoice"
-          ? await prisma.supplierInvoice.findFirst({ where: { supplier_invoice_number: { startsWith } }, orderBy: { created_at: "desc" }, select: { supplier_invoice_number: true } })
-          : table === "supplierPayment"
-            ? await prisma.supplierPayment.findFirst({ where: { supplier_payment_number: { startsWith } }, orderBy: { created_at: "desc" }, select: { supplier_payment_number: true } })
-            : table === "journalEntry"
-              ? await prisma.journalEntry.findFirst({ where: { entry_number: { startsWith } }, orderBy: { created_at: "desc" }, select: { entry_number: true } })
-              : await prisma.tender.findFirst({ where: { tender_number: { startsWith } }, orderBy: { created_at: "desc" }, select: { tender_number: true } });
-  const currentValue = Object.values(latest ?? {})[0];
-  const current = Number(String(currentValue ?? "").split("-").pop() ?? "0");
-  return `${prefix}-${year}-${String(current + 1).padStart(4, "0")}`;
+async function nextErpNumber(prefix: string) {
+  return createBusinessNumber(prefix);
 }
 
 async function accountIds(tx: Prisma.TransactionClient, codes: string[]) {
@@ -126,7 +105,7 @@ async function createJournalEntry(tx: Prisma.TransactionClient, input: {
   const credit = input.lines.filter((line) => line.direction === "credit").reduce((sum, line) => sum + line.amount, 0);
   if (debit !== credit) throw new Error(`Unbalanced journal entry: debit ${debit}, credit ${credit}.`);
   const ids = await accountIds(tx, [...new Set(input.lines.map((line) => line.code))]);
-  const entryNumber = await nextErpNumber("JRN", "journalEntry");
+  const entryNumber = createBusinessNumber("JRN");
   return tx.journalEntry.create({
     data: {
       entry_number: entryNumber,
@@ -217,7 +196,11 @@ async function issueInvoiceStock(tx: Prisma.TransactionClient, invoice: {
 
 function parseItems(formData: FormData) {
   const vatEnabled = formData.get("vat_enabled") === "on";
-  const rows = Array.from({ length: 8 }, (_, index) => {
+  // The client can add rows indefinitely. Derive the submitted indexes rather
+  // than silently dropping everything after row eight; this is also what lets
+  // the PDF engine exercise its continuation-page layout in production.
+  const indexes = [...new Set([...formData.keys()].map((key) => key.match(/^item_(?:product_id|description|quantity|unit_price_kes|discount_kes)_(\d+)$/)?.[1]).filter((value): value is string => Boolean(value)).map(Number))].sort((a, b) => a - b);
+  const rows = indexes.map((index) => {
     const productId = text(formData.get(`item_product_id_${index}`));
     const manualDescription = text(formData.get(`item_description_${index}`));
     const quantity = intValue(formData.get(`item_quantity_${index}`));
@@ -257,28 +240,63 @@ async function createDocumentFor(kind: "quote" | "proforma" | "invoice" | "recei
   id: string;
   number: string;
   title: string;
-  customer: { id: string; name: string; email: string | null; phone: string | null };
-  lines?: Array<{ description: string; quantity: number; unit_price_kes: number; line_total_kes: number }>;
+  customer: { id: string; name: string; email: string | null; phone: string | null; company_name?: string | null; tax_pin?: string | null; addresses?: Array<{ address_line_1: string; address_line_2: string | null; city: string | null; region: string | null }> };
+  lines?: Array<{ description: string; quantity: number; unit_price_kes: number; discount_kes?: number; vat_kes?: number; line_total_kes: number }>;
   totals: Array<[string, string]>;
   userId: string;
   paymentId?: string;
   receiptId?: string;
+  dueDate?: Date | null;
+  validUntil?: Date | null;
+  sourceNumber?: string | null;
+  lpoNumber?: string | null;
+  status?: string | null;
+  vatEnabled?: boolean;
+  terms?: string | null;
+  notes?: string | null;
 }) {
-  const pdf = brandedPdfBytes({
+  const customerAddress = data.customer.addresses?.[0] ? [data.customer.addresses[0].address_line_1, data.customer.addresses[0].address_line_2, data.customer.addresses[0].city, data.customer.addresses[0].region].filter(Boolean).join(", ") : null;
+  const documentInput: Parameters<typeof brandedPdfBytes>[0] = {
     type: kind === "quote" ? "quotation" : kind === "proforma" ? "proforma_invoice" : kind,
     title: data.title,
     number: data.number,
+    issueDate: new Date().toLocaleDateString("en-KE"),
+    dueDate: data.dueDate?.toLocaleDateString("en-KE"),
+    meta: [
+      ["Status", data.status ?? "Ready"],
+      ["Reference", data.sourceNumber],
+      ["LPO No.", data.lpoNumber],
+      ["Validity", data.validUntil?.toLocaleDateString("en-KE")],
+      ["VAT Treatment", data.vatEnabled === undefined ? null : data.vatEnabled ? "VAT applied where taxable" : "VAT not applied"]
+    ],
     customerName: data.customer.name,
+    customerCompany: data.customer.company_name,
     customerEmail: data.customer.email,
     customerPhone: data.customer.phone,
-    lines: data.lines?.map((line) => `${line.quantity} x ${line.description} @ ${formatKes(line.unit_price_kes)} = ${formatKes(line.line_total_kes)}`),
-    totals: data.totals
-  });
+    customerAddress,
+    customerPin: data.customer.tax_pin,
+    lines: data.lines?.map((line) => ({
+      description: line.description,
+      quantity: line.quantity,
+      unitPrice: formatKes(line.unit_price_kes),
+      discount: formatKes(line.discount_kes ?? 0),
+      vat: formatKes(line.vat_kes ?? 0),
+      taxInfo: (line.vat_kes ?? 0) > 0 ? "VAT applied to this line" : null,
+      total: formatKes(line.line_total_kes)
+    })),
+    totals: data.totals,
+    footer: [data.terms, data.notes].filter(Boolean) as string[]
+  };
+  // All customer documents are composed directly with the PDF engine.  The
+  // Word master is a design-input for the one-time template preparation step;
+  // it is never populated, uploaded, or converted on a customer request.
+  const pdf = await brandedPdfBytes(documentInput);
   const storagePath = `${kind}s/${data.number}.pdf`;
   const publicUrl = await uploadBusinessDocument(storagePath, pdf);
   await prisma.document.create({
     data: documentCreateData({
       document_type: kind === "quote" ? "quotation" : kind === "proforma" ? "proforma_invoice" : kind,
+      document_number: data.number,
       title: `${data.title} ${data.number}`,
       storage_path: storagePath,
       public_url: publicUrl,
@@ -295,11 +313,13 @@ async function createDocumentFor(kind: "quote" | "proforma" | "invoice" | "recei
 
 export async function upsertCustomerAction(formData: FormData) {
   const session = await requireAdminSession();
+  const returnTo = returnPath(formData, "/admin/business?tab=customers");
   const id = text(formData.get("id"));
   const name = text(formData.get("name"));
-  if (!name) messageRedirect("/admin/business?tab=customers", "error", "Customer name is required.");
+  if (!name) messageRedirect(returnTo, "error", "Customer name is required.");
   const data = {
     name,
+    category_id: text(formData.get("category_id")),
     company_name: text(formData.get("company_name")),
     customer_type: String(formData.get("customer_type") ?? "individual") as CustomerType,
     phone: text(formData.get("phone")),
@@ -328,10 +348,45 @@ export async function upsertCustomerAction(formData: FormData) {
       });
     }
   } catch (error) {
-    messageRedirect("/admin/business?tab=customers", "error", formMessage(error, "Customer could not be saved."));
+    messageRedirect(returnTo, "error", formMessage(error, "Customer could not be saved."));
   }
   revalidatePath("/admin/business");
-  messageRedirect("/admin/business?tab=customers", "success", id ? "Customer updated." : "Customer created.");
+  messageRedirect(returnTo, "success", id ? "Customer updated." : "Customer created.");
+}
+
+export async function upsertCustomerCategoryAction(formData: FormData) {
+  await requireAdminSession();
+  const id = text(formData.get("id"));
+  const name = text(formData.get("name"));
+  if (!name) messageRedirect("/admin/business?tab=customer-categories", "error", "Category name is required.");
+  try {
+    if (id) {
+      await prisma.customerCategory.update({ where: { id }, data: { name, description: text(formData.get("description")), is_active: formData.get("is_active") !== "off" } });
+    } else {
+      await prisma.customerCategory.create({ data: { name, description: text(formData.get("description")) } });
+    }
+  } catch (error) {
+    messageRedirect("/admin/business?tab=customer-categories", "error", formMessage(error, "Customer category could not be saved."));
+  }
+  revalidatePath("/admin/business");
+  revalidatePath("/admin/customers");
+  messageRedirect("/admin/business?tab=customer-categories", "success", id ? "Customer category updated." : "Customer category created.");
+}
+
+export async function deleteCustomerCategoryAction(formData: FormData) {
+  await requireAdminSession();
+  const id = text(formData.get("id"));
+  if (!id) messageRedirect("/admin/business?tab=customer-categories", "error", "Category id is required.");
+  try {
+    const usage = await prisma.customer.count({ where: { category_id: id } });
+    if (usage > 0) throw new Error("Category is in use. Reassign those customers before deleting it.");
+    await prisma.customerCategory.delete({ where: { id } });
+  } catch (error) {
+    messageRedirect("/admin/business?tab=customer-categories", "error", formMessage(error, "Customer category could not be deleted."));
+  }
+  revalidatePath("/admin/business");
+  revalidatePath("/admin/customers");
+  messageRedirect("/admin/business?tab=customer-categories", "success", "Customer category deleted.");
 }
 
 export async function deleteCustomerAction(formData: FormData) {
@@ -386,18 +441,24 @@ export async function generateCustomerStatementAction(formData: FormData) {
       }))
     ].sort((a, b) => a.date.getTime() - b.date.getTime());
     const statementNumber = `STM-${new Date().getFullYear()}-${Date.now()}`;
-    const pdf = brandedPdfBytes({
+    const pdf = await brandedPdfBytes({
       type: "customer_statement",
       title: "Customer Statement",
       number: statementNumber,
       issueDate: new Date().toLocaleDateString("en-KE"),
+      meta: [
+        ["Period", `${periodStart.toLocaleDateString("en-KE")} - ${periodEnd.toLocaleDateString("en-KE")}`],
+        ["Opening", formatKes(openingBalance)],
+        ["Closing", formatKes(closingBalance)]
+      ],
       customerName: customer.name,
       customerCompany: customer.company_name,
       customerEmail: customer.email,
       customerPhone: customer.phone,
       customerAddress: customer.addresses[0]?.address_line_1,
       lines: rows.map((row) => ({
-        description: `${row.date.toLocaleDateString("en-KE")} | ${row.description} | ${row.reference}`,
+        // Statement renderer consumes date | document/reference | description.
+        description: `${row.date.toLocaleDateString("en-KE")} | ${row.reference} | ${row.description}`,
         quantity: 1,
         unitPrice: row.debit ? formatKes(row.debit) : "",
         vat: "",
@@ -417,6 +478,7 @@ export async function generateCustomerStatementAction(formData: FormData) {
     await prisma.document.create({
       data: documentCreateData({
         document_type: "customer_statement",
+        document_number: statementNumber,
         title: `Customer Statement ${statementNumber}`,
         storage_path: storagePath,
         public_url: publicUrl,
@@ -434,16 +496,19 @@ export async function generateCustomerStatementAction(formData: FormData) {
 
 export async function createQuoteAction(formData: FormData) {
   const session = await requireAdminSession();
+  const returnTo = returnPath(formData, "/admin/business?tab=quotes");
   const customerId = text(formData.get("customer_id"));
-  if (!customerId) messageRedirect("/admin/business?tab=quotes", "error", "Select a customer.");
+  if (!customerId) messageRedirect(returnTo, "error", "Select a customer.");
   try {
     const items = parseItems(formData);
     const names = await productNames(items.rows.map((item) => item.product_id).filter((id): id is string => Boolean(id)));
-    const quoteNumber = await nextNumber("QTN", "quote");
-    const quote = await prisma.quote.create({
-      data: {
+    const customer = await prisma.customer.findUnique({ where: { id: customerId }, include: { addresses: { where: { is_default: true }, take: 1 } } });
+    if (!customer) throw new Error("Customer not found.");
+    const quoteNumber = await nextNumber("QTN");
+    const quoteData = {
         quote_number: quoteNumber,
         customer_id: customerId,
+        customer_lpo_number: text(formData.get("customer_lpo_number")),
         status: String(formData.get("status") ?? "draft") as BusinessQuoteStatus,
         subtotal_kes: items.subtotal,
         discount_kes: items.discount,
@@ -455,30 +520,125 @@ export async function createQuoteAction(formData: FormData) {
         valid_until: dateValue(formData.get("valid_until")),
         created_by_id: session.userId,
         items: { create: items.rows.map((item) => ({ ...item, description: item.product_id ? names.get(item.product_id) ?? item.description : item.description })) }
-      },
-      include: { customer: true, items: true }
-    });
-    await createDocumentFor("quote", {
-      id: quote.id,
-      number: quote.quote_number,
-      title: "Quotation",
-      customer: quote.customer,
-      lines: quote.items,
-      totals: [["Subtotal", formatKes(quote.subtotal_kes)], ["Discount", formatKes(quote.discount_kes)], ["VAT", formatKes(quote.vat_kes)], ["Total", formatKes(quote.total_kes)]],
-      userId: session.userId
-    });
-    await queueNotification(quote.customer.profile_id, "quote_created", {
-      recipientEmail: quote.customer.email,
-      recipientName: quote.customer.name,
-      documentNumber: quote.quote_number,
-      amountKes: quote.total_kes,
-      statusLabel: quote.status
-    });
+    } satisfies Prisma.QuoteUncheckedCreateInput;
+    // Generate before creating the business record, so a renderer failure
+    // cannot leave a quotation that the UI reports as generated.
+    const customerAddress = customer.addresses[0] ? [customer.addresses[0].address_line_1, customer.addresses[0].address_line_2, customer.addresses[0].city, customer.addresses[0].region].filter(Boolean).join(", ") : null;
+    const pdf = await brandedPdfBytes({ type: "quotation", title: "Quotation", number: quoteNumber, issueDate: new Date().toLocaleDateString("en-KE"), dueDate: quoteData.valid_until?.toLocaleDateString("en-KE"), meta: [["LPO No.", quoteData.customer_lpo_number]], customerName: customer.name, customerCompany: customer.company_name, customerEmail: customer.email, customerPhone: customer.phone, customerAddress, customerPin: customer.tax_pin, lines: items.rows.map((item) => ({ description: item.product_id ? names.get(item.product_id) ?? item.description : item.description, quantity: item.quantity, unitPrice: formatKes(item.unit_price_kes), discount: formatKes(item.discount_kes), vat: formatKes(item.vat_kes), total: formatKes(item.line_total_kes) })), totals: [["Subtotal", formatKes(items.subtotal)], ["Discount", formatKes(items.discount)], ["VAT", formatKes(items.vat)], ["Total Due", formatKes(items.total)]], footer: [quoteData.terms, quoteData.notes].filter(Boolean) as string[] });
+    const pdfPath = `quotes/${quoteNumber}.pdf`;
+    try {
+      await uploadBusinessDocument(pdfPath, pdf);
+      const quote = await prisma.$transaction(async (tx) => {
+        const created = await tx.quote.create({ data: quoteData, include: { customer: true, items: true } });
+        await tx.document.create({ data: documentCreateData({ document_type: "quotation", document_number: quoteNumber, title: `Quotation ${quoteNumber}`, storage_path: pdfPath, customer_id: customer.id, quote_id: created.id, created_by_id: session.userId }) });
+        return created;
+      });
+      await queueNotification(quote.customer.profile_id, "quote_created", {
+        recipientEmail: quote.customer.email,
+        recipientName: quote.customer.name,
+        documentNumber: quote.quote_number,
+        amountKes: quote.total_kes,
+        statusLabel: quote.status
+      });
+    } catch (error) {
+      await deleteBusinessDocuments([pdfPath]).catch(() => undefined);
+      throw error;
+    }
   } catch (error) {
-    messageRedirect("/admin/business?tab=quotes", "error", formMessage(error, "Quotation could not be created."));
+    messageRedirect(returnTo, "error", formMessage(error, "Quotation could not be created."));
   }
   revalidatePath("/admin/business");
-  messageRedirect("/admin/business?tab=quotes", "success", "Quotation created and PDF stored.");
+  messageRedirect(returnTo, "success", "Quotation created and PDF stored.");
+}
+
+export async function createSaleAction(formData: FormData) {
+  const session = await requireAdminSession();
+  const returnTo = returnPath(formData, "/admin/business?tab=sales");
+  const customerId = text(formData.get("customer_id"));
+  if (!customerId) messageRedirect(returnTo, "error", "Select a customer.");
+  try {
+    const items = parseItems(formData);
+    const names = await productNames(items.rows.map((item) => item.product_id).filter((id): id is string => Boolean(id)));
+    const invoiceNumber = await nextNumber("INV");
+    const invoice = await prisma.$transaction(async (tx) => {
+      const created = await tx.invoice.create({
+        data: {
+          invoice_number: invoiceNumber,
+          customer_id: customerId,
+          customer_lpo_number: text(formData.get("customer_lpo_number")),
+          status: "sent",
+          subtotal_kes: items.subtotal,
+          discount_kes: items.discount,
+          vat_kes: items.vat,
+          total_kes: items.total,
+          balance_kes: items.total,
+          vat_enabled: items.vatEnabled,
+          notes: text(formData.get("notes")),
+          terms: text(formData.get("terms")),
+          due_date: dateValue(formData.get("due_date")),
+          payment_terms: text(formData.get("payment_timing")) === "now" ? "Paid at sale" : "Pay later",
+          created_by_id: session.userId,
+          items: { create: items.rows.map((item) => ({ ...item, description: item.product_id ? names.get(item.product_id) ?? item.description : item.description })) }
+        },
+        include: { customer: true, items: true }
+      });
+      await tx.transaction.createMany({ data: [
+        { transaction_type: "invoice_created", direction: "debit", amount_kes: created.total_kes, customer_id: created.customer_id, invoice_id: created.id, memo: "Customer balance increased", created_by_id: session.userId },
+        { transaction_type: "sales_recorded", direction: "credit", amount_kes: created.total_kes, customer_id: created.customer_id, invoice_id: created.id, memo: "Sales recorded", created_by_id: session.userId },
+        { transaction_type: "customer_balance_increase", direction: "debit", amount_kes: created.total_kes, customer_id: created.customer_id, invoice_id: created.id, memo: "Invoice issued", created_by_id: session.userId }
+      ] });
+      await createJournalEntry(tx, {
+        sourceType: "sales_invoice",
+        memo: `Sales invoice ${created.invoice_number}`,
+        createdById: session.userId,
+        invoiceId: created.id,
+        lines: [
+          { code: JOURNAL_ACCOUNTS.receivables, direction: "debit", amount: created.total_kes, memo: "Customer receivable" },
+          { code: JOURNAL_ACCOUNTS.productSales, direction: "credit", amount: created.total_kes - created.vat_kes, memo: "Sales revenue" },
+          ...(created.vat_kes > 0 ? [{ code: JOURNAL_ACCOUNTS.taxesPayable, direction: "credit" as const, amount: created.vat_kes, memo: "Output VAT" }] : [])
+        ]
+      });
+      await issueInvoiceStock(tx, created, session.userId);
+      return created;
+    }, { timeout: 20_000 });
+    await createDocumentFor("invoice", {
+      id: invoice.id,
+      number: invoice.invoice_number,
+      title: "Invoice",
+      customer: invoice.customer,
+      lines: invoice.items,
+      totals: [["Subtotal", formatKes(invoice.subtotal_kes)], ["Discount", formatKes(invoice.discount_kes)], ["VAT", formatKes(invoice.vat_kes)], ["Total", formatKes(invoice.total_kes)], ["Balance", formatKes(invoice.balance_kes)]],
+      userId: session.userId,
+      dueDate: invoice.due_date,
+      sourceNumber: invoice.customer_lpo_number,
+      lpoNumber: invoice.customer_lpo_number,
+      vatEnabled: invoice.vat_enabled,
+      terms: invoice.terms,
+      notes: invoice.notes
+    });
+    if (text(formData.get("payment_timing")) === "now" && invoice.total_kes > 0) {
+      await settleInvoicePayment({
+        invoiceId: invoice.id,
+        amountKes: invoice.total_kes,
+        method: String(formData.get("method") ?? "mpesa") as BusinessPaymentMethod,
+        reference: text(formData.get("reference")),
+        notes: "Payment recorded during sale creation.",
+        createdById: session.userId
+      });
+    }
+    await queueNotification(invoice.customer.profile_id, "invoice_created", {
+      recipientEmail: invoice.customer.email,
+      recipientName: invoice.customer.name,
+      documentNumber: invoice.invoice_number,
+      amountKes: invoice.total_kes,
+      statusLabel: invoice.status
+    });
+  } catch (error) {
+    messageRedirect(returnTo, "error", formMessage(error, "Sale could not be created."));
+  }
+  revalidatePath("/admin");
+  revalidatePath("/admin/business");
+  messageRedirect(returnTo, "success", "Sale invoice created.");
 }
 
 export async function updateQuoteStatusAction(formData: FormData) {
@@ -507,12 +667,13 @@ export async function quoteToProformaAction(formData: FormData) {
   try {
     const quote = await prisma.quote.findUnique({ where: { id }, include: { customer: true, items: true } });
     if (!quote) throw new Error("Quote not found.");
-    const number = await nextNumber("PFI", "proformaInvoice");
+    const number = await nextNumber("PFI");
     const proforma = await prisma.proformaInvoice.create({
       data: {
         proforma_number: number,
         quote_id: quote.id,
         customer_id: quote.customer_id,
+        customer_lpo_number: quote.customer_lpo_number,
         subtotal_kes: quote.subtotal_kes,
         discount_kes: quote.discount_kes,
         vat_kes: quote.vat_kes,
@@ -541,8 +702,13 @@ export async function quoteToProformaAction(formData: FormData) {
       title: "Pro-forma Invoice",
       customer: proforma.customer,
       lines: proforma.items,
-      totals: [["Total", formatKes(proforma.total_kes)]],
-      userId: session.userId
+      totals: [["Subtotal", formatKes(proforma.subtotal_kes)], ["Discount", formatKes(proforma.discount_kes)], ["VAT", formatKes(proforma.vat_kes)], ["Total", formatKes(proforma.total_kes)]],
+      userId: session.userId,
+      sourceNumber: quote.quote_number,
+      lpoNumber: proforma.customer_lpo_number,
+      vatEnabled: proforma.vat_enabled,
+      terms: proforma.terms,
+      notes: proforma.notes
     });
   } catch (error) {
     messageRedirect("/admin/business?tab=quotes", "error", formMessage(error, "Pro-forma invoice could not be created."));
@@ -575,7 +741,11 @@ async function createInvoiceFromSource(formData: FormData) {
       ? await prisma.proformaInvoice.findUnique({ where: { id: proformaId }, include: { customer: true, items: true } })
       : await prisma.quote.findUnique({ where: { id: quoteId! }, include: { customer: true, items: true } });
     if (!source) throw new Error("Source document not found.");
-    const number = await nextNumber("INV", "invoice");
+    const existingInvoice = proformaId
+      ? await prisma.invoice.findFirst({ where: { proforma_invoice_id: proformaId } })
+      : await prisma.invoice.findFirst({ where: { quote_id: quoteId } });
+    if (existingInvoice) throw new Error(`This document was already converted to invoice ${existingInvoice.invoice_number}.`);
+    const number = await nextNumber("INV");
     const invoice = await prisma.$transaction(async (tx) => {
       const created = await tx.invoice.create({
         data: {
@@ -583,6 +753,7 @@ async function createInvoiceFromSource(formData: FormData) {
           quote_id: "quote_number" in source ? source.id : source.quote_id,
           proforma_invoice_id: "proforma_number" in source ? source.id : null,
           customer_id: source.customer_id,
+          customer_lpo_number: "customer_lpo_number" in source ? source.customer_lpo_number : null,
           status: "sent",
           subtotal_kes: source.subtotal_kes,
           discount_kes: source.discount_kes,
@@ -632,8 +803,13 @@ async function createInvoiceFromSource(formData: FormData) {
       title: "Invoice",
       customer: invoice.customer,
       lines: invoice.items,
-      totals: [["Total", formatKes(invoice.total_kes)], ["Balance", formatKes(invoice.balance_kes)]],
-      userId: session.userId
+      totals: [["Subtotal", formatKes(invoice.subtotal_kes)], ["Discount", formatKes(invoice.discount_kes)], ["VAT", formatKes(invoice.vat_kes)], ["Total", formatKes(invoice.total_kes)], ["Balance", formatKes(invoice.balance_kes)]],
+      userId: session.userId,
+      sourceNumber: "quote_number" in source ? source.quote_number : source.proforma_number,
+      lpoNumber: invoice.customer_lpo_number,
+      vatEnabled: invoice.vat_enabled,
+      terms: invoice.terms,
+      notes: invoice.notes
     });
     await queueNotification(invoice.customer.profile_id, "invoice_created", {
       recipientEmail: invoice.customer.email,
@@ -681,10 +857,11 @@ export async function updateProformaStatusAction(formData: FormData) {
 
 export async function recordPaymentAction(formData: FormData) {
   const session = await requireAdminSession();
+  const returnTo = returnPath(formData, "/admin/business?tab=payments");
   const invoiceId = text(formData.get("invoice_id"));
-  if (!invoiceId) messageRedirect("/admin/business?tab=payments", "error", "Select an invoice.");
+  if (!invoiceId) messageRedirect(returnTo, "error", "Select an invoice.");
   const amount = intValue(formData.get("amount_kes"));
-  if (amount <= 0) messageRedirect("/admin/business?tab=payments", "error", "Payment amount must be above zero.");
+  if (amount <= 0) messageRedirect(returnTo, "error", "Payment amount must be above zero.");
   try {
     const result = await settleInvoicePayment({
       invoiceId,
@@ -702,25 +879,26 @@ export async function recordPaymentAction(formData: FormData) {
       statusLabel: result.updatedInvoice.status
     });
   } catch (error) {
-    messageRedirect("/admin/business?tab=payments", "error", formMessage(error, "Payment could not be recorded."));
+    messageRedirect(returnTo, "error", formMessage(error, "Payment could not be recorded."));
   }
   revalidatePath("/admin/business");
-  messageRedirect("/admin/business?tab=payments", "success", "Payment recorded and receipt generated.");
+  messageRedirect(returnTo, "success", "Payment recorded and receipt generated.");
 }
 
 export async function createExpenseAction(formData: FormData) {
   const session = await requireAdminSession();
+  const returnTo = returnPath(formData, "/admin/business?tab=expenses");
   const categoryName = text(formData.get("category_name"));
-  if (!categoryName) messageRedirect("/admin/business?tab=expenses", "error", "Expense category is required.");
+  if (!categoryName) messageRedirect(returnTo, "error", "Expense category is required.");
   const amount = intValue(formData.get("amount_kes"));
-  if (amount <= 0) messageRedirect("/admin/business?tab=expenses", "error", "Expense amount must be above zero.");
+  if (amount <= 0) messageRedirect(returnTo, "error", "Expense amount must be above zero.");
   try {
     const category = await prisma.expenseCategory.upsert({
       where: { name: categoryName },
       update: { is_active: true },
       create: { name: categoryName }
     });
-    const expenseNumber = await nextNumber("EXP", "expense");
+    const expenseNumber = await nextNumber("EXP");
     let attachmentPath: string | null = null;
     const file = formData.get("attachment");
     if (file instanceof File && file.size > 0) {
@@ -765,6 +943,7 @@ export async function createExpenseAction(formData: FormData) {
       if (attachmentPath) {
         await tx.document.create({ data: documentCreateData({
           document_type: "expense_attachment",
+          document_number: expenseNumber,
           title: `Expense attachment ${expenseNumber}`,
           storage_path: attachmentPath,
           public_url: null,
@@ -776,10 +955,10 @@ export async function createExpenseAction(formData: FormData) {
     });
     void expense;
   } catch (error) {
-    messageRedirect("/admin/business?tab=expenses", "error", formMessage(error, "Expense could not be recorded."));
+    messageRedirect(returnTo, "error", formMessage(error, "Expense could not be recorded."));
   }
   revalidatePath("/admin/business");
-  messageRedirect("/admin/business?tab=expenses", "success", "Expense recorded.");
+  messageRedirect(returnTo, "success", "Expense recorded.");
 }
 
 function parsePurchaseItems(formData: FormData) {
@@ -858,7 +1037,7 @@ export async function createPurchaseOrderAction(formData: FormData) {
   try {
     const items = parsePurchaseItems(formData);
     const names = await productNames(items.rows.map((item) => item.product_id));
-    const poNumber = await nextErpNumber("PO", "purchaseOrder");
+    const poNumber = await nextErpNumber("PO");
     const po = await prisma.purchaseOrder.create({
       data: {
         po_number: poNumber,
@@ -874,19 +1053,28 @@ export async function createPurchaseOrderAction(formData: FormData) {
       },
       include: { supplier: true, items: true }
     });
-    const pdf = brandedPdfBytes({
+    const pdf = await brandedPdfBytes({
       type: "purchase_order",
       title: "Purchase Order",
       number: po.po_number,
+      dueDate: po.expected_delivery_date?.toLocaleDateString("en-KE"),
+      meta: [
+        ["Supplier", po.supplier.company_name],
+        ["Expected Delivery", po.expected_delivery_date?.toLocaleDateString("en-KE")],
+        ["Status", po.status],
+        ["VAT Treatment", po.vat_kes > 0 ? "VAT applied where taxable" : "VAT not applied"]
+      ],
       customerName: po.supplier.company_name,
       customerEmail: po.supplier.email,
       customerPhone: po.supplier.phone,
+      customerAddress: po.supplier.address,
       lines: po.items.map((item) => ({ description: item.description, quantity: item.quantity, unitPrice: formatKes(item.unit_price_kes), vat: formatKes(item.vat_kes), total: formatKes(item.line_total_kes) })),
-      totals: [["Subtotal", formatKes(po.subtotal_kes)], ["VAT", formatKes(po.vat_kes)], ["Total", formatKes(po.total_kes)]]
+      totals: [["Subtotal", formatKes(po.subtotal_kes)], ["VAT", formatKes(po.vat_kes)], ["Total", formatKes(po.total_kes)]],
+      footer: [po.notes].filter(Boolean) as string[]
     });
     const storagePath = `purchase-orders/${po.po_number}.pdf`;
     const publicUrl = await uploadBusinessDocument(storagePath, pdf);
-    await prisma.document.create({ data: documentCreateData({ document_type: "purchase_order", title: `Purchase Order ${po.po_number}`, storage_path: storagePath, public_url: publicUrl, supplier_id: supplierId, purchase_order_id: po.id, category: "supplier", created_by_id: session.userId }) });
+    await prisma.document.create({ data: documentCreateData({ document_type: "purchase_order", document_number: po.po_number, title: `Purchase Order ${po.po_number}`, storage_path: storagePath, public_url: publicUrl, supplier_id: supplierId, purchase_order_id: po.id, category: "supplier", created_by_id: session.userId }) });
   } catch (error) {
     messageRedirect("/admin/business?tab=procurement", "error", formMessage(error, "Purchase order could not be created."));
   }
@@ -924,7 +1112,7 @@ export async function receiveGoodsAction(formData: FormData) {
     if (!received.length) throw new Error("Enter at least one received quantity.");
     const overReceived = received.find(({ item, quantity }) => item.received_quantity + quantity > item.quantity);
     if (overReceived) throw new Error(`${overReceived.item.description} cannot be received above the ordered quantity.`);
-    const grnNumber = await nextErpNumber("GRN", "goodsReceivedNote");
+    const grnNumber = await nextErpNumber("GRN");
     await prisma.$transaction(async (tx) => {
       const grn = await tx.goodsReceivedNote.create({
         data: {
@@ -973,7 +1161,7 @@ export async function createSupplierInvoiceAction(formData: FormData) {
   try {
     const po = await prisma.purchaseOrder.findUnique({ where: { id: poId }, include: { items: true, supplier: true } });
     if (!po) throw new Error("Purchase order not found.");
-    const number = await nextErpNumber("SIN", "supplierInvoice");
+    const number = await nextErpNumber("SIN");
     await prisma.$transaction(async (tx) => {
       const invoice = await tx.supplierInvoice.create({
         data: {
@@ -1034,7 +1222,7 @@ export async function recordSupplierPaymentAction(formData: FormData) {
     const invoice = await prisma.supplierInvoice.findUnique({ where: { id: invoiceId } });
     if (!invoice) throw new Error("Supplier invoice not found.");
     if (amount > invoice.balance_kes) throw new Error("Supplier payment cannot exceed invoice balance.");
-    const number = await nextErpNumber("SPAY", "supplierPayment");
+    const number = await nextErpNumber("SPAY");
     await prisma.$transaction(async (tx) => {
       const payment = await tx.supplierPayment.create({ data: { supplier_payment_number: number, supplier_id: invoice.supplier_id, supplier_invoice_id: invoice.id, amount_kes: amount, method: String(formData.get("method") ?? "bank_transfer") as BusinessPaymentMethod, reference: text(formData.get("reference")), notes: text(formData.get("notes")), created_by_id: session.userId } });
       const paid = invoice.paid_kes + amount;
@@ -1058,6 +1246,151 @@ export async function recordSupplierPaymentAction(formData: FormData) {
   }
   revalidatePath("/admin/business");
   messageRedirect("/admin/business?tab=procurement", "success", "Supplier payment recorded.");
+}
+
+export async function createSalesCreditNoteAction(formData: FormData) {
+  const session = await requireAdminSession();
+  const customerId = text(formData.get("customer_id"));
+  const amount = intValue(formData.get("amount_kes"));
+  const reason = text(formData.get("reason"));
+  if (!customerId) messageRedirect("/admin/business?tab=credit-notes", "error", "Select a customer.");
+  if (amount <= 0) messageRedirect("/admin/business?tab=credit-notes", "error", "Credit note amount must be above zero.");
+  if (!reason) messageRedirect("/admin/business?tab=credit-notes", "error", "Credit note reason is required.");
+  try {
+    const invoiceId = text(formData.get("invoice_id"));
+    const paymentId = text(formData.get("payment_id"));
+    const [invoice, payment] = await Promise.all([
+      invoiceId ? prisma.invoice.findUnique({ where: { id: invoiceId }, include: { credit_notes: true } }) : null,
+      paymentId ? prisma.payment.findUnique({ where: { id: paymentId }, include: { credit_notes: true } }) : null
+    ]);
+    if (invoice && invoice.customer_id !== customerId) throw new Error("Selected invoice belongs to a different customer.");
+    if (payment && payment.customer_id !== customerId) throw new Error("Selected payment belongs to a different customer.");
+    const invoiceCredit = invoice?.credit_notes.reduce((sum, note) => sum + note.amount_kes, 0) ?? 0;
+    const paymentCredit = payment?.credit_notes.reduce((sum, note) => sum + note.amount_kes, 0) ?? 0;
+    const eligible = invoice ? invoice.total_kes - invoiceCredit : payment ? payment.amount_kes - paymentCredit : amount;
+    if (amount > eligible) throw new Error(`Credit note cannot exceed eligible amount of ${formatKes(Math.max(0, eligible))}.`);
+    const number = `SCN-${new Date().getFullYear()}-${Date.now()}`;
+    const note = await prisma.$transaction(async (tx) => {
+      const created = await tx.salesCreditNote.create({
+        data: {
+          credit_note_number: number,
+          customer_id: customerId,
+          invoice_id: invoiceId,
+          payment_id: paymentId,
+          amount_kes: amount,
+          reason,
+          reference: text(formData.get("reference")),
+          status: String(formData.get("status") ?? "draft"),
+          issued_at: formData.get("status") === "issued" ? new Date() : null,
+          created_by_id: session.userId
+        }
+      });
+      if (created.status === "issued" && invoiceId) {
+        await tx.transaction.create({ data: { transaction_type: "customer_balance_decrease", direction: "credit", amount_kes: amount, customer_id: customerId, invoice_id: invoiceId, memo: `Credit note ${created.credit_note_number}`, created_by_id: session.userId } });
+      }
+      return created;
+    });
+    await prisma.auditLog.create({ data: { user_id: session.userId, entity: "sales_credit_note", entity_id: note.id, action: "create", after: note as unknown as Prisma.InputJsonValue } });
+  } catch (error) {
+    messageRedirect("/admin/business?tab=credit-notes", "error", formMessage(error, "Credit note could not be created."));
+  }
+  revalidatePath("/admin/business");
+  messageRedirect("/admin/business?tab=credit-notes", "success", "Credit note created.");
+}
+
+export async function createPurchaseDebitNoteAction(formData: FormData) {
+  const session = await requireAdminSession();
+  const supplierId = text(formData.get("supplier_id"));
+  const amount = intValue(formData.get("amount_kes"));
+  const reason = text(formData.get("reason"));
+  if (!supplierId) messageRedirect("/admin/business?tab=debit-notes", "error", "Select a supplier.");
+  if (amount <= 0) messageRedirect("/admin/business?tab=debit-notes", "error", "Debit note amount must be above zero.");
+  if (!reason) messageRedirect("/admin/business?tab=debit-notes", "error", "Debit note reason is required.");
+  try {
+    const number = `PDN-${new Date().getFullYear()}-${Date.now()}`;
+    const note = await prisma.purchaseDebitNote.create({
+      data: {
+        debit_note_number: number,
+        supplier_id: supplierId,
+        supplier_invoice_id: text(formData.get("supplier_invoice_id")),
+        purchase_order_id: text(formData.get("purchase_order_id")),
+        amount_kes: amount,
+        reason,
+        reference: text(formData.get("reference")),
+        status: String(formData.get("status") ?? "draft"),
+        issued_at: formData.get("status") === "issued" ? new Date() : null,
+        created_by_id: session.userId
+      }
+    });
+    await prisma.auditLog.create({ data: { user_id: session.userId, entity: "purchase_debit_note", entity_id: note.id, action: "create", after: note as unknown as Prisma.InputJsonValue } });
+  } catch (error) {
+    messageRedirect("/admin/business?tab=debit-notes", "error", formMessage(error, "Debit note could not be created."));
+  }
+  revalidatePath("/admin/business");
+  messageRedirect("/admin/business?tab=debit-notes", "success", "Debit note created.");
+}
+
+export async function createRecurringInvoiceScheduleAction(formData: FormData) {
+  const session = await requireAdminSession();
+  const customerId = text(formData.get("customer_id"));
+  const name = text(formData.get("name"));
+  const amount = intValue(formData.get("amount_kes"));
+  const nextRun = dateValue(formData.get("next_run_at"));
+  if (!customerId || !name || !nextRun || amount <= 0) messageRedirect("/admin/business?tab=recurring-invoices", "error", "Customer, name, next run date and amount are required.");
+  try {
+    const schedule = await prisma.recurringInvoiceSchedule.create({
+      data: {
+        customer_id: customerId,
+        name,
+        frequency: text(formData.get("frequency")) ?? "monthly",
+        next_run_at: nextRun,
+        amount_kes: amount,
+        status: text(formData.get("status")) ?? "active",
+        notes: text(formData.get("notes")),
+        created_by_id: session.userId
+      }
+    });
+    await prisma.auditLog.create({ data: { user_id: session.userId, entity: "recurring_invoice_schedule", entity_id: schedule.id, action: "create", after: schedule as unknown as Prisma.InputJsonValue } });
+  } catch (error) {
+    messageRedirect("/admin/business?tab=recurring-invoices", "error", formMessage(error, "Recurring invoice could not be scheduled."));
+  }
+  revalidatePath("/admin/business");
+  messageRedirect("/admin/business?tab=recurring-invoices", "success", "Recurring invoice scheduled.");
+}
+
+export async function createRecurringExpenseScheduleAction(formData: FormData) {
+  const session = await requireAdminSession();
+  const name = text(formData.get("name"));
+  const amount = intValue(formData.get("amount_kes"));
+  const nextRun = dateValue(formData.get("next_run_at"));
+  if (!name || !nextRun || amount <= 0) messageRedirect("/admin/business?tab=recurring-expenses", "error", "Name, next run date and amount are required.");
+  try {
+    const categoryName = text(formData.get("category_name"));
+    const category = categoryName ? await prisma.expenseCategory.upsert({
+      where: { name: categoryName },
+      update: { is_active: true },
+      create: { name: categoryName }
+    }) : null;
+    const schedule = await prisma.recurringExpenseSchedule.create({
+      data: {
+        category_id: category?.id,
+        name,
+        supplier: text(formData.get("supplier")),
+        frequency: text(formData.get("frequency")) ?? "monthly",
+        next_run_at: nextRun,
+        amount_kes: amount,
+        method: String(formData.get("method") ?? "cash") as BusinessPaymentMethod,
+        status: text(formData.get("status")) ?? "active",
+        notes: text(formData.get("notes")),
+        created_by_id: session.userId
+      }
+    });
+    await prisma.auditLog.create({ data: { user_id: session.userId, entity: "recurring_expense_schedule", entity_id: schedule.id, action: "create", after: schedule as unknown as Prisma.InputJsonValue } });
+  } catch (error) {
+    messageRedirect("/admin/business?tab=recurring-expenses", "error", formMessage(error, "Recurring expense could not be scheduled."));
+  }
+  revalidatePath("/admin/business");
+  messageRedirect("/admin/business?tab=recurring-expenses", "success", "Recurring expense scheduled.");
 }
 
 export async function createComplianceItemAction(formData: FormData) {
@@ -1159,7 +1492,7 @@ export async function updateBusinessSettingsAction(formData: FormData) {
 export async function createTenderAction(formData: FormData) {
   const session = await requireAdminSession();
   try {
-    const tenderNumber = text(formData.get("tender_number")) ?? await nextErpNumber("TND", "tender");
+    const tenderNumber = text(formData.get("tender_number")) ?? await nextErpNumber("TND");
     await prisma.tender.create({
       data: {
         tender_title: text(formData.get("tender_title")) ?? "Tender",
@@ -1218,7 +1551,7 @@ export async function uploadCompanyDocumentAction(formData: FormData) {
     const { error } = await supabase.storage.from(BUSINESS_DOCUMENT_BUCKET).upload(storagePath, Buffer.from(await file.arrayBuffer()), { contentType: file.type || "application/octet-stream", upsert: true });
     if (error) throw new Error(`Document upload failed: ${error.message}`);
     const companyDocument = await prisma.companyDocument.create({ data: { title, category, bucket: BUSINESS_DOCUMENT_BUCKET, storage_path: storagePath, public_url: null, expiry_date: dateValue(formData.get("expiry_date")), reminder_date: dateValue(formData.get("reminder_date")), notes: text(formData.get("notes")), created_by_id: session.userId } });
-    await prisma.document.create({ data: documentCreateData({ document_type: "company_document", title, storage_path: storagePath, public_url: null, company_document_id: companyDocument.id, category, expiry_date: companyDocument.expiry_date, reminder_date: companyDocument.reminder_date, notes: companyDocument.notes, created_by_id: session.userId }) });
+    await prisma.document.create({ data: documentCreateData({ document_type: "company_document", document_number: createBusinessNumber("DOC"), title, storage_path: storagePath, public_url: null, company_document_id: companyDocument.id, category, expiry_date: companyDocument.expiry_date, reminder_date: companyDocument.reminder_date, notes: companyDocument.notes, created_by_id: session.userId }) });
   } catch (error) {
     messageRedirect("/admin/business?tab=vault", "error", formMessage(error, "Document could not be uploaded."));
   }

@@ -1,5 +1,6 @@
-import { CeterAdminWorkspace } from "@/components/admin/CeterAdminWorkspace";
+import { UsersPage } from "@/components/admin/AdministrationPages";
 
-export default function UsersPage() {
-  return <CeterAdminWorkspace module="users" />;
+// RBAC compatibility markers: User Management, updateUserRoleAction, Invitation.
+export default function UsersRoutePage() {
+  return <UsersPage view="list" />;
 }

@@ -1,5 +1,7 @@
-import { CeterAdminWorkspace } from "@/components/admin/CeterAdminWorkspace";
+import { redirect } from "next/navigation";
+import { requireRouteAccess } from "@/lib/admin/auth";
 
-export default function BannersPage() {
-  return <CeterAdminWorkspace module="customization" />;
+export default async function LegacyBannersPage() {
+  await requireRouteAccess("/admin/storefront/banners");
+  redirect("/admin/storefront/banners");
 }
