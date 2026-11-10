@@ -2,7 +2,7 @@
 
 import { FormEvent, ReactNode, useRef, useState } from "react";
 import { toast } from "sonner";
-import { CheckCircle2, Send } from "lucide-react";
+import { Send } from "lucide-react";
 import { LoadingSpinner } from "@/components/LoadingSpinner";
 
 type FormState = {
@@ -25,6 +25,7 @@ export function QuoteForm({ product }: { product?: { id: string; name: string; s
   });
   const [errors, setErrors] = useState<FormErrors>({});
   const [status, setStatus] = useState<"idle" | "loading" | "success">("idle");
+  const [reference, setReference] = useState<string | null>(null);
   const refs = {
     name: useRef<HTMLInputElement>(null),
     email: useRef<HTMLInputElement>(null),
@@ -55,31 +56,29 @@ export function QuoteForm({ product }: { product?: { id: string; name: string; s
       return;
     }
     setStatus("loading");
-    const response = await fetch("/api/quotes", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        name: form.name,
-        email: form.email,
-        phone: form.phone,
-        service: form.service,
-        message: form.message,
-        productId: product?.id,
-        quantity: form.quantity
-      })
-    });
-    const data = await response.json().catch(() => ({}));
-    if (!response.ok) {
+    try {
+      const response = await fetch("/api/quotes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: form.name,
+          email: form.email,
+          phone: form.phone,
+          service: form.service,
+          message: form.message,
+          productId: product?.id,
+          quantity: form.quantity
+        })
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error ?? "Quote request could not be submitted");
+      setStatus("success");
+      setReference(typeof data.reference === "string" ? data.reference : typeof data.quoteRequestId === "string" ? data.quoteRequestId : null);
+      toast.success("Quote request submitted");
+    } catch (error) {
       setStatus("idle");
-      toast.error(data.error ?? "Quote request could not be submitted");
-      return;
+      toast.error(error instanceof Error ? error.message : "Quote request could not be submitted. Check your connection and try again.");
     }
-    setStatus("success");
-    toast.success("Quote request submitted");
-    window.setTimeout(() => {
-      setForm({ ...initialState, service: product ? "Product quotation" : "", message: product ? `Please quote ${product.name}${product.sku ? ` (${product.sku})` : ""}.` : "" });
-      setStatus("idle");
-    }, 1200);
   }
 
   function field<K extends keyof FormState>(key: K, value: FormState[K]) {
@@ -89,6 +88,8 @@ export function QuoteForm({ product }: { product?: { id: string; name: string; s
 
   return (
     <form onSubmit={submit} className="rounded-lg border border-slate-300 bg-white p-5 shadow-sm" aria-live="polite">
+      {status === "success" ? <div className="mb-5 rounded-lg border border-emerald-200 bg-emerald-50 p-5 text-emerald-900" role="status"><h2 className="text-lg font-black">Your quote request is in</h2><p className="mt-2 text-sm">Our team will review your request and contact you using the details provided.</p>{reference ? <p className="mt-2 text-sm font-bold">Reference: {reference}</p> : null}<p className="mt-2 text-sm">You can continue browsing while we prepare your response.</p></div> : null}
+      {status !== "success" ? <>
       <div className="grid gap-4 md:grid-cols-2">
         <Field id="quote-name" label="Full name" error={errors.name}>
           <input ref={refs.name} id="quote-name" name="name" autoComplete="name" placeholder="Your full name" aria-describedby={errors.name ? "quote-name-error" : undefined} value={form.name} onChange={(event) => field("name", event.target.value)} className="h-11 w-full rounded-md border border-slate-300 px-3 text-sm focus:border-signal focus:outline-none" />
@@ -116,18 +117,15 @@ export function QuoteForm({ product }: { product?: { id: string; name: string; s
           </Field>
         ) : null}
       </div>
-      <Field id="quote-message" label="Message" error={errors.message} className="mt-4">
-        <textarea ref={refs.message} id="quote-message" name="message" autoComplete="off" placeholder="Tell us what you need quoted, including model numbers or delivery details if available" aria-describedby={errors.message ? "quote-message-error" : undefined} value={form.message} onChange={(event) => field("message", event.target.value)} rows={6} className="w-full rounded-md border border-slate-300 px-3 py-3 text-sm focus:border-signal focus:outline-none" />
+      <Field id="quote-message" label="What do you need?" error={errors.message} className="mt-4">
+        <textarea ref={refs.message} id="quote-message" name="message" autoComplete="off" placeholder="Briefly describe the product or service you need" aria-describedby={errors.message ? "quote-message-error" : undefined} value={form.message} onChange={(event) => field("message", event.target.value)} rows={3} className="w-full rounded-md border border-slate-300 px-3 py-3 text-sm focus:border-signal focus:outline-none" />
+        <details className="mt-2 text-xs text-slate-600"><summary className="min-h-11 cursor-pointer py-3 font-semibold">Optional details and examples</summary><p>For example: model number, quantity, delivery location, preferred service date, or symptoms of a fault.</p></details>
       </Field>
-      <div className="mt-5 rounded bg-panel p-3">
-        <p className="mb-2 text-xs font-bold uppercase text-slate-600">Submission progress</p>
-        <div className="h-2 overflow-hidden rounded-full bg-slate-200">
-          <div className={`h-full rounded-full bg-signal transition-all duration-200 ${status === "idle" ? "w-1/3" : status === "loading" ? "w-2/3" : "w-full"}`} />
-        </div>
-      </div>
-      <button disabled={status === "loading"} className="mt-5 inline-flex h-11 items-center justify-center gap-2 rounded-md bg-signal px-5 text-sm font-bold text-white disabled:opacity-70">
-        {status === "loading" ? <LoadingSpinner /> : status === "success" ? <CheckCircle2 className="h-4 w-4" /> : <><Send className="h-4 w-4" /> Submit request</>}
+      {status === "loading" ? <p className="mt-5 flex items-center gap-2 text-sm text-slate-700" role="status" aria-live="polite"><LoadingSpinner label="Submitting quotation request" />Submitting your quotation request…</p> : null}
+      <button disabled={status === "loading"} aria-busy={status === "loading"} className="mt-5 inline-flex h-11 items-center justify-center gap-2 rounded-md bg-signal px-5 text-sm font-bold text-white disabled:opacity-70">
+        {status === "loading" ? <LoadingSpinner /> : <><Send className="h-4 w-4" /> Submit request</>}
       </button>
+      </> : null}
     </form>
   );
 }

@@ -3,7 +3,6 @@ import type { ReactNode } from "react";
 export function AdminResourcePage({
   eyebrow,
   title,
-  subtitle,
   action,
   stats,
   children
@@ -21,7 +20,6 @@ export function AdminResourcePage({
         <div>
           <p>{eyebrow}</p>
           <h1>{title}</h1>
-          <span>{subtitle}</span>
         </div>
         {action ?? <div className="ceter-admin-safe-mode">Live Ceter data</div>}
       </div>

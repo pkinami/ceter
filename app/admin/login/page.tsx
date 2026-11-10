@@ -2,39 +2,15 @@ import Image from "next/image";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { adminSignInAction } from "@/app/actions";
+import { AuthFooter } from "@/components/AuthFooter";
 import { BrandIcon } from "@/components/BrandIcon";
 import { FormSubmitButton } from "@/components/FormSubmitButton";
 import { isAdminAuthBypassed } from "@/lib/admin/auth";
 
-export const metadata = {
-  title: "Admin Login",
-  robots: { index: false, follow: false }
-};
+export const metadata = { title: "Admin Login", robots: { index: false, follow: false } };
 
 export default async function AdminLoginPage({ searchParams }: { searchParams: Promise<{ error?: string }> }) {
   if (isAdminAuthBypassed()) redirect("/admin");
-
   const params = await searchParams;
-
-  return (
-    <div className="mx-auto max-w-md px-4 py-12">
-      <form action={adminSignInAction} className="rounded-lg border border-[#DDE8EE] bg-white p-6 shadow-[0_1px_2px_rgba(11,30,57,0.04)]">
-        <Image src="/ceter-logo-pack/lockup/ceter-logo-horizontal.svg" alt="Ceter Technologies Limited" width={190} height={45} className="mb-5 h-10 w-auto" />
-        <h1 className="text-2xl font-black text-ink">Admin Login</h1>
-        <p className="mt-2 text-sm text-slate-500">Staff access for catalog, orders, stock, and operations.</p>
-        {params.error ? <p className="mt-4 rounded-md bg-red-50 p-3 text-sm font-semibold text-red-700">{params.error}</p> : null}
-        <input type="hidden" name="next" value="/admin" />
-        <label className="mt-5 block text-sm font-bold text-slate-700">
-          <span className="inline-flex items-center gap-2"><BrandIcon name="email" label="Email" size={18} className="h-4 w-4" /> Staff email</span>
-          <input id="admin-login-email" name="email" type="email" autoComplete="username" placeholder="staff@example.com" required className="mt-2 h-11 w-full rounded-md border border-slate-300 px-3 text-sm focus:border-signal focus:outline-none" />
-        </label>
-        <label className="mt-4 block text-sm font-bold text-slate-700">
-          Password
-          <input id="admin-login-password" name="password" type="password" autoComplete="current-password" placeholder="Your admin password" required minLength={6} className="mt-2 h-11 w-full rounded-md border border-slate-300 px-3 text-sm focus:border-signal focus:outline-none" />
-        </label>
-        <FormSubmitButton pendingText="Signing in..." className="mt-5 h-11 w-full rounded-md bg-ink px-5 text-sm font-bold text-white hover:bg-slate-800">Sign in to admin</FormSubmitButton>
-        <p className="mt-4 text-sm text-slate-600">Customer account? <Link href="/login" className="font-bold text-signal">Use customer login</Link></p>
-      </form>
-    </div>
-  );
+  return <main className="ceter-auth-page"><div className="ceter-auth-dots" aria-hidden="true" /><section className="ceter-auth-card"><Image src="/ceter-logo-pack/lockup/ceter-logo-horizontal.svg" alt="Ceter Technologies Limited" width={210} height={50} className="ceter-auth-logo" priority /><h1>Admin login</h1><p className="ceter-auth-subtitle">Staff access for catalog, orders, stock, and operations.</p>{params.error ? <p className="ceter-auth-message error">{params.error}</p> : null}<form action={adminSignInAction} className="ceter-auth-form"><input type="hidden" name="next" value="/admin" /><label><span className="inline-flex items-center gap-2"><BrandIcon name="email" label="Email" size={18} className="h-4 w-4" />Staff email</span><input id="admin-login-email" name="email" type="email" autoComplete="username" placeholder="staff@example.com" required /></label><label>Password<input id="admin-login-password" name="password" type="password" autoComplete="current-password" placeholder="Your admin password" required minLength={6} /></label><FormSubmitButton pendingText="Signing in..." className="ceter-auth-primary">Sign in to admin</FormSubmitButton></form><p className="ceter-auth-signup">Customer account? <Link href="/login">Use customer login</Link></p><AuthFooter /></section></main>;
 }

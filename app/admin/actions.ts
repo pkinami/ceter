@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import type { BannerPlacement, OrderStatus, Prisma, ProductCondition, QuoteStatus, StockMovementReason, StockStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { parseProductInteger, parseProductItemType, parseProductUnit } from "@/lib/admin/product-fields";
 import { hasPermission, requireCapability, requirePermission } from "@/lib/admin/auth";
 import type { HomepageSectionType } from "@/lib/types";
 import { revalidateStorefront } from "@/lib/storefront-revalidation";
@@ -25,9 +26,13 @@ function parseImages(value: FormDataEntryValue | null) {
 function parseSpecs(value: FormDataEntryValue | null) {
   const text = String(value ?? "").trim();
   if (!text) return {};
-  return Object.fromEntries(
-    text.split("\n").map((line) => line.split(":")).filter((pair) => pair.length >= 2).map(([key, ...rest]) => [key.trim(), rest.join(":").trim()])
-  );
+  try {
+    const parsed: unknown = JSON.parse(text);
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error();
+    return parsed;
+  } catch {
+    throw new Error("Specifications must be a valid JSON object.");
+  }
 }
 
 function nullableString(value: FormDataEntryValue | null) {
@@ -379,33 +384,67 @@ export async function upsertProductAction(formData: FormData) {
   const productImages = selectedPrimaryImage
     ? [selectedPrimaryImage, ...images.filter((image) => image !== selectedPrimaryImage && image !== replacedPrimaryImage)]
     : images;
+  const itemType = parseProductItemType(formData.get("item_type"));
+  const unit = parseProductUnit(formData.get("unit"));
+  const priceKes = parseProductInteger(formData.get("price_kes")) ?? -1;
+  const costPriceKes = parseProductInteger(formData.get("cost_price_kes"), true);
+  const stockQuantity = parseProductInteger(formData.get("stock_quantity") ?? "0") ?? -1;
+  const reorderLevel = parseProductInteger(formData.get("reorder_level") ?? "0") ?? -1;
+  const reorderQuantity = parseProductInteger(formData.get("reorder_quantity") ?? "0") ?? -1;
+  const leadTime = parseProductInteger(formData.get("supplier_lead_time_days"), true);
+  const condition = String(formData.get("condition") ?? "new") as ProductCondition;
+  const stockStatus = String(formData.get("stock_status") ?? "in_stock") as StockStatus;
+  let specs: Prisma.InputJsonValue;
+  try {
+    specs = parseSpecs(formData.get("specs")) as Prisma.InputJsonValue;
+  } catch (error) {
+    messageRedirect(returnTo, "error", error instanceof Error ? error.message : "Specifications must be a valid JSON object.");
+  }
   const payload = {
     name,
     slug,
     description: String(formData.get("description") ?? "").trim(),
     category_id: String(formData.get("category_id") ?? "") || null,
     brand_id: String(formData.get("brand_id") ?? "") || null,
-    price_kes: Number(formData.get("price_kes") ?? 0),
+    price_kes: priceKes,
     mpn: nullableString(formData.get("mpn")),
     sku: nullableString(formData.get("sku")),
-    cost_price_kes: canManageCost ? nullableNumber(formData.get("cost_price_kes")) : null,
+    item_type: itemType,
+    unit,
+    cost_price_kes: canManageCost ? costPriceKes : undefined,
     supplier_name: nullableString(formData.get("supplier_name")),
-    supplier_lead_time_days: nullableNumber(formData.get("supplier_lead_time_days")),
-    reorder_level: Number(formData.get("reorder_level") ?? 0),
-    reorder_quantity: Number(formData.get("reorder_quantity") ?? 0),
-    is_published: formData.get("is_published") === "on",
-    condition: String(formData.get("condition") ?? "new") as ProductCondition,
-    stock_status: stockStatusForQuantity(Number(formData.get("stock_quantity") ?? 0), String(formData.get("stock_status") ?? "in_stock") as StockStatus),
-    stock_quantity: Number(formData.get("stock_quantity") ?? 0),
+    supplier_lead_time_days: leadTime,
+    reorder_level: reorderLevel,
+    reorder_quantity: reorderQuantity,
+    is_published: condition === "refurbished" ? false : formData.get("is_published") === "on",
+    condition,
+    stock_status: stockStatus,
+    stock_quantity: stockQuantity,
     images: productImages,
-    specs: parseSpecs(formData.get("specs")),
+    specs: specs!,
     is_featured: formData.get("is_featured") === "on",
     show_offer_badge: formData.get("show_offer_badge") === "on",
     show_flash_sale_badge: formData.get("show_flash_sale_badge") === "on"
   };
 
+  if (!payload.item_type) messageRedirect(returnTo, "error", "Select a valid product type.");
+  if (!payload.unit) messageRedirect(returnTo, "error", "Select a valid unit.");
+
   if (!payload.description) messageRedirect(returnTo, "error", "Product description is required.");
-  if (payload.price_kes < 0 || payload.stock_quantity < 0 || (payload.cost_price_kes ?? 0) < 0) messageRedirect(returnTo, "error", "Negative stock and prices are not allowed.");
+  if (!payload.category_id) messageRedirect(returnTo, "error", "Select a product category.");
+  const [categoryExists, brandExists] = await Promise.all([
+    prisma.category.count({ where: { id: payload.category_id } }),
+    payload.brand_id ? prisma.brand.count({ where: { id: payload.brand_id } }) : Promise.resolve(1)
+  ]);
+  if (!categoryExists) messageRedirect(returnTo, "error", "Select an existing product category.");
+  if (!brandExists) messageRedirect(returnTo, "error", "Select an existing brand.");
+  if (!Number.isSafeInteger(priceKes) || priceKes < 0) messageRedirect(returnTo, "error", "Selling price must be a non-negative whole number.");
+  if (costPriceKes !== null && (!Number.isSafeInteger(costPriceKes) || costPriceKes < 0)) messageRedirect(returnTo, "error", "Buying price must be a non-negative whole number.");
+  if (!Number.isSafeInteger(stockQuantity) || stockQuantity < 0) messageRedirect(returnTo, "error", "Opening stock must be a non-negative whole number.");
+  if (!Number.isSafeInteger(reorderLevel) || reorderLevel < 0 || !Number.isSafeInteger(reorderQuantity) || reorderQuantity < 0) messageRedirect(returnTo, "error", "Reorder values must be non-negative whole numbers.");
+  if (leadTime !== null && (!Number.isSafeInteger(leadTime) || leadTime < 0)) messageRedirect(returnTo, "error", "Supplier lead time must be a non-negative whole number.");
+  if (!(["new", "refurbished"] as string[]).includes(condition)) messageRedirect(returnTo, "error", "Condition must be new or refurbished.");
+  if (!("in_stock,backorder,out_of_stock".split(",").includes(stockStatus))) messageRedirect(returnTo, "error", "Select a valid stock status.");
   const duplicateChecks: Prisma.ProductWhereInput[] = [{ slug: payload.slug }];
   if (payload.sku) duplicateChecks.push({ sku: payload.sku });
   if (payload.mpn) duplicateChecks.push({ mpn: payload.mpn });

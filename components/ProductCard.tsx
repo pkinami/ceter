@@ -54,7 +54,7 @@ export function ProductCard({ product }: { product: Product }) {
 
   return (
     <article
-      className="product-card group relative flex h-full min-w-0 flex-col rounded-xl border border-slate-200 bg-white p-2.5 shadow-sm sm:p-3"
+      className="product-card group relative flex h-full min-w-0 flex-col rounded-xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4"
     >
       <Link
         href={productHref}
@@ -81,7 +81,7 @@ export function ProductCard({ product }: { product: Product }) {
         </div>
         <div className="pt-2.5">
           <p className="truncate text-[11px] font-semibold uppercase leading-4 text-slate-500">{product.brand}</p>
-          <h3 className="mt-0.5 line-clamp-2 min-h-10 text-[15px] font-semibold leading-5 text-ink">{product.name}</h3>
+          <h3 className="mt-0.5 line-clamp-2 min-h-10 text-[15px] font-bold leading-5 text-ink">{product.name}</h3>
           <div className="mt-2 flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
             <p className="text-[19px] font-bold leading-6 text-signal">{formatKes(product.price)}</p>
             {product.previousPrice ? <p className="text-[11px] text-slate-500"><span className="line-through">{formatKes(product.previousPrice)}</span></p> : null}
@@ -93,11 +93,11 @@ export function ProductCard({ product }: { product: Product }) {
           </p>
         </div>
       </Link>
-      <div className="mt-2.5 grid grid-cols-[minmax(0,1fr)_44px] gap-2" onClick={(event) => event.stopPropagation()} onPointerDown={(event) => event.stopPropagation()}>
-        <AddToCartButton product={product} className="min-h-10 w-full px-2 text-[13px] sm:text-sm">
+      <div className="mt-auto pt-3 grid grid-cols-[minmax(0,1fr)_44px] gap-2" onClick={(event) => event.stopPropagation()} onPointerDown={(event) => event.stopPropagation()}>
+        <AddToCartButton product={product} className="min-h-11 w-full px-2 text-[13px] sm:text-sm">
           <ShoppingCart className="h-4 w-4" /> Add
         </AddToCartButton>
-        <WhatsAppOrderButton product={product} compact className="min-h-10 w-11 px-0" />
+        <WhatsAppOrderButton product={product} compact className="min-h-11 w-11 px-0" />
       </div>
       <QuickViewPopover product={product} />
     </article>

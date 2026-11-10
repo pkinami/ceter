@@ -2,6 +2,7 @@ import { archiveBannerAction, duplicateBannerAction, restoreBannerAction, upsert
 import { requirePermission } from "@/lib/admin/auth";
 import { HOMEPAGE_BANNER_REQUIREMENTS } from "@/lib/banner-requirements";
 import { prisma } from "@/lib/prisma";
+import { ToggleSwitch } from "@/components/admin/ToggleSwitch";
 
 type PageProps = {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
@@ -36,7 +37,7 @@ export default async function StorefrontBannersPage({ searchParams }: PageProps)
 
   return (
     <div className="ceter-admin-page">
-      <div className="ceter-admin-greeting"><div><p>Storefront &gt; Homepage & Banners</p><h1>Banners</h1><span>Manage responsive storefront banners with separate mobile, landscape and desktop assets, destinations, ordering and schedules.</span></div><a className="ceter-admin-primary-button" href="#banner-editor">Add Banner</a></div>
+      <div className="ceter-admin-greeting"><div><p>Storefront &gt; Homepage & Banners</p><h1>Banners</h1></div><a className="ceter-admin-primary-button" href="#banner-editor">Add Banner</a></div>
       <section className="ceter-admin-stat-grid">
         <Stat label="Listed" value={banners.length} detail={showArchived ? "Archived records" : "Active/draft records"} />
         <Stat label="Active now" value={banners.filter((banner) => banner.is_enabled && !banner.archived_at && isInSchedule(banner.starts_at, banner.ends_at)).length} detail="Enabled and in schedule" />
@@ -50,7 +51,7 @@ export default async function StorefrontBannersPage({ searchParams }: PageProps)
           <input type="hidden" name="tab" value="banners" />
           <label>Search<input name="q" defaultValue={query} placeholder="Title, internal name, key" /></label>
           <label>Placement<select name="placement" defaultValue={placement ?? ""}><option value="">All</option><option value="main">Homepage hero</option><option value="category">Category</option><option value="services">Services</option></select></label>
-          <label><input name="archived" type="checkbox" value="1" defaultChecked={showArchived} /> Show archived only</label>
+          <ToggleSwitch name="archived" value="1" defaultChecked={showArchived} label="Show archived only" />
           <div className="ceter-admin-form-actions"><button className="ceter-admin-secondary-button">Apply</button><a className="ceter-admin-secondary-button" href="/admin/storefront/homepage?tab=banners">Reset</a></div>
         </form>
       </article>
@@ -80,10 +81,10 @@ export default async function StorefrontBannersPage({ searchParams }: PageProps)
           <label>Mobile focal position<input name="mobile_focal_position" defaultValue={selected?.mobile_focal_position ?? "center center"} /></label>
           <label>Landscape focal position<input name="landscape_focal_position" defaultValue={selected?.landscape_focal_position ?? "center center"} /></label>
           <label>Ultra-wide focal position<input name="ultrawide_focal_position" defaultValue={selected?.ultrawide_focal_position ?? "center center"} /></label>
-          <label>Mobile 1080x1350<input name={HOMEPAGE_BANNER_REQUIREMENTS.mobile.field} type="file" accept="image/webp,image/png,image/jpeg" />{selected?.mobile_image ? <span><input name="remove_mobile" type="checkbox" /> Remove current mobile image</span> : null}</label>
-          <label>Landscape 1440x1080<input name={HOMEPAGE_BANNER_REQUIREMENTS.landscape.field} type="file" accept="image/webp,image/png,image/jpeg" />{selected?.laptop_image ? <span><input name="remove_landscape" type="checkbox" /> Remove current landscape image</span> : null}</label>
-          <label>Ultra-wide 2048x768<input name={HOMEPAGE_BANNER_REQUIREMENTS.ultrawide.field} type="file" accept="image/webp,image/png,image/jpeg" />{selected?.image ? <span><input name="remove_ultrawide" type="checkbox" /> Remove current ultrawide image</span> : null}</label>
-          <label><input name="is_enabled" type="checkbox" defaultChecked={selected?.is_enabled ?? false} /> Active</label>
+          <label>Mobile 1080x1350<input name={HOMEPAGE_BANNER_REQUIREMENTS.mobile.field} type="file" accept="image/webp,image/png,image/jpeg" />{selected?.mobile_image ? <ToggleSwitch name="remove_mobile" label="Remove current mobile image" /> : null}</label>
+          <label>Landscape 1440x1080<input name={HOMEPAGE_BANNER_REQUIREMENTS.landscape.field} type="file" accept="image/webp,image/png,image/jpeg" />{selected?.laptop_image ? <ToggleSwitch name="remove_landscape" label="Remove current landscape image" /> : null}</label>
+          <label>Ultra-wide 2048x768<input name={HOMEPAGE_BANNER_REQUIREMENTS.ultrawide.field} type="file" accept="image/webp,image/png,image/jpeg" />{selected?.image ? <ToggleSwitch name="remove_ultrawide" label="Remove current ultrawide image" /> : null}</label>
+          <ToggleSwitch name="is_enabled" defaultChecked={selected?.is_enabled ?? false} label="Active" />
           <div className="ceter-admin-form-actions"><button className="ceter-admin-primary-button">{selected ? "Save Changes" : "Create Banner"}</button></div>
         </form>
         {selected ? <div id="preview"><PreviewGrid banner={selected} variants={variants} /></div> : null}

@@ -6,7 +6,7 @@ import { calculateOrderTotal } from "@/lib/pricing";
 import { prisma } from "@/lib/prisma";
 
 type CheckoutCustomer = {
-  userId: string;
+  userId: string | null;
   email: string | null;
   fullName: string | null;
   phone: string | null;
@@ -19,6 +19,8 @@ export type CheckoutInput = {
 };
 
 type CheckoutDeliveryInput = {
+  checkoutKey?: string;
+  guestItems?: { productId: string; quantity: number }[];
   fulfillmentMethod: FulfillmentMethod;
   delivery: {
     name: string;
@@ -69,10 +71,13 @@ export function normalizeKenyanPhone(value: string) {
 }
 
 export async function createOrderFromCart(customer: CheckoutCustomer, checkout: CheckoutDeliveryInput = { fulfillmentMethod: "delivery", delivery: null }) {
-  const cart = await prisma.cartItem.findMany({
-    where: { user_id: customer.userId },
-    include: { product: true }
-  });
+  if (checkout.checkoutKey) {
+    const prior = await prisma.order.findFirst({ where: { checkout_key: checkout.checkoutKey } });
+    if (prior) return prior;
+  }
+  const cart = customer.userId
+    ? await prisma.cartItem.findMany({ where: { user_id: customer.userId }, include: { product: true } })
+    : await prisma.product.findMany({ where: { id: { in: (checkout.guestItems ?? []).map((item) => item.productId) } } }).then((products) => products.map((product) => ({ product_id: product.id, quantity: checkout.guestItems?.find((item) => item.productId === product.id)?.quantity ?? 1, product })));
 
   const activeCart = cart
     .filter((item) => item.product.is_published && !item.product.archived_at)
@@ -87,21 +92,25 @@ export async function createOrderFromCart(customer: CheckoutCustomer, checkout: 
 
   const subtotal = activeCart.reduce((sum, item) => sum + item.product.price_kes * item.quantity, 0);
   let deliveryFeeKes = 0;
+  if (!checkout.delivery?.name) throw new Error("Enter your name.");
+  if (!checkout.delivery.phone) throw new Error("Enter your phone number.");
+  if (!checkout.delivery.email) throw new Error("Enter your email address.");
   if (checkout.fulfillmentMethod === "delivery") {
-    if (!checkout.delivery?.region) throw new Error("Choose a delivery region.");
-    if (!checkout.delivery.name) throw new Error("Enter the delivery contact name.");
-    if (!checkout.delivery.phone) throw new Error("Enter the delivery phone number.");
-    if (!checkout.delivery.email) throw new Error("Enter the delivery email.");
+    if (!checkout.delivery.region) throw new Error("Choose a delivery region.");
     if (!checkout.delivery.location) throw new Error("Enter delivery location or address details.");
     deliveryFeeKes = await getDeliveryFee(checkout.delivery.region);
   }
   const totals = calculateOrderTotal({ subtotalKes: subtotal, deliveryFeeKes });
   const totalKes = totals.payableKes;
 
-  return prisma.$transaction(async (tx) => {
+  try { return await prisma.$transaction(async (tx) => {
+    if (checkout.checkoutKey) {
+      const prior = await tx.order.findFirst({ where: { checkout_key: checkout.checkoutKey } });
+      if (prior) return prior;
+    }
     const orderNumber = await createUniqueStorefrontOrderNumber(tx);
     assertOrderNumber(orderNumber);
-    if (checkout.fulfillmentMethod === "delivery" && checkout.delivery) {
+    if (customer.userId && checkout.delivery) {
       await tx.profile.upsert({
         where: { id: customer.userId },
         update: {
@@ -124,17 +133,28 @@ export async function createOrderFromCart(customer: CheckoutCustomer, checkout: 
         }
       });
     }
+    let businessCustomer = customer.userId ? await tx.customer.findFirst({ where: { profile_id: customer.userId, archived_at: null }, select: { id: true } }) : null;
+    if (!businessCustomer && checkout.delivery?.email) {
+      businessCustomer = await tx.customer.findFirst({ where: { email: { equals: checkout.delivery.email, mode: "insensitive" }, archived_at: null }, select: { id: true } });
+    }
+    if (checkout.delivery && !businessCustomer) {
+      businessCustomer = await tx.customer.create({ data: { name: checkout.delivery.name, email: checkout.delivery.email, phone: checkout.delivery.phone }, select: { id: true } });
+    } else if (businessCustomer && checkout.delivery) {
+      await tx.customer.update({ where: { id: businessCustomer.id }, data: { name: checkout.delivery.name, email: checkout.delivery.email, phone: checkout.delivery.phone } });
+    }
     const order = await tx.order.create({
       data: {
         order_number: orderNumber,
-        user_id: customer.userId,
+        checkout_key: checkout.checkoutKey,
+        user_id: customer.userId ?? undefined,
+        customer_id: businessCustomer?.id ?? undefined,
         status: "pending",
         fulfillment_method: checkout.fulfillmentMethod,
         delivery_region: checkout.fulfillmentMethod === "delivery" ? checkout.delivery?.region ?? null : null,
         delivery_fee_kes: deliveryFeeKes,
-        delivery_name: checkout.fulfillmentMethod === "delivery" ? checkout.delivery?.name ?? null : null,
-        delivery_phone: checkout.fulfillmentMethod === "delivery" ? checkout.delivery?.phone ?? null : null,
-        delivery_email: checkout.fulfillmentMethod === "delivery" ? checkout.delivery?.email ?? null : null,
+        delivery_name: checkout.delivery?.name ?? null,
+        delivery_phone: checkout.delivery?.phone ?? null,
+        delivery_email: checkout.delivery?.email ?? null,
         delivery_location: checkout.fulfillmentMethod === "delivery" ? checkout.delivery?.location ?? null : null,
         delivery_instructions: checkout.fulfillmentMethod === "delivery" ? checkout.delivery?.instructions || null : null,
         total_kes: totalKes,
@@ -168,9 +188,20 @@ export async function createOrderFromCart(customer: CheckoutCustomer, checkout: 
         }
       });
     }
-    await tx.cartItem.deleteMany({ where: { user_id: customer.userId } });
+    if (customer.userId) await tx.cartItem.deleteMany({ where: { user_id: customer.userId } });
+    await tx.internalNotification.upsert({
+      where: { notification_key: `storefront-order:${order.id}:created` },
+      update: {},
+      create: { notification_key: `storefront-order:${order.id}:created`, title: "New storefront order", body: `${order.order_number} was placed for ${totalKes.toLocaleString("en-KE")} KES.`, target_type: "Order", target_id: order.id }
+    });
     return order;
-  });
+  }); } catch (error) {
+    if (checkout.checkoutKey) {
+      const prior = await prisma.order.findFirst({ where: { checkout_key: checkout.checkoutKey } });
+      if (prior) return prior;
+    }
+    throw error;
+  }
 }
 
 async function createUniqueStorefrontOrderNumber(tx: Prisma.TransactionClient) {
@@ -185,6 +216,8 @@ async function createUniqueStorefrontOrderNumber(tx: Prisma.TransactionClient) {
 export async function createPayOnDeliveryPayment(orderId: string) {
   const order = await prisma.order.findUnique({ where: { id: orderId } });
   if (!order) throw new Error("Order not found.");
+  const existing = await prisma.paymentTransaction.findFirst({ where: { order_id: orderId, method: "pay_on_delivery", status: { in: ["pending", "initiated", "processing", "paid"] } }, orderBy: { created_at: "desc" } });
+  if (existing) return existing;
   const merchantReference = `CT-POD-${order.id.slice(0, 8)}-${randomUUID().slice(0, 8)}`;
   const payment = await prisma.paymentTransaction.create({
     data: {
@@ -378,7 +411,7 @@ export async function initiateCard(orderId: string, customer: CheckoutCustomer) 
   const notificationId = process.env.PESAPAL_IPN_ID;
   if (!notificationId) throw new Error("Pesapal IPN notification ID is not configured.");
   const { token, baseUrl } = await pesapalToken();
-  const merchantReference = `CT-${order.id.slice(0, 8)}-${randomUUID().slice(0, 8)}`;
+  const merchantReference = existing?.merchant_reference ?? `CT-${order.id.slice(0, 8)}-${randomUUID().slice(0, 8)}`;
   const [firstName, ...rest] = (customer.fullName || "Ceter Customer").split(/\s+/);
   const payload = {
     id: merchantReference,
@@ -395,7 +428,7 @@ export async function initiateCard(orderId: string, customer: CheckoutCustomer) 
       last_name: rest.join(" ") || firstName
     }
   };
-  const payment = await prisma.paymentTransaction.create({
+  const payment = existing ?? await prisma.paymentTransaction.create({
     data: {
       order_id: order.id,
       provider: "pesapal",

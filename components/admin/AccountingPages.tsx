@@ -236,8 +236,8 @@ function ReconciliationSnapshotForm() {
   return <form action={createAccountingReconciliationSnapshotAction} className="ceter-admin-filter-bar"><input type="hidden" name="reconciliation_type" value="accounting_reconciliation" /><span>Record a non-mutating reconciliation snapshot for finance review.</span><button className="ceter-admin-secondary-button">Record snapshot</button></form>;
 }
 
-function Shell({ eyebrow, title, subtitle, action, children }: { eyebrow: string; title: string; subtitle: string; action?: React.ReactNode; children: React.ReactNode }) {
-  return <div className="ceter-admin-page"><div className="ceter-admin-greeting"><div><p>{eyebrow}</p><h1>{title}</h1><span>{subtitle}</span></div>{action}</div>{children}</div>;
+function Shell({ eyebrow, title, action, children }: { eyebrow: string; title: string; subtitle: string; action?: React.ReactNode; children: React.ReactNode }) {
+  return <div className="ceter-admin-page"><div className="ceter-admin-greeting"><div><p>{eyebrow}</p><h1>{title}</h1></div>{action}</div>{children}</div>;
 }
 
 function Kpis({ items }: { items: Array<[string, React.ReactNode]> }) {

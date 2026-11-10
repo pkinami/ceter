@@ -1,33 +1,31 @@
 import { SettingsPage } from "@/components/admin/AdministrationPages";
+import { getAdminSession, hasPermission } from "@/lib/admin/auth";
 
-type PageProps = {
-  searchParams?: Promise<Record<string, string | string[] | undefined>>;
-};
+type PageProps = { searchParams?: Promise<Record<string, string | string[] | undefined>> };
 
 const integrationTabs = [
-  { key: "etims", label: "eTIMS KRA", view: "etims" },
-  { key: "mpesa", label: "M-Pesa", view: "mpesa" },
-  { key: "payment-methods", label: "Payment Methods", view: "payment-methods" },
-  { key: "tax", label: "Tax Types", view: "tax" },
-  { key: "sms", label: "SMS", view: "sms" },
-  { key: "signing", label: "Document Signing", view: "signing" },
-  { key: "security", label: "Security", view: "security" },
-  { key: "notifications", label: "Notifications", view: "notifications" }
+  { key: "overview", label: "Overview", view: "integrations", permission: "settings.integrations.manage" },
+  { key: "etims", label: "eTIMS KRA", view: "etims", permission: "settings.etims.manage" },
+  { key: "mpesa", label: "M-Pesa", view: "mpesa", permission: "settings.mpesa.manage" },
+  { key: "sms", label: "SMS", view: "sms", permission: "settings.sms.manage" },
+  { key: "signing", label: "Document Signing", view: "signing", permission: "settings.signing.manage" },
+  { key: "notifications", label: "Notifications", view: "notifications", permission: "settings.notifications.manage" }
 ] as const;
 
 export default async function IntegrationsSettingsPage({ searchParams }: PageProps) {
-  const params = await searchParams;
-  const active = integrationTabs.find((tab) => tab.key === single(params?.tab)) ?? integrationTabs[0];
+  const [params, session] = await Promise.all([searchParams, getAdminSession()]);
+  const allowedTabs = integrationTabs.filter((tab) => hasPermission(session, tab.permission));
+  const active = allowedTabs.find((tab) => tab.key === single(params?.tab)) ?? allowedTabs[0];
   return (
     <>
       <nav className="ceter-admin-tabs" aria-label="Integration settings">
-        {integrationTabs.map((tab) => (
+        {allowedTabs.map((tab) => (
           <a key={tab.key} className={active.key === tab.key ? "active" : ""} href={`/admin/settings/integrations?tab=${tab.key}`}>
             {tab.label}
           </a>
         ))}
       </nav>
-      <SettingsPage view={active.view} />
+      {active ? <SettingsPage view={active.view} /> : null}
     </>
   );
 }

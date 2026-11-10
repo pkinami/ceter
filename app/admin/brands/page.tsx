@@ -17,7 +17,7 @@ export default async function BrandsPage({ searchParams }: { searchParams?: Prom
   return (
     <div className="ceter-admin-page">
       <div className="ceter-admin-greeting">
-        <div><p>Catalogue &gt; Brands</p><h1>Brands</h1><span>Manage brand records used by the public product catalogue. Products without a workbook brand stay unassigned for review.</span></div>
+        <div><p>Catalogue &gt; Brands</p><h1>Brands</h1></div>
       </div>
       <section className="ceter-admin-stat-grid">
         <Stat label="Brands" value={brands.length} detail="Database records" />

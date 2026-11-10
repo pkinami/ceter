@@ -15,7 +15,7 @@ import type {
   TenderStatus
 } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { requireAdminSession } from "@/lib/admin/auth";
+import { requireAnyPermission, requirePermission } from "@/lib/admin/auth";
 import { formatKes } from "@/lib/utils";
 import { brandedPdfBytes, deleteBusinessDocuments, documentCreateData, uploadBusinessDocument, BUSINESS_DOCUMENT_BUCKET } from "@/lib/business/documents";
 import { createEtimsSubmission, retryEtimsSubmission, submitEtimsRecord } from "@/lib/business/etims";
@@ -73,11 +73,11 @@ function formMessage(error: unknown, fallback: string) {
 }
 
 async function nextNumber(prefix: string) {
-  return createBusinessNumber(prefix);
+  return createBusinessNumber(prisma, prefix);
 }
 
 async function nextErpNumber(prefix: string) {
-  return createBusinessNumber(prefix);
+  return createBusinessNumber(prisma, prefix);
 }
 
 async function accountIds(tx: Prisma.TransactionClient, codes: string[]) {
@@ -105,7 +105,7 @@ async function createJournalEntry(tx: Prisma.TransactionClient, input: {
   const credit = input.lines.filter((line) => line.direction === "credit").reduce((sum, line) => sum + line.amount, 0);
   if (debit !== credit) throw new Error(`Unbalanced journal entry: debit ${debit}, credit ${credit}.`);
   const ids = await accountIds(tx, [...new Set(input.lines.map((line) => line.code))]);
-  const entryNumber = createBusinessNumber("JRN");
+  const entryNumber = await createBusinessNumber(tx, "JRN");
   return tx.journalEntry.create({
     data: {
       entry_number: entryNumber,
@@ -196,6 +196,7 @@ async function issueInvoiceStock(tx: Prisma.TransactionClient, invoice: {
 
 function parseItems(formData: FormData) {
   const vatEnabled = formData.get("vat_enabled") === "on";
+  const vatInclusive = vatEnabled && formData.get("vat_inclusive") === "on";
   // The client can add rows indefinitely. Derive the submitted indexes rather
   // than silently dropping everything after row eight; this is also what lets
   // the PDF engine exercise its continuation-page layout in production.
@@ -204,8 +205,9 @@ function parseItems(formData: FormData) {
     const productId = text(formData.get(`item_product_id_${index}`));
     const manualDescription = text(formData.get(`item_description_${index}`));
     const quantity = intValue(formData.get(`item_quantity_${index}`));
-    const unitPrice = intValue(formData.get(`item_unit_price_kes_${index}`));
-    const discount = intValue(formData.get(`item_discount_kes_${index}`));
+    const enteredPrice = decimalValue(formData.get(`item_unit_price_kes_${index}`));
+    const unitPrice = Math.round(vatInclusive ? enteredPrice / (1 + VAT_RATE) : enteredPrice);
+    const discount = Math.round(decimalValue(formData.get(`item_discount_kes_${index}`)));
     if (!productId && !manualDescription) return null;
     if (quantity <= 0) throw new Error("Each line item needs a quantity above zero.");
     if (unitPrice < 0 || discount < 0) throw new Error("Line prices and discounts cannot be negative.");
@@ -228,6 +230,11 @@ function parseItems(formData: FormData) {
   const discount = rows.reduce((sum, item) => sum + item.discount_kes, 0);
   const vat = rows.reduce((sum, item) => sum + item.vat_kes, 0);
   return { rows, subtotal, discount, vat, total: subtotal - discount + vat, vatEnabled };
+}
+
+function decimalValue(value: FormDataEntryValue | null) {
+  const parsed = Number(String(value ?? "0").replace(/[^\d.-]/g, ""));
+  return Number.isFinite(parsed) ? Math.max(0, parsed) : 0;
 }
 
 async function productNames(ids: string[]) {
@@ -312,7 +319,7 @@ async function createDocumentFor(kind: "quote" | "proforma" | "invoice" | "recei
 }
 
 export async function upsertCustomerAction(formData: FormData) {
-  const session = await requireAdminSession();
+  const session = await requirePermission(text(formData.get("id")) ? "customers.update" : "customers.create");
   const returnTo = returnPath(formData, "/admin/business?tab=customers");
   const id = text(formData.get("id"));
   const name = text(formData.get("name"));
@@ -355,7 +362,7 @@ export async function upsertCustomerAction(formData: FormData) {
 }
 
 export async function upsertCustomerCategoryAction(formData: FormData) {
-  await requireAdminSession();
+  await requirePermission("customers.categories.manage");
   const id = text(formData.get("id"));
   const name = text(formData.get("name"));
   if (!name) messageRedirect("/admin/business?tab=customer-categories", "error", "Category name is required.");
@@ -374,7 +381,7 @@ export async function upsertCustomerCategoryAction(formData: FormData) {
 }
 
 export async function deleteCustomerCategoryAction(formData: FormData) {
-  await requireAdminSession();
+  await requirePermission("customers.categories.manage");
   const id = text(formData.get("id"));
   if (!id) messageRedirect("/admin/business?tab=customer-categories", "error", "Category id is required.");
   try {
@@ -390,7 +397,7 @@ export async function deleteCustomerCategoryAction(formData: FormData) {
 }
 
 export async function deleteCustomerAction(formData: FormData) {
-  await requireAdminSession();
+  await requirePermission("customers.archive");
   const id = text(formData.get("id"));
   if (!id) messageRedirect("/admin/business?tab=customers", "error", "Customer id is required.");
   try {
@@ -403,7 +410,7 @@ export async function deleteCustomerAction(formData: FormData) {
 }
 
 export async function generateCustomerStatementAction(formData: FormData) {
-  const session = await requireAdminSession();
+  const session = await requirePermission("customers.statements.view");
   const customerId = text(formData.get("customer_id"));
   if (!customerId) messageRedirect("/admin/business?tab=customers", "error", "Customer id is required.");
   const periodStart = dateValue(formData.get("period_start")) ?? new Date(new Date().getFullYear(), new Date().getMonth(), 1);
@@ -495,7 +502,7 @@ export async function generateCustomerStatementAction(formData: FormData) {
 }
 
 export async function createQuoteAction(formData: FormData) {
-  const session = await requireAdminSession();
+  const session = await requirePermission("quotations.create");
   const returnTo = returnPath(formData, "/admin/business?tab=quotes");
   const customerId = text(formData.get("customer_id"));
   if (!customerId) messageRedirect(returnTo, "error", "Select a customer.");
@@ -508,6 +515,7 @@ export async function createQuoteAction(formData: FormData) {
     const quoteData = {
         quote_number: quoteNumber,
         customer_id: customerId,
+        related_quote_request_id: text(formData.get("related_quote_request_id")),
         customer_lpo_number: text(formData.get("customer_lpo_number")),
         status: String(formData.get("status") ?? "draft") as BusinessQuoteStatus,
         subtotal_kes: items.subtotal,
@@ -530,6 +538,10 @@ export async function createQuoteAction(formData: FormData) {
       await uploadBusinessDocument(pdfPath, pdf);
       const quote = await prisma.$transaction(async (tx) => {
         const created = await tx.quote.create({ data: quoteData, include: { customer: true, items: true } });
+        if (created.related_quote_request_id) {
+          await tx.quoteRequest.update({ where: { id: created.related_quote_request_id }, data: { related_quote_id: created.id, internal_status: "quoted", status: "quoted", converted_at: new Date(), converted_by_id: session.userId } });
+          await tx.internalNotification.create({ data: { notification_key: `quote-request:${created.related_quote_request_id}:quoted`, title: "Formal quotation generated", body: `${created.quote_number} is ready for the customer.`, target_type: "Quote", target_id: created.id } });
+        }
         await tx.document.create({ data: documentCreateData({ document_type: "quotation", document_number: quoteNumber, title: `Quotation ${quoteNumber}`, storage_path: pdfPath, customer_id: customer.id, quote_id: created.id, created_by_id: session.userId }) });
         return created;
       });
@@ -551,8 +563,48 @@ export async function createQuoteAction(formData: FormData) {
   messageRedirect(returnTo, "success", "Quotation created and PDF stored.");
 }
 
+export async function updateQuoteAction(formData: FormData) {
+  const session = await requirePermission("quotations.manage");
+  const quoteId = text(formData.get("quote_id"));
+  const returnTo = returnPath(formData, quoteId ? `/admin/quotes/${quoteId}` : "/admin/quotes");
+  if (!quoteId) messageRedirect(returnTo, "error", "Quotation not found.");
+  try {
+    const existing = await prisma.quote.findUnique({ where: { id: quoteId }, include: { customer: { include: { addresses: { where: { is_default: true }, take: 1 } } }, items: true, invoices: true } });
+    if (!existing) throw new Error("Quotation not found.");
+    if (existing.invoices.length || !["draft", "sent", "accepted"].includes(existing.status)) throw new Error("This quotation can no longer be edited.");
+    const items = parseItems(formData);
+    const names = await productNames(items.rows.map((item) => item.product_id).filter((id): id is string => Boolean(id)));
+    const lpo = text(formData.get("customer_lpo_number"));
+    const notes = text(formData.get("notes"));
+    const terms = text(formData.get("terms"));
+    const validUntil = dateValue(formData.get("valid_until"));
+    const version = existing.version + 1;
+    const customerAddress = existing.customer.addresses[0] ? [existing.customer.addresses[0].address_line_1, existing.customer.addresses[0].address_line_2, existing.customer.addresses[0].city, existing.customer.addresses[0].region].filter(Boolean).join(", ") : null;
+    const pdf = await brandedPdfBytes({ type: "quotation", title: "Quotation", number: existing.quote_number, issueDate: (existing.issue_date ?? existing.created_at).toLocaleDateString("en-KE"), dueDate: validUntil?.toLocaleDateString("en-KE"), meta: [["LPO No.", lpo]], customerName: existing.customer.name, customerCompany: existing.customer.company_name, customerEmail: existing.customer.email, customerPhone: existing.customer.phone, customerAddress, customerPin: existing.customer.tax_pin, lines: items.rows.map((item) => ({ description: item.product_id ? names.get(item.product_id) ?? item.description : item.description, quantity: item.quantity, unitPrice: formatKes(item.unit_price_kes), discount: formatKes(item.discount_kes), vat: formatKes(item.vat_kes), total: formatKes(item.line_total_kes) })), totals: [["Subtotal", formatKes(items.subtotal)], ["Discount", formatKes(items.discount)], ["VAT", formatKes(items.vat)], ["Total Due", formatKes(items.total)]], footer: [terms, notes].filter(Boolean) as string[] });
+    const pdfPath = `quotes/${existing.quote_number}-v${version}.pdf`;
+    await uploadBusinessDocument(pdfPath, pdf);
+    try {
+      await prisma.$transaction(async (tx) => {
+        await tx.quote.update({ where: { id: quoteId }, data: { version, customer_lpo_number: lpo, notes, terms, valid_until: validUntil, subtotal_kes: items.subtotal, discount_kes: items.discount, vat_kes: items.vat, total_kes: items.total, vat_enabled: items.vatEnabled } });
+        await tx.quoteItem.deleteMany({ where: { quote_id: quoteId } });
+        await tx.quoteItem.createMany({ data: items.rows.map((item) => ({ ...item, quote_id: quoteId, description: item.product_id ? names.get(item.product_id) ?? item.description : item.description })) });
+        await tx.document.create({ data: documentCreateData({ document_type: "quotation", document_number: `${existing.quote_number} v${version}`, title: `Quotation ${existing.quote_number} (version ${version})`, storage_path: pdfPath, customer_id: existing.customer_id, quote_id: quoteId, created_by_id: session.userId }) });
+      });
+    } catch (error) {
+      await deleteBusinessDocuments([pdfPath]).catch(() => undefined);
+      throw error;
+    }
+  } catch (error) {
+    messageRedirect(returnTo, "error", formMessage(error, "Quotation could not be updated."));
+  }
+  revalidatePath("/admin/quotes");
+  revalidatePath(`/admin/quotes/${quoteId}`);
+  revalidatePath("/admin/business");
+  messageRedirect(returnTo, "success", "Quotation updated. A new version PDF is available in Documents.");
+}
+
 export async function createSaleAction(formData: FormData) {
-  const session = await requireAdminSession();
+  const session = await requireAnyPermission(["sales.create", "invoices.create"]);
   const returnTo = returnPath(formData, "/admin/business?tab=sales");
   const customerId = text(formData.get("customer_id"));
   if (!customerId) messageRedirect(returnTo, "error", "Select a customer.");
@@ -642,7 +694,7 @@ export async function createSaleAction(formData: FormData) {
 }
 
 export async function updateQuoteStatusAction(formData: FormData) {
-  await requireAdminSession();
+  await requirePermission("quotations.update");
   const id = text(formData.get("id"));
   if (!id) messageRedirect("/admin/business?tab=quotes", "error", "Quote id is required.");
   const status = String(formData.get("status") ?? "draft") as BusinessQuoteStatus;
@@ -661,7 +713,7 @@ export async function updateQuoteStatusAction(formData: FormData) {
 }
 
 export async function quoteToProformaAction(formData: FormData) {
-  const session = await requireAdminSession();
+  const session = await requirePermission("quotations.convert");
   const id = text(formData.get("id"));
   if (!id) messageRedirect("/admin/business?tab=quotes", "error", "Quote id is required.");
   try {
@@ -732,7 +784,7 @@ export async function proformaToInvoiceAction(formData: FormData) {
 }
 
 async function createInvoiceFromSource(formData: FormData) {
-  const session = await requireAdminSession();
+  const session = await requirePermission("quotations.convert");
   const quoteId = text(formData.get("quote_id"));
   const proformaId = text(formData.get("proforma_invoice_id"));
   if (!quoteId && !proformaId) messageRedirect("/admin/business?tab=invoices", "error", "Select a source document.");
@@ -754,6 +806,7 @@ async function createInvoiceFromSource(formData: FormData) {
           proforma_invoice_id: "proforma_number" in source ? source.id : null,
           customer_id: source.customer_id,
           customer_lpo_number: "customer_lpo_number" in source ? source.customer_lpo_number : null,
+          source_order_id: "quote_number" in source ? source.converted_order_id : null,
           status: "sent",
           subtotal_kes: source.subtotal_kes,
           discount_kes: source.discount_kes,
@@ -826,7 +879,7 @@ async function createInvoiceFromSource(formData: FormData) {
 }
 
 export async function updateInvoiceStatusAction(formData: FormData) {
-  const session = await requireAdminSession();
+  const session = await requirePermission("invoices.update");
   const id = text(formData.get("id"));
   if (!id) messageRedirect("/admin/business?tab=invoices", "error", "Invoice id is required.");
   try {
@@ -847,7 +900,7 @@ export async function updateInvoiceStatusAction(formData: FormData) {
 }
 
 export async function updateProformaStatusAction(formData: FormData) {
-  await requireAdminSession();
+  await requirePermission("invoices.update");
   const id = text(formData.get("id"));
   if (!id) messageRedirect("/admin/business?tab=proformas", "error", "Pro-forma id is required.");
   await prisma.proformaInvoice.update({ where: { id }, data: { status: String(formData.get("status") ?? "sent") as ProformaStatus } });
@@ -856,7 +909,7 @@ export async function updateProformaStatusAction(formData: FormData) {
 }
 
 export async function recordPaymentAction(formData: FormData) {
-  const session = await requireAdminSession();
+  const session = await requirePermission("payments.record");
   const returnTo = returnPath(formData, "/admin/business?tab=payments");
   const invoiceId = text(formData.get("invoice_id"));
   if (!invoiceId) messageRedirect(returnTo, "error", "Select an invoice.");
@@ -869,8 +922,10 @@ export async function recordPaymentAction(formData: FormData) {
       method: String(formData.get("method") ?? "mpesa") as BusinessPaymentMethod,
       reference: text(formData.get("reference")),
       notes: text(formData.get("notes")),
-      createdById: session.userId
+      createdById: session.userId,
+      operationKey: text(formData.get("operation_key"))
     });
+    if (!result.invoice || !result.payment || !result.updatedInvoice) throw new Error("The payment was not fully posted. Check the invoice before retrying.");
     await queueNotification(result.invoice.customer.profile_id, "payment_received", {
       recipientEmail: result.invoice.customer.email,
       recipientName: result.invoice.customer.name,
@@ -886,7 +941,7 @@ export async function recordPaymentAction(formData: FormData) {
 }
 
 export async function createExpenseAction(formData: FormData) {
-  const session = await requireAdminSession();
+  const session = await requirePermission("expenses.create");
   const returnTo = returnPath(formData, "/admin/business?tab=expenses");
   const categoryName = text(formData.get("category_name"));
   if (!categoryName) messageRedirect(returnTo, "error", "Expense category is required.");
@@ -981,7 +1036,7 @@ function parsePurchaseItems(formData: FormData) {
 }
 
 export async function upsertSupplierAction(formData: FormData) {
-  const session = await requireAdminSession();
+  const session = await requirePermission("suppliers.manage");
   const id = text(formData.get("id"));
   const companyName = text(formData.get("company_name"));
   if (!companyName) messageRedirect("/admin/business?tab=suppliers", "error", "Supplier company name is required.");
@@ -1009,7 +1064,7 @@ export async function upsertSupplierAction(formData: FormData) {
 }
 
 export async function deleteSupplierAction(formData: FormData) {
-  await requireAdminSession();
+  await requirePermission("suppliers.manage");
   const id = text(formData.get("id"));
   if (!id) messageRedirect("/admin/business?tab=suppliers", "error", "Supplier id is required.");
   try {
@@ -1031,7 +1086,7 @@ export async function deleteSupplierAction(formData: FormData) {
 }
 
 export async function createPurchaseOrderAction(formData: FormData) {
-  const session = await requireAdminSession();
+  const session = await requirePermission("purchases.manage");
   const supplierId = text(formData.get("supplier_id"));
   if (!supplierId) messageRedirect("/admin/business?tab=procurement", "error", "Select a supplier.");
   try {
@@ -1083,7 +1138,7 @@ export async function createPurchaseOrderAction(formData: FormData) {
 }
 
 export async function updatePurchaseOrderStatusAction(formData: FormData) {
-  await requireAdminSession();
+  await requirePermission("purchases.manage");
   const id = text(formData.get("id"));
   if (!id) messageRedirect("/admin/business?tab=procurement", "error", "Purchase order id is required.");
   try {
@@ -1102,7 +1157,7 @@ export async function updatePurchaseOrderStatusAction(formData: FormData) {
 }
 
 export async function receiveGoodsAction(formData: FormData) {
-  const session = await requireAdminSession();
+  const session = await requirePermission("purchases.manage");
   const poId = text(formData.get("purchase_order_id"));
   if (!poId) messageRedirect("/admin/business?tab=procurement", "error", "Select a purchase order.");
   try {
@@ -1155,7 +1210,7 @@ export async function receiveGoodsAction(formData: FormData) {
 }
 
 export async function createSupplierInvoiceAction(formData: FormData) {
-  const session = await requireAdminSession();
+  const session = await requirePermission("purchases.manage");
   const poId = text(formData.get("purchase_order_id"));
   if (!poId) messageRedirect("/admin/business?tab=procurement", "error", "Select a purchase order.");
   try {
@@ -1213,7 +1268,7 @@ export async function createSupplierInvoiceAction(formData: FormData) {
 }
 
 export async function recordSupplierPaymentAction(formData: FormData) {
-  const session = await requireAdminSession();
+  const session = await requirePermission("supplier_payments.manage");
   const invoiceId = text(formData.get("supplier_invoice_id"));
   if (!invoiceId) messageRedirect("/admin/business?tab=procurement", "error", "Select a supplier invoice.");
   const amount = intValue(formData.get("amount_kes"));
@@ -1249,7 +1304,7 @@ export async function recordSupplierPaymentAction(formData: FormData) {
 }
 
 export async function createSalesCreditNoteAction(formData: FormData) {
-  const session = await requireAdminSession();
+  const session = await requirePermission("credit_debit_notes.create");
   const customerId = text(formData.get("customer_id"));
   const amount = intValue(formData.get("amount_kes"));
   const reason = text(formData.get("reason"));
@@ -1299,7 +1354,7 @@ export async function createSalesCreditNoteAction(formData: FormData) {
 }
 
 export async function createPurchaseDebitNoteAction(formData: FormData) {
-  const session = await requireAdminSession();
+  const session = await requirePermission("credit_debit_notes.create");
   const supplierId = text(formData.get("supplier_id"));
   const amount = intValue(formData.get("amount_kes"));
   const reason = text(formData.get("reason"));
@@ -1331,7 +1386,7 @@ export async function createPurchaseDebitNoteAction(formData: FormData) {
 }
 
 export async function createRecurringInvoiceScheduleAction(formData: FormData) {
-  const session = await requireAdminSession();
+  const session = await requirePermission("invoices.create");
   const customerId = text(formData.get("customer_id"));
   const name = text(formData.get("name"));
   const amount = intValue(formData.get("amount_kes"));
@@ -1359,7 +1414,7 @@ export async function createRecurringInvoiceScheduleAction(formData: FormData) {
 }
 
 export async function createRecurringExpenseScheduleAction(formData: FormData) {
-  const session = await requireAdminSession();
+  const session = await requirePermission("expenses.recurring.manage");
   const name = text(formData.get("name"));
   const amount = intValue(formData.get("amount_kes"));
   const nextRun = dateValue(formData.get("next_run_at"));
@@ -1394,7 +1449,7 @@ export async function createRecurringExpenseScheduleAction(formData: FormData) {
 }
 
 export async function createComplianceItemAction(formData: FormData) {
-  await requireAdminSession();
+  await requirePermission("compliance.manage");
   try {
     await prisma.complianceItem.create({ data: { title: text(formData.get("title")) ?? "Compliance item", agency: text(formData.get("agency")) ?? "KRA", compliance_type: String(formData.get("compliance_type") ?? "other") as Prisma.ComplianceItemCreateInput["compliance_type"], due_date: dateValue(formData.get("due_date")) ?? new Date(), amount_kes: intValue(formData.get("amount_kes")), reference: text(formData.get("reference")), notes: text(formData.get("notes")) } });
   } catch (error) {
@@ -1405,7 +1460,7 @@ export async function createComplianceItemAction(formData: FormData) {
 }
 
 export async function createEmployeeAction(formData: FormData) {
-  await requireAdminSession();
+  await requirePermission("accounting.post");
   try {
     await prisma.employee.create({ data: { full_name: text(formData.get("full_name")) ?? "Employee", kra_pin: text(formData.get("kra_pin")), national_id: text(formData.get("national_id")), nssf_number: text(formData.get("nssf_number")), sha_number: text(formData.get("sha_number")), email: text(formData.get("email")), phone: text(formData.get("phone")), base_salary_kes: intValue(formData.get("base_salary_kes")) } });
   } catch (error) {
@@ -1416,7 +1471,7 @@ export async function createEmployeeAction(formData: FormData) {
 }
 
 export async function prepareEtimsRecordAction(formData: FormData) {
-  await requireAdminSession();
+  await requirePermission("fiscalization.prepare");
   const invoiceId = text(formData.get("invoice_id"));
   if (!invoiceId) messageRedirect("/admin/business?tab=etims", "error", "Select an invoice.");
   try {
@@ -1429,7 +1484,7 @@ export async function prepareEtimsRecordAction(formData: FormData) {
 }
 
 export async function submitEtimsRecordAction(formData: FormData) {
-  await requireAdminSession();
+  await requirePermission("fiscalization.submit");
   const id = text(formData.get("id"));
   if (!id) messageRedirect("/admin/business?tab=etims", "error", "eTIMS record id is required.");
   try {
@@ -1442,7 +1497,7 @@ export async function submitEtimsRecordAction(formData: FormData) {
 }
 
 export async function retryEtimsSubmissionAction(formData: FormData) {
-  await requireAdminSession();
+  await requirePermission("fiscalization.retry");
   const id = text(formData.get("id"));
   if (!id) messageRedirect("/admin/business?tab=etims", "error", "eTIMS record id is required.");
   try {
@@ -1455,7 +1510,7 @@ export async function retryEtimsSubmissionAction(formData: FormData) {
 }
 
 export async function initiateInvoiceMpesaAction(formData: FormData) {
-  await requireAdminSession();
+  await requirePermission("payments.record");
   const invoiceId = text(formData.get("invoice_id"));
   const phoneNumber = text(formData.get("phone_number"));
   if (!invoiceId || !phoneNumber) messageRedirect("/admin/business?tab=payments", "error", "Select an invoice and enter a phone number.");
@@ -1469,7 +1524,7 @@ export async function initiateInvoiceMpesaAction(formData: FormData) {
 }
 
 export async function updateBusinessSettingsAction(formData: FormData) {
-  await requireAdminSession();
+  await requirePermission("settings.business.manage");
   const settings = [
     ["kra_pin", "KRA PIN"],
     ["vat_registration_number", "VAT registration number"],
@@ -1490,7 +1545,7 @@ export async function updateBusinessSettingsAction(formData: FormData) {
 }
 
 export async function createTenderAction(formData: FormData) {
-  const session = await requireAdminSession();
+  const session = await requirePermission("purchases.manage");
   try {
     const tenderNumber = text(formData.get("tender_number")) ?? await nextErpNumber("TND");
     await prisma.tender.create({
@@ -1516,7 +1571,7 @@ export async function createTenderAction(formData: FormData) {
 }
 
 export async function updateTenderStatusAction(formData: FormData) {
-  await requireAdminSession();
+  await requirePermission("purchases.manage");
   const id = text(formData.get("id"));
   if (!id) messageRedirect("/admin/business?tab=tenders", "error", "Tender id is required.");
   try {
@@ -1529,7 +1584,7 @@ export async function updateTenderStatusAction(formData: FormData) {
 }
 
 export async function updateTenderRequirementAction(formData: FormData) {
-  await requireAdminSession();
+  await requirePermission("purchases.manage");
   const id = text(formData.get("id"));
   if (!id) messageRedirect("/admin/business?tab=tenders", "error", "Requirement id is required.");
   await prisma.tenderRequirement.update({ where: { id }, data: { is_complete: formData.get("is_complete") === "on", notes: text(formData.get("notes")) } });
@@ -1538,7 +1593,7 @@ export async function updateTenderRequirementAction(formData: FormData) {
 }
 
 export async function uploadCompanyDocumentAction(formData: FormData) {
-  const session = await requireAdminSession();
+  const session = await requirePermission("settings.business.manage");
   const file = formData.get("file");
   if (!(file instanceof File) || file.size <= 0) messageRedirect("/admin/business?tab=vault", "error", "Select a file to upload.");
   try {
@@ -1551,7 +1606,7 @@ export async function uploadCompanyDocumentAction(formData: FormData) {
     const { error } = await supabase.storage.from(BUSINESS_DOCUMENT_BUCKET).upload(storagePath, Buffer.from(await file.arrayBuffer()), { contentType: file.type || "application/octet-stream", upsert: true });
     if (error) throw new Error(`Document upload failed: ${error.message}`);
     const companyDocument = await prisma.companyDocument.create({ data: { title, category, bucket: BUSINESS_DOCUMENT_BUCKET, storage_path: storagePath, public_url: null, expiry_date: dateValue(formData.get("expiry_date")), reminder_date: dateValue(formData.get("reminder_date")), notes: text(formData.get("notes")), created_by_id: session.userId } });
-    await prisma.document.create({ data: documentCreateData({ document_type: "company_document", document_number: createBusinessNumber("DOC"), title, storage_path: storagePath, public_url: null, company_document_id: companyDocument.id, category, expiry_date: companyDocument.expiry_date, reminder_date: companyDocument.reminder_date, notes: companyDocument.notes, created_by_id: session.userId }) });
+    await prisma.document.create({ data: documentCreateData({ document_type: "company_document", document_number: await createBusinessNumber(prisma, "DOC"), title, storage_path: storagePath, public_url: null, company_document_id: companyDocument.id, category, expiry_date: companyDocument.expiry_date, reminder_date: companyDocument.reminder_date, notes: companyDocument.notes, created_by_id: session.userId }) });
   } catch (error) {
     messageRedirect("/admin/business?tab=vault", "error", formMessage(error, "Document could not be uploaded."));
   }

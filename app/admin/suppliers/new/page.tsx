@@ -1,6 +1,7 @@
 import { requirePermission } from "@/lib/admin/auth";
 import { AdminResourcePage } from "@/components/admin/AdminResourcePage";
 import { upsertSupplierAction } from "@/app/admin/purchases/actions";
+import { ToggleSwitch } from "@/components/admin/ToggleSwitch";
 
 export default async function NewSupplierPage() {
   await requirePermission("suppliers.manage");
@@ -24,7 +25,7 @@ function SupplierForm({ title }: { title: string }) {
           <label>Currency<input name="currency" defaultValue="KES" /></label>
           <label className="wide">Address<textarea name="address" /></label>
           <label className="wide">Notes<textarea name="notes" /></label>
-          <label><input type="checkbox" name="is_preferred" /> Preferred supplier</label>
+          <ToggleSwitch name="is_preferred" label="Preferred supplier" />
           <button className="ceter-admin-primary-button">Save supplier</button>
         </form>
       </article>

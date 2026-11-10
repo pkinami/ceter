@@ -191,6 +191,7 @@ export async function completeInvoiceMpesaTransaction(input: {
     });
     throw error;
   });
+  if (!settlement.invoice || !settlement.payment || !settlement.updatedInvoice) throw new Error("Verified M-Pesa payment was not fully settled.");
   await queueNotification(settlement.invoice.customer.profile_id, "payment_received", {
     recipientEmail: settlement.invoice.customer.email,
     recipientName: settlement.invoice.customer.name,

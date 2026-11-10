@@ -3,6 +3,7 @@ import { hasPermission, requirePermission } from "@/lib/admin/auth";
 import { integrationStatus } from "@/lib/admin/administration";
 import { permissionGroups, roleLabels, rolePermissions, type BusinessRole } from "@/lib/admin/roles";
 import { prisma } from "@/lib/prisma";
+import { ToggleSwitch } from "@/components/admin/ToggleSwitch";
 import {
   cancelInvitationAction,
   createInvitationAction,
@@ -221,7 +222,7 @@ function BranchForm({ locations }: { locations: Array<{ id: string; name: string
 }
 
 function NoticeForm() {
-  return <Form action={saveNoticeAction}><label>Title *<input name="title" required /></label><label>Priority<select name="priority"><option value="normal">Normal</option><option value="high">High</option><option value="critical">Critical</option></select></label><label>Audience<select name="audience"><option value="all_admins">All admins</option><option value="role_scoped">Role scoped</option><option value="branch_scoped">Branch scoped</option></select></label><label>Status<select name="status"><option value="draft">Draft</option><option value="active">Active</option></select></label><label>Starts<input name="starts_at" type="datetime-local" /></label><label>Ends<input name="ends_at" type="datetime-local" /></label><label className="wide">Message *<textarea name="message" required /></label><label><input name="is_pinned" type="checkbox" /> Pinned</label><label><input name="acknowledgement_required" type="checkbox" /> Require acknowledgement</label><button className="ceter-admin-primary-button">Save notice</button></Form>;
+  return <Form action={saveNoticeAction}><label>Title *<input name="title" required /></label><label>Priority<select name="priority"><option value="normal">Normal</option><option value="high">High</option><option value="critical">Critical</option></select></label><label>Audience<select name="audience"><option value="all_admins">All admins</option><option value="role_scoped">Role scoped</option><option value="branch_scoped">Branch scoped</option></select></label><label>Status<select name="status"><option value="draft">Draft</option><option value="active">Active</option></select></label><label>Starts<input name="starts_at" type="datetime-local" /></label><label>Ends<input name="ends_at" type="datetime-local" /></label><label className="wide">Message *<textarea name="message" required /></label><ToggleSwitch name="is_pinned" label="Pinned" /><ToggleSwitch name="acknowledgement_required" label="Require acknowledgement" /><button className="ceter-admin-primary-button">Save notice</button></Form>;
 }
 
 function BusinessProfileForm() {
@@ -233,7 +234,7 @@ function BrandingForm() {
 }
 
 function PaymentMethodForm() {
-  return <Form action={savePaymentMethodAction}><label>Code *<input name="code" required /></label><label>Name *<input name="name" required /></label><label>Type<select name="method_type"><option value="cash">Cash</option><option value="bank_transfer">Bank transfer</option><option value="mpesa">M-Pesa</option><option value="card_external">External card processor</option></select></label><label><input name="reference_required" type="checkbox" /> Reference required</label><label><input name="customer_visible" type="checkbox" /> Customer visible</label><label className="wide">Instructions<textarea name="instructions" /></label><button className="ceter-admin-primary-button">Save method</button></Form>;
+  return <Form action={savePaymentMethodAction}><label>Code *<input name="code" required /></label><label>Name *<input name="name" required /></label><label>Type<select name="method_type"><option value="cash">Cash</option><option value="bank_transfer">Bank transfer</option><option value="mpesa">M-Pesa</option><option value="card_external">External card processor</option></select></label><ToggleSwitch name="reference_required" label="Reference required" /><ToggleSwitch name="customer_visible" label="Customer visible" /><label className="wide">Instructions<textarea name="instructions" /></label><button className="ceter-admin-primary-button">Save method</button></Form>;
 }
 
 function TaxTypeForm() {
@@ -257,15 +258,15 @@ function LegalForm() {
 }
 
 function FeatureFlagForm() {
-  return <Form action={setFeatureFlagAction}><label>Flag key *<input name="flag_key" required /></label><label>Name *<input name="name" required /></label><label><input name="enabled" type="checkbox" /> Enabled</label><label>Configuration state<select name="required_configured"><option value="false">Required configuration missing</option><option value="true">Required configuration complete</option></select></label><label className="wide">Reason *<textarea name="reason" required /></label><button className="ceter-admin-primary-button">Update feature flag</button></Form>;
+  return <Form action={setFeatureFlagAction}><label>Flag key *<input name="flag_key" required /></label><label>Name *<input name="name" required /></label><ToggleSwitch name="enabled" label="Enabled" /><label>Configuration state<select name="required_configured"><option value="false">Required configuration missing</option><option value="true">Required configuration complete</option></select></label><label className="wide">Reason *<textarea name="reason" required /></label><button className="ceter-admin-primary-button">Update feature flag</button></Form>;
 }
 
 function Form({ action, children }: { action: (formData: FormData) => void | Promise<void>; children: React.ReactNode }) {
   return <article className="ceter-admin-panel ceter-admin-form-panel"><form action={action} className="ceter-admin-form">{children}</form></article>;
 }
 
-function Shell({ eyebrow, title, subtitle, action, children }: { eyebrow: string; title: string; subtitle: string; action?: React.ReactNode; children: React.ReactNode }) {
-  return <div className="ceter-admin-page"><div className="ceter-admin-greeting"><div><p>{eyebrow}</p><h1>{title}</h1><span>{subtitle}</span></div>{action}</div>{children}</div>;
+function Shell({ eyebrow, title, action, children }: { eyebrow: string; title: string; subtitle: string; action?: React.ReactNode; children: React.ReactNode }) {
+  return <div className="ceter-admin-page"><div className="ceter-admin-greeting"><div><p>{eyebrow}</p><h1>{title}</h1></div>{action}</div>{children}</div>;
 }
 
 function Kpis({ items }: { items: Array<[string, React.ReactNode]> }) {

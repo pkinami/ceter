@@ -43,11 +43,10 @@ export function Footer() {
             <h2 className="mt-1 text-[22px] font-bold leading-7 text-white sm:text-2xl">Get catalogue & procurement updates</h2>
             <p className="mt-2 max-w-xl text-sm text-slate-300">Product, pricing, and service updates from Ceter Technologies.</p>
           </div>
-          <form className="flex w-full max-w-lg flex-col gap-2 sm:flex-row">
-            <label className="sr-only" htmlFor="footer-newsletter">Email address</label>
-            <input id="footer-newsletter" name="email" type="email" autoComplete="email" placeholder="you@example.com" className="h-11 min-w-0 flex-1 rounded-md border border-white/15 bg-white px-3 text-sm text-ink outline-none focus:border-signal focus:ring-2 focus:ring-teal-400/20" />
-            <button type="button" className="h-11 rounded-md bg-signal px-5 text-sm font-bold text-white hover:bg-teal-700">Subscribe</button>
-          </form>
+          <div className="w-full max-w-lg text-sm text-slate-300">
+            Email us to receive catalogue and procurement updates.
+            <a href="mailto:info@cetertechnologies.com?subject=Catalogue%20and%20procurement%20updates" className="ml-2 inline-flex min-h-11 items-center justify-center rounded-md bg-signal px-5 font-bold text-white hover:bg-teal-700">Request updates</a>
+          </div>
         </div>
       </section>
       <section>
@@ -65,7 +64,7 @@ export function Footer() {
             <p className="mt-2 max-w-sm text-sm leading-6 text-slate-300">Photocopiers, printers, toners and inkjets, spare parts, and office print solutions in Nairobi.</p>
             <div className="mt-3 flex flex-wrap items-center gap-2" aria-label="Social links">
               {socials.map((social) => (
-                <a key={social.label} href={social.href} className="inline-flex h-8 w-8 items-center justify-center rounded-md text-slate-200 transition hover:-translate-y-0.5 hover:text-white" aria-label={social.label} title={social.label}>
+                <a key={social.label} href={social.href} className="inline-flex h-11 w-11 items-center justify-center rounded-md text-slate-200 transition hover:-translate-y-0.5 hover:text-white" aria-label={social.label} title={social.label}>
                   <BrandIcon name={social.icon} label={social.label} size={20} className="h-5 w-5" />
                 </a>
               ))}

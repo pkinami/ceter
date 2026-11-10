@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { Plus, Trash2, X } from "lucide-react";
 import { FormSubmitButton } from "@/components/FormSubmitButton";
 import { CeterCombobox, type CeterComboboxOption } from "@/components/admin/CeterCombobox";
+import { ToggleSwitch } from "@/components/admin/ToggleSwitch";
 import { upsertCategoryAction, upsertProductAction } from "@/app/admin/actions";
 import {
   createExpenseAction,
@@ -19,6 +20,7 @@ import {
 type Customer = { id: string; name: string; company_name: string | null; email: string | null; phone: string | null; category_id?: string | null; category?: { name: string } | null; invoices?: Array<{ balance_kes: number }>; payments?: unknown[]; quotes?: unknown[]; orders?: unknown[] };
 type Product = { id: string; name: string; sku: string | null; category_id: string | null; stock_quantity: number; price_kes: number; cost_price_kes: number | null };
 type Category = { id: string; name: string; parent_id: string | null };
+type Brand = { id: string; name: string; slug: string };
 type Invoice = { id: string; invoice_number: string; customer_lpo_number: string | null; balance_kes: number; total_kes: number; customer: { name: string } };
 type Quote = { id: string; quote_number: string; status: string; total_kes: number; customer: { name: string } };
 type ExpenseCategory = { id: string; name: string };
@@ -31,6 +33,7 @@ type Props = {
   customerCategories: CustomerCategory[];
   products: Product[];
   categories: Category[];
+  brands: Brand[];
   expenseCategories: ExpenseCategory[];
   invoices: Invoice[];
   quotes: Quote[];
@@ -46,7 +49,7 @@ const quoteStatusOptions = optionsFromPairs([["draft", "Draft"], ["sent", "Sent"
 const paymentMethodOptions = optionsFromPairs([["mpesa", "M-Pesa"], ["bank_transfer", "Bank transfer"], ["cash", "Cash"], ["card", "Card"]]);
 const paymentTimingOptions = optionsFromPairs([["later", "Pay later"], ["now", "Pay now"]]);
 
-export function BusinessWorkflowClient({ tab, initialModal, customers, customerCategories, products, categories, expenseCategories, invoices, quotes }: Props) {
+export function BusinessWorkflowClient({ tab, initialModal, customers, customerCategories, products, categories, brands, expenseCategories, invoices, quotes }: Props) {
   const [modal, setModal] = useState<"customer" | "product" | "category" | "expense" | "payment" | null>(initialModal ?? null);
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
   const isQuote = tab === "quotes";
@@ -103,11 +106,15 @@ export function BusinessWorkflowClient({ tab, initialModal, customers, customerC
         <WorkflowModal title="Add Product / Item" onClose={() => setModal(null)} wide>
           <form className="ceter-admin-form ceter-modal-form" action={upsertProductAction}>
             <input type="hidden" name="return_to" value={activeReturn} />
-            <input type="hidden" name="slug" value="" />
             <label>Name<input name="name" required autoFocus /></label>
-            <CeterCombobox label="Category" name="category_id" placeholder="Search categories" options={[{ value: "", label: "Uncategorised" }, ...categories.map((category) => ({ value: category.id, label: category.name }))]} onCreate={() => setModal("category")} createLabel="Create category" />
+            <label>Slug<input name="slug" placeholder="Generated from name if blank" /></label>
+            <CeterCombobox label="Type" name="item_type" required defaultValue="product" options={[{ value: "product", label: "Product" }, { value: "raw_material", label: "Raw Material" }]} />
+            <CeterCombobox label="Unit" name="unit" required defaultValue="pcs" options={[{ value: "pcs", label: "Pieces" }, { value: "unit", label: "Unit" }, { value: "box", label: "Box" }, { value: "service", label: "Service" }]} />
+            <CeterCombobox label="Category" name="category_id" required placeholder="Search categories" options={[{ value: "", label: "Select category" }, ...categories.map((category) => ({ value: category.id, label: category.name }))]} onCreate={() => setModal("category")} createLabel="Create category" />
+            <CeterCombobox label="Brand" name="brand_id" placeholder="Search brands" options={[{ value: "", label: "Unbranded" }, ...brands.map((brand) => ({ value: brand.id, label: brand.name }))]} />
+            <label>MPN / Model<input name="mpn" /></label>
+            <CeterCombobox label="Condition" name="condition" defaultValue="new" options={[{ value: "new", label: "New" }, { value: "refurbished", label: "Refurbished" }]} />
             <label>SKU<input name="sku" /></label>
-            <label>Barcode / MPN<input name="mpn" /></label>
             <label>Buying price<input name="cost_price_kes" type="number" min={0} /></label>
             <label>Selling price<input name="price_kes" type="number" min={0} required /></label>
             <CeterCombobox label="Tax" name="tax_type" defaultValue="vat" options={taxTypeOptions} />
@@ -116,6 +123,11 @@ export function BusinessWorkflowClient({ tab, initialModal, customers, customerC
             <label>Reorder level<input name="reorder_level" type="number" min={0} defaultValue={0} /></label>
             <label>Reorder quantity<input name="reorder_quantity" type="number" min={0} defaultValue={0} /></label>
             <label>Supplier<input name="supplier_name" /></label>
+            <label>Supplier lead time (days)<input name="supplier_lead_time_days" type="number" min={0} /></label>
+            <label className="wide">Specifications (JSON object)<textarea name="specs" placeholder={'{\n  "Print speed": "32 ppm"\n}'} /></label>
+            <label>Additional image URLs (one per line)<textarea name="images" /></label>
+            <label><input name="is_featured" type="checkbox" /> Featured</label>
+            <label><input name="is_published" type="checkbox" defaultChecked /> Published</label>
             <label className="wide">Description<textarea name="description" required /></label>
             <label>Primary image<input name="primary_image_file" type="file" accept="image/*" /></label>
             <div className="ceter-admin-form-actions">
@@ -162,6 +174,7 @@ function SaleQuoteWorkspace({ mode, customers, products, onAddCustomer, onAddPro
   const [customerId, setCustomerId] = useState("");
   const [lines, setLines] = useState<Line[]>([blankLine()]);
   const [vatEnabled, setVatEnabled] = useState(false);
+  const [vatInclusive, setVatInclusive] = useState(false);
   const totals = useMemo(() => calculateTotals(lines, vatEnabled), [lines, vatEnabled]);
 
   const updateLine = (index: number, next: Partial<Line>) => {
@@ -175,7 +188,6 @@ function SaleQuoteWorkspace({ mode, customers, products, onAddCustomer, onAddPro
           <div>
             <p>Sales</p>
             <h2>{mode === "sale" ? "New Sale" : "New Quotation"}</h2>
-            <span>{mode === "sale" ? "Create an invoice, collect now or leave a balance for later." : "Prepare a customer quotation and convert accepted quotes to invoices."}</span>
           </div>
           <div className="ceter-workflow-head-actions">
             <a className="ceter-admin-secondary-button" href="/admin">Cancel</a>
@@ -200,7 +212,8 @@ function SaleQuoteWorkspace({ mode, customers, products, onAddCustomer, onAddPro
           <div className="ceter-workflow-table">
             <div className="ceter-workflow-row header"><span>Product / service</span><span>Description</span><span>Qty</span><span>Price</span><span>Discount</span><span>Tax</span><span>Total</span><span /></div>
             {lines.map((line, index) => {
-              const base = Math.max(0, line.quantity * line.price - line.discount);
+              const entered = Math.max(0, line.quantity * line.price - line.discount);
+              const base = vatEnabled && vatInclusive ? Math.round(entered / 1.16) : entered;
               const tax = vatEnabled ? Math.round(base * 0.16) : 0;
               return (
                 <div className="ceter-workflow-row" key={index}>
@@ -210,8 +223,8 @@ function SaleQuoteWorkspace({ mode, customers, products, onAddCustomer, onAddPro
                   }} options={products.map((product) => ({ value: product.id, label: product.name, detail: `${product.sku ?? "No SKU"} - Stock ${product.stock_quantity}` }))} placeholder="Search products" onCreate={onAddProduct} createLabel="Create product" compact />
                   <input name={`item_description_${index}`} value={line.description} onChange={(event) => updateLine(index, { description: event.target.value })} placeholder="Manual description" />
                   <input name={`item_quantity_${index}`} type="number" min={0} value={line.quantity} onChange={(event) => updateLine(index, { quantity: Number(event.target.value) })} />
-                  <input name={`item_unit_price_kes_${index}`} type="number" min={0} value={line.price} onChange={(event) => updateLine(index, { price: Number(event.target.value) })} />
-                  <input name={`item_discount_kes_${index}`} type="number" min={0} value={line.discount} onChange={(event) => updateLine(index, { discount: Number(event.target.value) })} />
+                  <input name={`item_unit_price_kes_${index}`} type="number" min={0} step="0.01" value={line.price} onChange={(event) => updateLine(index, { price: Number(event.target.value) })} />
+                  <input name={`item_discount_kes_${index}`} type="number" min={0} step="0.01" value={line.discount} onChange={(event) => updateLine(index, { discount: Number(event.target.value) })} />
                   <span className="ceter-workflow-money">{money(tax)}</span>
                   <span className="ceter-workflow-money strong">{money(base + tax)}</span>
                   <button type="button" className="ceter-workflow-icon" onClick={() => setLines((current) => current.length === 1 ? [blankLine()] : current.filter((_, itemIndex) => itemIndex !== index))} aria-label="Remove item"><Trash2 size={15} /></button>
@@ -228,7 +241,8 @@ function SaleQuoteWorkspace({ mode, customers, products, onAddCustomer, onAddPro
             <label>Terms<textarea name="terms" defaultValue={mode === "quote" ? "Quotation is valid until the expiry date. Prices are subject to stock availability." : "Payment due on invoice. Goods remain property of Ceter Technologies until fully paid."} /></label>
           </div>
           <aside className="ceter-workflow-summary">
-            <label className="ceter-workflow-check"><input name="vat_enabled" type="checkbox" checked={vatEnabled} onChange={(event) => setVatEnabled(event.target.checked)} /> Apply VAT</label>
+            <ToggleSwitch name="vat_enabled" checked={vatEnabled} onChange={(event) => setVatEnabled(event.target.checked)} label="Apply VAT" />
+            {vatEnabled ? <ToggleSwitch name="vat_inclusive" checked={vatInclusive} onChange={(event) => setVatInclusive(event.target.checked)} label="Entered prices include VAT" /> : null}
             <dl>
               <div><dt>Subtotal</dt><dd>{money(totals.subtotal)}</dd></div>
               <div><dt>Discount</dt><dd>{money(totals.discount)}</dd></div>
@@ -237,7 +251,7 @@ function SaleQuoteWorkspace({ mode, customers, products, onAddCustomer, onAddPro
             </dl>
             <div className="ceter-workflow-sticky-actions">
               <strong>Total: {money(totals.total)}</strong>
-              <FormSubmitButton className="ceter-admin-primary-button" pendingText="Saving...">{mode === "sale" ? "Create Invoice" : "Create Quotation"}</FormSubmitButton>
+              <FormSubmitButton className="ceter-admin-primary-button" pendingText={mode === "sale" ? "Generating invoice..." : "Saving quotation..."}>{mode === "sale" ? "Create Invoice" : "Create Quotation"}</FormSubmitButton>
             </div>
           </aside>
         </div>
@@ -320,9 +334,13 @@ function ExpenseWorkspace({ categories, onAdd }: { categories: ExpenseCategory[]
 }
 
 function PaymentForm({ invoices, returnTo, onCancel }: { invoices: Invoice[]; returnTo: string; onCancel?: () => void }) {
+  // Kept stable for this form instance so a double click/network retry is an
+  // idempotent payment operation, not a second cash receipt.
+  const [operationKey] = useState(() => `payment-${crypto.randomUUID()}`);
   return (
     <form className="ceter-admin-form ceter-modal-form" action={recordPaymentAction}>
       <input type="hidden" name="return_to" value={returnTo} />
+      <input type="hidden" name="operation_key" value={operationKey} />
       <CeterCombobox label="Invoice" name="invoice_id" required placeholder="Search invoices" options={invoices.map((invoice) => ({ value: invoice.id, label: invoice.invoice_number, detail: `${invoice.customer.name} - ${money(invoice.balance_kes)}` }))} />
       <label>Amount<input name="amount_kes" type="number" min={1} required /></label>
       <CeterCombobox label="Method" name="method" defaultValue="mpesa" options={paymentMethodOptions} />
@@ -389,7 +407,7 @@ function calculateTotals(lines: Line[], vatEnabled: boolean) {
 }
 
 function money(value: number) {
-  return `KSh ${Math.round(value).toLocaleString("en-KE")}`;
+  return `KSh ${value.toLocaleString("en-KE", { minimumFractionDigits: value % 1 ? 2 : 0, maximumFractionDigits: 2 })}`;
 }
 
 function optionsFromPairs(pairs: Array<[string, string]>): CeterComboboxOption[] {

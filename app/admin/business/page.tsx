@@ -1,8 +1,11 @@
+import { randomUUID } from "node:crypto";
 import { CeterAdminWorkspace } from "@/components/admin/CeterAdminWorkspace";
 import { BusinessWorkflowClient } from "@/components/admin/BusinessWorkflowClient";
 import { CeterCombobox, type CeterComboboxOption } from "@/components/admin/CeterCombobox";
+import { ToggleSwitch } from "@/components/admin/ToggleSwitch";
 import type { AdminModule } from "@/lib/admin/modules";
 import { prisma } from "@/lib/prisma";
+import { requirePermission } from "@/lib/admin/auth";
 import { formatKes } from "@/lib/utils";
 import {
   createExpenseAction,
@@ -82,6 +85,15 @@ export default async function BusinessPage({ searchParams }: { searchParams?: Pr
   const rawTab = Array.isArray(params?.tab) ? params?.tab[0] : params?.tab;
   const tab = rawTab ?? "sales";
   if (["sales", "quotes", "invoices", "payments", "credit-notes", "recurring-invoices", "customers", "customer-categories", "expenses", "expense-categories", "recurring-expenses", "procurement", "purchases", "debit-notes", "suppliers", "pay-purchase", "etims", "help"].includes(tab)) {
+    const permissionByTab: Record<string, Parameters<typeof requirePermission>[0]> = {
+      sales: "sales.view", quotes: "quotations.view", invoices: "billing.view", payments: "payments.view",
+      "credit-notes": "billing.view", "recurring-invoices": "billing.view", customers: "customers.view",
+      "customer-categories": "customers.view", expenses: "expenses.view", "expense-categories": "expenses.view",
+      "recurring-expenses": "expenses.view", procurement: "purchases.view", purchases: "purchases.view",
+      "debit-notes": "purchases.view", suppliers: "suppliers.view", "pay-purchase": "purchases.view",
+      etims: "fiscalization.view", help: "help.view"
+    };
+    await requirePermission(permissionByTab[tab]);
     return <BusinessFormWorkspace tab={tab} success={single(params?.success)} error={single(params?.error)} initialModal={modalParam(params?.modal)} />;
   }
   return <CeterAdminWorkspace module={tabModules[tab] ?? "sales"} />;
@@ -112,6 +124,7 @@ async function BusinessFormWorkspace({ tab, success, error, initialModal }: { ta
     prisma.recurringExpenseSchedule.findMany({ orderBy: { next_run_at: "asc" }, take: 20, include: { category: true } })
   ]);
   const title = titles[tab] ?? "Business";
+  const brands = await prisma.brand.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true, slug: true } });
   const openInvoices = invoices.filter((invoice) => invoice.balance_kes > 0);
   const openSupplierInvoices = supplierInvoices.filter((invoice) => invoice.balance_kes > 0);
   const modernTabs = ["sales", "quotes", "invoices", "payments", "customers", "customer-categories", "expenses", "expense-categories"];
@@ -122,7 +135,6 @@ async function BusinessFormWorkspace({ tab, success, error, initialModal }: { ta
         <div>
           <p>{sectionFor(tab)}</p>
           <h1>{title}</h1>
-          <span>Database-backed forms and records for the selected AccurateBook-style workspace.</span>
         </div>
         <div className="ceter-admin-safe-mode">Live Ceter data</div>
       </div>
@@ -137,6 +149,7 @@ async function BusinessFormWorkspace({ tab, success, error, initialModal }: { ta
           customerCategories={customerCategories.map((category) => ({ id: category.id, name: category.name, description: category.description, count: category._count.customers }))}
           products={products}
           categories={categories}
+          brands={brands}
           expenseCategories={expenseCategories}
           invoices={tab === "payments" ? openInvoices : invoices}
           quotes={quotes}
@@ -232,7 +245,7 @@ function QuotePanel({ customers, products, title }: { customers: Array<{ id: str
         <LineItems products={products} />
         <label className="wide">Notes<textarea name="notes" /></label>
         <label className="wide">Terms<textarea name="terms" defaultValue="Payment due on invoice. Goods remain property of Ceter Technologies until fully paid." /></label>
-        <label className="wide"><span><input name="vat_enabled" type="checkbox" /> Apply VAT</span></label>
+        <ToggleSwitch name="vat_enabled" label="Apply VAT" className="wide" />
         <div className="ceter-admin-form-actions"><button className="ceter-admin-primary-button" type="submit">Save</button></div>
       </form>
     </article>
@@ -261,6 +274,7 @@ function PaymentPanel({ invoices }: { invoices: Array<{ id: string; invoice_numb
     <article className="ceter-admin-panel ceter-admin-form-panel">
       <div className="ceter-admin-panel-header"><div><span>Form</span><h2>Receive Payment</h2></div></div>
       <form className="ceter-admin-form" action={recordPaymentAction}>
+        <input type="hidden" name="operation_key" value={randomUUID()} />
         <CeterCombobox label="Invoice" name="invoice_id" required placeholder="Search invoices" options={invoices.map((invoice) => ({ value: invoice.id, label: invoice.invoice_number, detail: `${invoice.customer.name} - ${formatKes(invoice.balance_kes)}` }))} />
         <label>Amount<input name="amount_kes" type="number" min="1" required /></label>
         <CeterCombobox label="Method" name="method" defaultValue="mpesa" options={paymentMethodOptions} />

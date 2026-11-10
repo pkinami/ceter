@@ -1,12 +1,12 @@
 import Link from "next/link";
-import { requireAdminSession } from "@/lib/admin/auth";
+import { requirePermission } from "@/lib/admin/auth";
 import { mpesaAdminMessage } from "@/lib/business/mpesa";
 import { prisma } from "@/lib/prisma";
 import { formatKes } from "@/lib/utils";
 import { manualReconcileMpesaAction } from "./actions";
 
 export default async function MpesaReconciliationPage({ searchParams }: { searchParams: Promise<{ error?: string; success?: string }> }) {
-  await requireAdminSession();
+  await requirePermission("payments.mpesa.reconcile");
   const params = await searchParams;
   const [transactions, etimsRecords, gatewayPayments] = await Promise.all([prisma.mpesaTransaction.findMany({
     orderBy: { created_at: "desc" },
@@ -23,7 +23,6 @@ export default async function MpesaReconciliationPage({ searchParams }: { search
         <div>
           <p>Transactions</p>
           <h1>M-Pesa Reconciliation</h1>
-          <span>Integration transaction status across M-Pesa, payment providers and eTIMS without exposing credentials or raw secret payloads.</span>
         </div>
         <Link className="ceter-admin-secondary-button" href="/admin/business?tab=payments">Business payments</Link>
       </div>

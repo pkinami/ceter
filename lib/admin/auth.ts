@@ -192,6 +192,10 @@ export async function requireCapability(capability: "stock" | "price" | "cost" |
 
 export function canAccessRoute(session: Pick<AdminSession, "permissions"> | null, pathname: string) {
   const normalized = pathname.split("?")[0].replace(/\/$/, "") || "/admin";
+  if (normalized === "/admin/payments/mpesa-reconciliation") return hasPermission(session, "payments.mpesa.reconcile");
+  if (normalized === "/admin/settings/integrations") {
+    return ["settings.integrations.manage", "settings.etims.manage", "settings.mpesa.manage", "settings.sms.manage", "settings.signing.manage", "settings.notifications.manage"].some((permission) => hasPermission(session, permission as PermissionKey));
+  }
   const match = routePermissions.find(([pattern]) => pattern.test(normalized));
   return match ? hasPermission(session, match[1]) : false;
 }

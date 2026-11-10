@@ -2,6 +2,7 @@ import fs from "node:fs";
 import { createHash } from "node:crypto";
 import { requirePermission } from "@/lib/admin/auth";
 import { prisma } from "@/lib/prisma";
+import { ImportWorkbookForm } from "@/components/admin/ImportWorkbookForm";
 
 const categoryPath = "data/source/ceter-categories-full.xlsx";
 const productPath = "data/source/ceter-products.xlsx";
@@ -17,10 +18,10 @@ export default async function ImportPage() {
   return (
     <div className="ceter-admin-page">
       <div className="ceter-admin-greeting">
-        <div><p>Catalogue &gt; Import Center</p><h1>Import Center</h1><span>Dry-run, checksum, reconcile, and commit controlled catalogue workbooks.</span></div>
+        <div><p>Catalogue &gt; Import Center</p><h1>Import Center</h1></div>
         <a className="ceter-admin-secondary-button" href="/api/admin/excel-import?kind=products">Download product template</a>
       </div>
-      <section className="ceter-admin-stat-grid">
+      <section className="ceter-admin-kpis" aria-label="Import Center summary">
         <Stat label="Category workbook" value={facts.category.present ? "Present" : "Missing"} detail={facts.category.hashStatus} />
         <Stat label="Product workbook" value={facts.product.present ? "Present" : "Missing"} detail={facts.product.hashStatus} />
         <Stat label="Last imports" value={String(logs.length)} detail="Immutable import logs" />
@@ -28,12 +29,7 @@ export default async function ImportPage() {
       </section>
       <article className="ceter-admin-panel ceter-admin-form-panel">
         <div className="ceter-admin-panel-header"><div><span>Workflow</span><h2>Upload and Validate</h2></div></div>
-        <form className="ceter-admin-form" action="/api/admin/excel-import" method="post" encType="multipart/form-data">
-          <label>Import type<select name="kind" required><option value="categories">Categories</option><option value="products">Products</option></select></label>
-          <label>Mode<select name="mode" required><option value="preview">Dry preview</option><option value="commit">Confirm and execute</option></select></label>
-          <label className="wide">Workbook<input name="file" type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" required /></label>
-          <div className="ceter-admin-form-actions"><button className="ceter-admin-primary-button">Run Import Step</button><a className="ceter-admin-secondary-button" href="/api/admin/excel-import?kind=categories">Category template</a></div>
-        </form>
+        <ImportWorkbookForm />
       </article>
       <article className="ceter-admin-panel">
         <div className="ceter-admin-panel-header"><div><span>Preview contract</span><h2>Validation Results Shown by API</h2></div></div>
@@ -69,5 +65,5 @@ function fileFact(path: string, expectedHash: string) {
 }
 
 function Stat({ label, value, detail }: { label: string; value: string; detail: string }) {
-  return <article className="ceter-admin-stat-card"><span>{label}</span><strong>{value}</strong><small>{detail}</small></article>;
+  return <article className="ceter-admin-kpi"><span>{label}</span><strong>{value}</strong><p>{detail}</p></article>;
 }

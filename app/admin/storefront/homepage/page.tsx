@@ -2,6 +2,7 @@ import { deleteHomepageSectionAction, upsertHomepageSectionAction } from "@/app/
 import StorefrontBannersPage from "@/app/admin/storefront/banners/page";
 import { requirePermission } from "@/lib/admin/auth";
 import { prisma } from "@/lib/prisma";
+import { ToggleSwitch } from "@/components/admin/ToggleSwitch";
 
 type PageProps = {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
@@ -30,8 +31,8 @@ export default async function StorefrontHomepagePage({ searchParams }: PageProps
   return (
     <div className="ceter-admin-page">
       <StorefrontTabs active="homepage" />
-      <div className="ceter-admin-greeting"><div><p>Storefront &gt; Homepage Sections</p><h1>Homepage Sections</h1><span>Manage stored homepage sections. The public homepage can also render fallback content when no matching stored section is enabled.</span></div><div className="ceter-admin-form-actions"><a className="ceter-admin-secondary-button" href="/">Preview storefront</a><a className="ceter-admin-primary-button" href="/admin/storefront/homepage#section-editor">Add Section</a></div></div>
-      <section className="ceter-admin-stat-grid">
+      <div className="ceter-admin-greeting"><div><p>Storefront &gt; Homepage Sections</p><h1>Homepage Sections</h1></div><div className="ceter-admin-form-actions"><a className="ceter-admin-secondary-button" href="/">Preview storefront</a><a className="ceter-admin-primary-button" href="/admin/storefront/homepage#section-editor">Add Section</a></div></div>
+      <section className="ceter-admin-kpis" aria-label="Homepage sections summary">
         <Stat label="Stored sections" value={sections.length} detail="Database-backed homepage sections" />
         <Stat label="Enabled sections" value={sections.filter((section) => section.is_enabled).length} detail="Eligible for public display" />
         <Stat label="Active banners" value={bannerCount} detail="Enabled banner records" />
@@ -47,7 +48,7 @@ export default async function StorefrontHomepagePage({ searchParams }: PageProps
           <label>Category<select name="category_id" defaultValue={selected?.category_id ?? ""}><option value="">None</option>{categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</select><small>Used only when the type is products from one category.</small></label>
           <label>Product limit<input name="product_limit" type="number" min={1} max={24} defaultValue={selected?.product_limit ?? 8} /><small>Maximum products to show for product-based sections.</small></label>
           <label>Display order<input name="sort_order" type="number" defaultValue={selected?.sort_order ?? 0} /><small>Lower numbers appear first.</small></label>
-          <label className="ceter-admin-switch-row"><input name="is_enabled" type="checkbox" defaultChecked={selected?.is_enabled ?? true} /> Enabled on storefront</label>
+          <ToggleSwitch name="is_enabled" defaultChecked={selected?.is_enabled ?? true} label="Enabled on storefront" />
           <div className="ceter-admin-form-actions"><a className="ceter-admin-secondary-button" href="/admin/storefront/homepage">Cancel</a><button className="ceter-admin-primary-button">{selected ? "Save Section" : "Add Section"}</button></div>
         </form>
       </article>
@@ -78,7 +79,7 @@ function single(value: string | string[] | undefined) {
 }
 
 function Stat({ label, value, detail }: { label: string; value: number; detail: string }) {
-  return <article className="ceter-admin-stat-card"><span>{label}</span><strong>{value.toLocaleString("en-KE")}</strong><small>{detail}</small></article>;
+  return <article className="ceter-admin-kpi"><span>{label}</span><strong>{value.toLocaleString("en-KE")}</strong><p>{detail}</p></article>;
 }
 
 function sectionLabel(value: string) {

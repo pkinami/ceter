@@ -20,7 +20,6 @@ export default async function StorefrontFeaturedPage({ searchParams }: { searchP
         <div>
           <p>Storefront &gt; Featured Products</p>
           <h1>Featured Products</h1>
-          <span>Choose the published products promoted by the storefront featured-products section.</span>
         </div>
         <div className="ceter-admin-form-actions">
           <Link className="ceter-admin-secondary-button" href="/">Preview storefront</Link>
@@ -28,7 +27,7 @@ export default async function StorefrontFeaturedPage({ searchParams }: { searchP
         </div>
       </div>
 
-      <section className="ceter-admin-stat-grid">
+      <section className="ceter-admin-kpis" aria-label="Featured products summary">
         <Stat label="Featured" value={featured.length} detail="Selected products" />
         <Stat label="Published" value={featured.filter((product) => product.is_published).length} detail="Visible to customers" />
         <Stat label="Draft review" value={featured.filter((product) => !product.is_published).length} detail="Selected but hidden" />
@@ -121,5 +120,5 @@ function cssUrl(value: string) {
 }
 
 function Stat({ label, value, detail }: { label: string; value: number; detail: string }) {
-  return <article className="ceter-admin-stat-card"><span>{label}</span><strong>{value.toLocaleString("en-KE")}</strong><small>{detail}</small></article>;
+  return <article className="ceter-admin-kpi"><span>{label}</span><strong>{value.toLocaleString("en-KE")}</strong><p>{detail}</p></article>;
 }

@@ -59,7 +59,6 @@ function mergedAdminRoute(pathname: string) {
     "/admin/homepage": "/admin/storefront/homepage",
     "/admin/brands": "/admin/categories?tab=brands",
     "/admin/orders": "/admin/sales",
-    "/admin/quote-requests": "/admin/quotes?tab=requests",
     "/admin/receipts": "/admin/payments?tab=receipts",
     "/admin/delivery-notes": "/admin/deliveries?tab=notes",
     "/admin/order-tracking": "/admin/sales?tab=tracking",

@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requirePermission } from "@/lib/admin/auth";
+import { prisma } from "@/lib/prisma";
 import { allocatePaymentToInvoice, cancelOrderReservation, confirmOrderReservation, createDeliveryFromOrder, fulfillOrder, reversePayment } from "@/lib/admin/sales-billing";
 
 function text(value: FormDataEntryValue | null) {
@@ -71,10 +72,32 @@ export async function fulfillOrderAction(formData: FormData) {
   messageRedirect(returnTo, "success", "Fulfilment posted through the inventory ledger.");
 }
 
+export async function manuallyUpdateOrderStateAction(formData: FormData) {
+  const field = text(formData.get("field"));
+  const orderId = text(formData.get("order_id"));
+  const returnTo = returnPath(formData, "/admin/sales");
+  if (!orderId || !["payment_status", "delivery_status"].includes(field ?? "")) messageRedirect(returnTo, "error", "Order and valid state are required.");
+  const stateField = field === "payment_status" ? "payment_status" : "delivery_status";
+  const session = await requirePermission(stateField === "payment_status" ? "payments.record" : "deliveries.complete");
+  const value = stateField === "payment_status" ? "paid" : "delivered";
+  try {
+    await prisma.$transaction(async (tx) => {
+      const before = await tx.order.findUnique({ where: { id: orderId } });
+      if (!before) throw new Error("Order not found.");
+      await tx.order.update({ where: { id: orderId }, data: stateField === "payment_status" ? { payment_status: value, status: before.status === "pending" ? "paid" : before.status } : { delivery_status: value } });
+      await tx.auditLog.create({ data: { user_id: session.userId, entity: "Order", entity_id: orderId, action: `order.manual_${stateField}`, before: { [stateField]: before[stateField] }, after: { [stateField]: value } } });
+    });
+  } catch (error) {
+    messageRedirect(returnTo, "error", error instanceof Error ? error.message : "Order state could not be updated.");
+  }
+  revalidatePath("/admin/sales");
+  messageRedirect(returnTo, "success", stateField === "payment_status" ? "Payment marked paid." : "Delivery marked delivered.");
+}
+
 export async function createDeliveryAction(formData: FormData) {
   const session = await requirePermission("deliveries.create");
   const orderId = text(formData.get("order_id"));
-  const returnTo = returnPath(formData, "/admin/deliveries");
+  const returnTo = returnPath(formData, "/admin/sales");
   if (!orderId) messageRedirect(returnTo, "error", "Order id is required.");
   const scheduled = text(formData.get("scheduled_date"));
   try {
@@ -82,6 +105,7 @@ export async function createDeliveryAction(formData: FormData) {
   } catch (error) {
     messageRedirect(returnTo, "error", error instanceof Error ? error.message : "Delivery could not be created.");
   }
+  revalidatePath("/admin/sales");
   revalidatePath("/admin/deliveries");
   messageRedirect(returnTo, "success", "Delivery scheduled from the order.");
 }

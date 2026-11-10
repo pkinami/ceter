@@ -29,15 +29,22 @@ import { CeterCombobox } from "@/components/admin/CeterCombobox";
 export type InventoryItemRow = {
   id: string;
   kind: "product" | "service";
-  type: "Product" | "Service" | "Raw Material";
+  type: "Product" | "Service" | "Raw Material" | "Unclassified";
   product: string;
   image: string;
   name: string;
+  slug?: string;
   description: string;
   stock: number | null;
   unit: string;
   category: string;
+  brand?: string;
   sku: string;
+  mpn?: string;
+  supplier?: string;
+  condition?: string;
+  publication?: string;
+  featured?: boolean;
   buyingPrice: number | null;
   sellingPrice: number | null;
   status: string;
@@ -99,7 +106,7 @@ export function ProductInventoryClient({
         || (tab === "Raw Materials" && row.type === "Raw Material");
       const categoryMatch = category === "All Categories" || row.category === category;
       const statusMatch = status === "All Statuses" || row.status === status;
-      const searchMatch = !needle || [row.product, row.name, row.description, row.category, row.sku, row.status].some((value) => value.toLowerCase().includes(needle));
+      const searchMatch = !needle || [row.product, row.name, row.slug ?? "", row.description, row.category, row.brand ?? "", row.sku, row.mpn ?? "", row.supplier ?? "", row.status, row.condition ?? "", row.publication ?? ""].some((value) => value.toLowerCase().includes(needle));
       return tabMatch && categoryMatch && statusMatch && searchMatch;
     });
   }, [category, query, rows, status, tab]);
@@ -287,7 +294,7 @@ function InventoryRow({ row, canManage, canViewCost }: { row: InventoryItemRow; 
           <span className={`ceter-inventory-type ${row.type === "Service" ? "service" : row.type === "Raw Material" ? "raw" : ""}`} aria-hidden="true"><TypeIcon size={14} /></span>
           <div>
             <strong className="ceter-inventory-name">{row.name}</strong>
-            <small>{row.type === "Service" ? "Service item" : row.sku !== "-" ? row.sku : row.type}</small>
+            <small>{row.type === "Service" ? "Service item" : `${row.brand ?? "Unbranded"} · ${row.sku !== "-" ? row.sku : row.type} · ${row.unit || "—"} · KES ${row.sellingPrice?.toLocaleString("en-KE") ?? "—"} · ${row.condition ?? "new"} · ${row.publication ?? "Draft"}${row.featured ? " · Featured" : ""}`}</small>
           </div>
         </div>
       </td>

@@ -1,5 +1,19 @@
-import { QuoteRequestsPage } from "@/components/admin/SalesBillingPages";
+import Link from "next/link";
+import { notFound } from "next/navigation";
+import { createQuoteAction } from "@/app/admin/business/actions";
+import { requirePermission } from "@/lib/admin/auth";
+import { prisma } from "@/lib/prisma";
+import { formatKes } from "@/lib/utils";
 
-export default function QuoteRequestDetailPage() {
-  return <QuoteRequestsPage />;
+export default async function QuoteRequestDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  await requirePermission("quote_requests.view");
+  const { id } = await params;
+  const request = await prisma.quoteRequest.findUnique({ where: { id }, include: { lines: { include: { product: true }, orderBy: { sort_order: "asc" } } } });
+  if (!request) notFound();
+  const customer = await prisma.customer.findFirst({ where: { email: { equals: request.email, mode: "insensitive" } } });
+  return <div className="ceter-admin-page">
+    <div className="ceter-admin-greeting"><div><p>Sales &gt; Quote requests</p><h1>Request {request.id.slice(0, 8)}</h1><span>{request.name} · {request.service_needed}</span></div><Link className="ceter-admin-secondary-button" href="/admin/quote-requests">Back to requests</Link></div>
+    <section className="ceter-admin-grid"><article className="ceter-admin-panel"><div className="ceter-admin-panel-header"><div><span>Customer request</span><h2>{request.service_needed}</h2></div></div><dl className="ceter-admin-detail-list"><dt>Name</dt><dd>{request.name}</dd><dt>Email</dt><dd>{request.email}</dd><dt>Phone</dt><dd>{request.phone}</dd><dt>Status</dt><dd>{request.internal_status}</dd><dt>Message</dt><dd>{request.message}</dd></dl></article><article className="ceter-admin-panel"><div className="ceter-admin-panel-header"><div><span>Workflow</span><h2>Generate formal quotation</h2></div></div>{request.related_quote_id ? <Link className="ceter-admin-primary-button" href={`/admin/quotes/${request.related_quote_id}`}>Open quotation</Link> : customer ? <form className="ceter-admin-form" action={createQuoteAction}><input type="hidden" name="customer_id" value={customer.id} /><input type="hidden" name="related_quote_request_id" value={request.id} /><input type="hidden" name="status" value="sent" /><input type="hidden" name="return_to" value={`/admin/quote-requests/${request.id}`} />{request.lines.length ? request.lines.map((line, index) => <span key={line.id}><input type="hidden" name={`item_product_id_${index}`} value={line.product_id ?? ""} /><input type="hidden" name={`item_description_${index}`} value={line.description} /><input type="hidden" name={`item_quantity_${index}`} value={line.quantity} /><input type="hidden" name={`item_unit_price_kes_${index}`} value={line.unit_price_kes} /><input type="hidden" name={`item_discount_kes_${index}`} value="0" /></span>) : <><input type="hidden" name="item_description_0" value={request.service_needed} /><input type="hidden" name="item_quantity_0" value="1" /><label>Quoted amount (KES)<input name="item_unit_price_kes_0" type="number" min="0" required /></label><input type="hidden" name="item_discount_kes_0" value="0" /></>}<label>Valid until<input name="valid_until" type="date" /></label><label className="wide">Terms<textarea name="terms" defaultValue="Invoices are payable within 30 days from the invoice date. Late payments incur interest at 2.5% per month. Goods remain property of Ceter Technologies Limited until paid in full." /></label><button className="ceter-admin-primary-button">Generate quotation</button></form> : <div><p className="mb-4">Create or link a customer with {request.email} first, then generate the quotation.</p><Link className="ceter-admin-primary-button" href="/admin/customers/new">Create customer</Link></div>}</article></section>
+    <article className="ceter-admin-panel"><div className="ceter-admin-panel-header"><div><span>Requested items</span><h2>Lines</h2></div></div><div className="ceter-admin-table-wrap"><table><thead><tr><th>Description</th><th>Quantity</th><th>Indicative price</th></tr></thead><tbody>{request.lines.length ? request.lines.map((line) => <tr key={line.id}><td>{line.product?.name ?? line.description}</td><td>{line.quantity}</td><td>{formatKes(line.unit_price_kes)}</td></tr>) : <tr><td colSpan={3}>No catalogue items were attached.</td></tr>}</tbody></table></div></article>
+  </div>;
 }

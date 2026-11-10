@@ -34,7 +34,7 @@ const dateValue = (value: FormDataEntryValue | null) => {
 };
 
 async function nextNumber(prefix: string) {
-  return createBusinessNumber(prefix);
+  return createBusinessNumber(prisma, prefix);
 }
 
 async function openPeriod(tx: Prisma.TransactionClient, accountingDate: Date) {

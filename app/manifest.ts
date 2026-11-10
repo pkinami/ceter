@@ -2,13 +2,14 @@ import type { MetadataRoute } from "next";
 import { SITE_DESCRIPTION, SITE_NAME, SITE_URL } from "@/lib/seo";
 
 export default function manifest(): MetadataRoute.Manifest {
+  const adminUrl = `${SITE_URL}/admin/`;
   return {
-    name: SITE_NAME,
-    short_name: SITE_NAME,
-    description: SITE_DESCRIPTION,
-    start_url: SITE_URL,
-    scope: SITE_URL,
-    id: SITE_URL,
+    name: `${SITE_NAME} Admin`,
+    short_name: "Ceter Admin",
+    description: `Mobile admin workspace for ${SITE_NAME}. ${SITE_DESCRIPTION}`,
+    start_url: adminUrl,
+    scope: `${SITE_URL}/admin/`,
+    id: adminUrl,
     display: "standalone",
     background_color: "#ffffff",
     theme_color: "#0B1E39",

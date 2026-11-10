@@ -144,19 +144,26 @@ export function CartProvider({ children }: { children: ReactNode }) {
   }, [loadRemoteCart, mergeGuestCart, supabase]);
 
   async function persist(nextItems: CartLine[]) {
+    const previousItems = items;
     setItems(nextItems);
     if (!userId) {
       writeGuestCart(nextItems);
       return;
     }
-    await runMutation(async () => {
-      const response = await fetch("/api/cart", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ items: nextItems.map((line) => ({ productId: line.product.id, quantity: line.quantity })) })
+    try {
+      await runMutation(async () => {
+        const response = await fetch("/api/cart", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ items: nextItems.map((line) => ({ productId: line.product.id, quantity: line.quantity })) })
+        });
+        if (!response.ok) throw new Error("Saved cart could not be updated.");
       });
-      if (!response.ok) throw new Error("Saved cart could not be updated.");
-    });
+    } catch (error) {
+      setItems(previousItems);
+      toast.error(error instanceof Error ? error.message : "Saved cart could not be updated. Please try again.");
+      throw error;
+    }
   }
 
   async function addItem(product: Product, quantity = 1) {
@@ -200,7 +207,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
     }
     else writeGuestCart(nextItems);
     setItems(nextItems);
-    toast.error("Item removed");
+    toast.success("Item removed");
   }
 
   async function clearCart() {

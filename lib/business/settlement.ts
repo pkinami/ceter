@@ -4,6 +4,7 @@ import { formatKes } from "@/lib/utils";
 import { brandedPdfBytes, documentCreateData, uploadBusinessDocument } from "@/lib/business/documents";
 import { queueNotification } from "@/lib/business/notifications";
 import { createBusinessNumber } from "@/lib/business/numbering";
+import { recordAudit } from "@/lib/admin/inventory";
 
 const JOURNAL_ACCOUNTS = {
   cash: "1000",
@@ -28,8 +29,19 @@ export async function settleInvoicePayment(input: {
   reference?: string | null;
   notes?: string | null;
   createdById?: string | null;
+  operationKey?: string | null;
 }) {
+  // Payment confirmation and delivery confirmation are separate business
+  // events. A receipt is issued only after this authorized payment posting.
   const result = await prisma.$transaction(async (tx) => {
+    // Serialize balances per invoice so two concurrent partial payments cannot
+    // both consume the same outstanding amount.
+    await tx.$queryRaw`SELECT id FROM public.invoices WHERE id = ${input.invoiceId}::uuid FOR UPDATE`;
+    if (input.operationKey) {
+      const existing = await tx.payment.findUnique({ where: { operation_key: input.operationKey }, include: { invoice: { include: { customer: true } }, receipt: true } });
+      if (existing?.invoice && existing.receipt) return { existing };
+      if (existing) throw new Error("This payment operation is already being processed.");
+    }
     const invoice = await tx.invoice.findUnique({ where: { id: input.invoiceId }, include: { customer: true } });
     if (!invoice) throw new Error("Invoice not found.");
     if (invoice.status === "cancelled") throw new Error("Cancelled invoices cannot receive payments.");
@@ -42,13 +54,14 @@ export async function settleInvoicePayment(input: {
 
     const payment = await tx.payment.create({
       data: {
-        payment_number: createBusinessNumber("PAY"),
+        payment_number: await createBusinessNumber(tx, "PAY"),
         invoice_id: invoice.id,
         customer_id: invoice.customer_id,
         amount_kes: input.amountKes,
         method: input.method,
         reference: input.reference,
         notes: input.notes,
+        operation_key: input.operationKey,
         created_by_id: input.createdById
       }
     });
@@ -65,7 +78,7 @@ export async function settleInvoicePayment(input: {
     });
     const receipt = await tx.receipt.create({
       data: {
-        receipt_number: createBusinessNumber("RCT"),
+        receipt_number: await createBusinessNumber(tx, "RCT"),
         payment_id: payment.id,
         invoice_id: invoice.id,
         customer_id: invoice.customer_id,
@@ -73,6 +86,7 @@ export async function settleInvoicePayment(input: {
         created_by_id: input.createdById
       }
     });
+    await recordAudit(tx, { userId: input.createdById, entity: "Payment", entityId: payment.id, action: "payment.record_and_receipt_issue", after: { invoice_id: invoice.id, receipt_id: receipt.id, amount_kes: payment.amount_kes, method: payment.method, reference: payment.reference, balance_kes: balanceKes } });
     await tx.transaction.createMany({
       data: [
         { transaction_type: "payment_received", direction: "credit", amount_kes: input.amountKes, customer_id: invoice.customer_id, invoice_id: invoice.id, payment_id: payment.id, memo: "Payment received", created_by_id: input.createdById },
@@ -83,7 +97,7 @@ export async function settleInvoicePayment(input: {
     const accounts = await accountIds(tx, [input.method === "cash" ? JOURNAL_ACCOUNTS.cash : JOURNAL_ACCOUNTS.bank, JOURNAL_ACCOUNTS.receivables]);
     const journal = await tx.journalEntry.create({
       data: {
-        entry_number: createBusinessNumber("JRN"),
+        entry_number: await createBusinessNumber(tx, "JRN"),
         source_type: "customer_payment",
         memo: `Customer payment ${payment.payment_number}`,
         entry_date: new Date(),
@@ -100,6 +114,14 @@ export async function settleInvoicePayment(input: {
     });
     return { invoice, updatedInvoice, payment, receipt, journal };
   });
+
+  if ("existing" in result) {
+    // A retry acknowledges the same verified payment/receipt and never posts
+    // another allocation, journal entry, or commercial document.
+    const existing = result.existing;
+    if (!existing?.invoice || !existing.receipt) throw new Error("The prior payment is incomplete and requires review.");
+    return { invoice: existing.invoice, updatedInvoice: existing.invoice, payment: existing, receipt: existing.receipt, journal: null };
+  }
 
   const pdf = await brandedPdfBytes({
     type: "receipt",

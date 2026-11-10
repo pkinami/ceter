@@ -20,7 +20,7 @@ export function ProductForm({
 }) {
   const images = Array.isArray(product?.images) ? product.images.filter((item): item is string => typeof item === "string") : [];
   const specs = product?.specs && typeof product.specs === "object" && !Array.isArray(product.specs)
-    ? Object.entries(product.specs).map(([key, value]) => `${key}: ${String(value)}`).join("\n")
+    ? JSON.stringify(product.specs, null, 2)
     : "";
 
   return (
@@ -28,25 +28,16 @@ export function ProductForm({
       <form action={upsertProductAction} className="ceter-admin-form" encType="multipart/form-data">
         <input type="hidden" name="id" value={product?.id ?? ""} />
         <input type="hidden" name="return_to" value={product ? `/admin/products/${product.id}/edit` : "/admin/products/new"} />
-        {product ? <input type="hidden" name="slug" value={product.slug} /> : null}
-        <input type="hidden" name="mpn" value={product?.mpn ?? ""} />
-        <input type="hidden" name="condition" value={product?.condition ?? "new"} />
-        <input type="hidden" name="stock_status" value={product?.stock_status ?? "in_stock"} />
-        <input type="hidden" name="reorder_quantity" value={product?.reorder_quantity ?? 0} />
-        <input type="hidden" name="supplier_name" value={product?.supplier_name ?? ""} />
-        <input type="hidden" name="supplier_lead_time_days" value={product?.supplier_lead_time_days ?? ""} />
-        <input type="hidden" name="images" value={images.slice(1).join("\n")} />
-        <input type="hidden" name="specs" value={specs} />
-        {product?.is_published ?? true ? <input type="hidden" name="is_published" value="on" /> : null}
-        {product?.is_featured ? <input type="hidden" name="is_featured" value="on" /> : null}
         {product?.show_offer_badge ? <input type="hidden" name="show_offer_badge" value="on" /> : null}
         {product?.show_flash_sale_badge ? <input type="hidden" name="show_flash_sale_badge" value="on" /> : null}
         <FormSection title="Product Information">
           <FormField label="Name" name="name" required defaultValue={product?.name ?? ""} />
-          <CeterCombobox label="Type" name="item_type" defaultValue="product" options={[{ value: "product", label: "Product" }, { value: "service", label: "Service" }, { value: "raw_material", label: "Raw Material" }]} />
-          <CeterCombobox label="Category" name="category_id" defaultValue={product?.category_id ?? ""} placeholder="Search categories" options={[{ value: "", label: "Uncategorised" }, ...categories.map((category) => ({ value: category.id, label: category.name }))]} />
+          <FormField label="Slug" name="slug" defaultValue={product?.slug ?? ""} placeholder="Generated from name if blank" />
+          <CeterCombobox label="Type" name="item_type" required defaultValue={product ? product.item_type ?? "" : "product"} options={[{ value: "", label: "Select type" }, { value: "product", label: "Product" }, { value: "raw_material", label: "Raw Material" }]} />
+          <CeterCombobox label="Category" name="category_id" required defaultValue={product?.category_id ?? ""} placeholder="Search categories" options={[{ value: "", label: "Select category" }, ...categories.map((category) => ({ value: category.id, label: category.name }))]} />
           <CeterCombobox label="Brand" name="brand_id" defaultValue={product?.brand_id ?? ""} placeholder="Search brands" options={[{ value: "", label: "Unbranded" }, ...brands.map((brand) => ({ value: brand.id, label: brand.name }))]} />
           <FormField label="SKU" name="sku" defaultValue={product?.sku ?? ""} />
+          <FormField label="MPN / Model" name="mpn" defaultValue={product?.mpn ?? ""} />
         </FormSection>
 
         <FormSection title="Pricing">
@@ -73,15 +64,28 @@ export function ProductForm({
             <FormField label="Opening stock" name="stock_quantity" type="number" min={0} defaultValue={0} />
           )}
           <FormField label="Minimum stock" name="reorder_level" type="number" min={0} defaultValue={product?.reorder_level ?? 0} />
-          <CeterCombobox label="Unit" name="unit" defaultValue="pcs" options={[{ value: "pcs", label: "Pieces" }, { value: "unit", label: "Unit" }, { value: "box", label: "Box" }, { value: "service", label: "Service" }]} />
+          <FormField label="Reorder quantity" name="reorder_quantity" type="number" min={0} defaultValue={product?.reorder_quantity ?? 0} />
+          <CeterCombobox label="Stock status" name="stock_status" defaultValue={product?.stock_status ?? "in_stock"} options={[{ value: "in_stock", label: "In stock" }, { value: "backorder", label: "Backorder" }, { value: "out_of_stock", label: "Out of stock" }]} />
+          <CeterCombobox label="Condition" name="condition" defaultValue={product?.condition ?? "new"} options={[{ value: "new", label: "New" }, { value: "refurbished", label: "Refurbished" }]} />
+          <CeterCombobox label="Unit" name="unit" required defaultValue={product ? product.unit ?? "" : "pcs"} options={[{ value: "", label: "Select unit" }, { value: "pcs", label: "Pieces" }, { value: "unit", label: "Unit" }, { value: "box", label: "Box" }, { value: "service", label: "Service" }]} />
+          <FormField label="Supplier" name="supplier_name" defaultValue={product?.supplier_name ?? ""} />
+          <FormField label="Supplier lead time (days)" name="supplier_lead_time_days" type="number" min={0} defaultValue={product?.supplier_lead_time_days ?? ""} />
         </FormSection>
 
         <FormSection title="Additional">
+          <label><input name="is_published" type="checkbox" defaultChecked={product?.is_published ?? true} /> Published</label>
+          <label><input name="is_featured" type="checkbox" defaultChecked={product?.is_featured ?? false} /> Featured</label>
           <label>
             Image
             <input name="primary_image_file" type="file" accept="image/*" />
           </label>
           <FormField label="Primary image URL" name="primary_image" defaultValue={images[0] ?? ""} placeholder="https://example.com/product-image.jpg" />
+          <label className="wide">Additional image URLs (one per line)<textarea name="images" defaultValue={images.slice(1).join("\n")} /></label>
+          <label className="wide">
+            Specifications (JSON object)
+            <textarea name="specs" defaultValue={specs} placeholder={'{\n  "Print speed": "32 ppm"\n}'} />
+            <small>Enter a JSON object with specification names and values.</small>
+          </label>
           <label className="wide">
             Description
             <textarea required name="description" defaultValue={product?.description ?? ""} />
@@ -118,7 +122,7 @@ function FormField({ label, name, type = "text", required, min, defaultValue, pl
   return (
     <label>
       {label}
-      <input name={name} type={type} required={required} min={min} defaultValue={defaultValue ?? ""} placeholder={placeholder} autoComplete="off" />
+      <input name={name} type={type} required={required} min={min} step={type === "number" ? 1 : undefined} defaultValue={defaultValue ?? ""} placeholder={placeholder} autoComplete="off" />
     </label>
   );
 }

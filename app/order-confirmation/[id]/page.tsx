@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { redirect } from "next/navigation";
 import { CheckCircle2, Clock, XCircle } from "lucide-react";
 import { BrandIcon } from "@/components/BrandIcon";
 import { CustomerStatusBadge } from "@/components/CustomerStatusBadge";
@@ -26,20 +25,19 @@ export default async function OrderConfirmationPage({
   const [{ id }, query] = await Promise.all([params, searchParams]);
   const supabase = await createClient();
   const { data } = await supabase.auth.getUser();
-  if (!data.user) redirect("/login");
 
   if (query.OrderTrackingId) {
     await verifyPesapalByTrackingId(query.OrderTrackingId, query.OrderMerchantReference ?? null).catch(() => null);
   }
 
   const order = await prisma.order.findFirst({
-    where: { id, user_id: data.user.id },
+    where: data.user ? { id, OR: [{ user_id: data.user.id }, { user_id: null }] } : { id, user_id: null },
     include: {
       payments: { orderBy: { created_at: "desc" }, take: 1 },
       order_items: { include: { product: { select: { name: true, images: true } } } }
     }
   });
-  if (!order) redirect("/account#orders");
+  if (!order) return <div className="mx-auto max-w-3xl px-4 py-10"><h1 className="text-xl font-bold">Order not found</h1><Link className="mt-3 inline-block underline" href="/">Return to the store</Link></div>;
 
   const payment = order.payments[0];
   const isPaid = order.status === "paid" || payment?.status === "paid";
@@ -77,7 +75,7 @@ export default async function OrderConfirmationPage({
           {order.order_items.map((item) => (
             <div key={item.id} className="grid grid-cols-[56px_minmax(0,1fr)_auto] items-center gap-3 p-3 text-sm">
               <ProductImageFrame src={productImageRenderUrls(Array.isArray(item.product?.images) ? item.product.images.filter((image): image is string => typeof image === "string") : [])[0]} alt="" sizes="56px" className="h-14 w-14" imageClassName="p-1.5" />
-              <span className="min-w-0 break-words">{item.product?.name ?? "Product"} x {item.quantity}</span>
+              <span className="min-w-0 break-words">{item.product?.name ?? item.service_label ?? "Product"} x {item.quantity}</span>
               <strong className="text-right">{formatKes(item.price_at_purchase_kes * item.quantity)}</strong>
             </div>
           ))}
@@ -93,7 +91,7 @@ export default async function OrderConfirmationPage({
           </div>
         </div>
         <div className="mt-6 flex flex-wrap gap-3">
-          <Link href="/account#orders" className="rounded-md bg-signal px-4 py-2 text-sm font-bold text-white hover:bg-teal-700">View orders</Link>
+          {order.user_id ? <Link href="/account#orders" className="rounded-md bg-signal px-4 py-2 text-sm font-bold text-white hover:bg-teal-700">View orders</Link> : <Link href="/" className="rounded-md bg-signal px-4 py-2 text-sm font-bold text-white hover:bg-teal-700">Continue shopping</Link>}
           {!isPaid ? <Link href="/cart" className="rounded-md border border-slate-300 px-4 py-2 text-sm font-bold text-ink hover:bg-slate-50">Return to cart</Link> : null}
         </div>
       </section>

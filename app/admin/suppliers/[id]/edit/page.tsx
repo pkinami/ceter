@@ -3,6 +3,7 @@ import { requirePermission } from "@/lib/admin/auth";
 import { prisma } from "@/lib/prisma";
 import { AdminResourcePage } from "@/components/admin/AdminResourcePage";
 import { upsertSupplierAction } from "@/app/admin/purchases/actions";
+import { ToggleSwitch } from "@/components/admin/ToggleSwitch";
 
 export default async function EditSupplierPage({ params }: { params: Promise<{ id: string }> }) {
   await requirePermission("suppliers.manage");
@@ -27,8 +28,8 @@ export default async function EditSupplierPage({ params }: { params: Promise<{ i
           <label>Currency<input name="currency" defaultValue={supplier.currency} /></label>
           <label className="wide">Address<textarea name="address" defaultValue={supplier.address ?? ""} /></label>
           <label className="wide">Notes<textarea name="notes" defaultValue={supplier.notes ?? ""} /></label>
-          <label><input type="checkbox" name="is_preferred" defaultChecked={supplier.is_preferred} /> Preferred supplier</label>
-          <label><input type="checkbox" name="is_active" defaultChecked={supplier.is_active} /> Active</label>
+          <ToggleSwitch name="is_preferred" defaultChecked={supplier.is_preferred} label="Preferred supplier" />
+          <ToggleSwitch name="is_active" defaultChecked={supplier.is_active} label="Active" />
           <button className="ceter-admin-primary-button">Save supplier</button>
         </form>
       </article>

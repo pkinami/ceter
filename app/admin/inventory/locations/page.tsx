@@ -2,6 +2,7 @@ import { requirePermission, hasPermission } from "@/lib/admin/auth";
 import { prisma } from "@/lib/prisma";
 import { AdminTable, label, AdminResourcePage, qty, StatusBadge } from "@/components/admin/AdminResourcePage";
 import { archiveInventoryLocationAction, createInventoryLocationAction } from "@/app/admin/inventory/actions";
+import { ToggleSwitch } from "@/components/admin/ToggleSwitch";
 
 export default async function InventoryLocationsPage() {
   const session = await requirePermission("inventory.view");
@@ -19,9 +20,9 @@ export default async function InventoryLocationsPage() {
             <label>Type<select name="location_type" defaultValue="main_warehouse"><option value="main_warehouse">Main warehouse</option><option value="branch_store">Branch store</option><option value="showroom">Showroom</option><option value="service_workshop">Service workshop</option><option value="returns_quarantine">Returns / quarantine</option><option value="goods_in_transit">Goods in transit</option></select></label>
             <label className="wide">Description<textarea name="description" /></label>
             <label className="wide">Address<textarea name="address" /></label>
-            <label><input type="checkbox" name="is_active" defaultChecked /> Active</label>
-            <label><input type="checkbox" name="is_default_receiving" /> Default receiving</label>
-            <label><input type="checkbox" name="is_default_dispatch" /> Default dispatch</label>
+            <ToggleSwitch name="is_active" defaultChecked label="Active" />
+            <ToggleSwitch name="is_default_receiving" label="Default receiving" />
+            <ToggleSwitch name="is_default_dispatch" label="Default dispatch" />
             <button className="ceter-admin-primary-button">Save location</button>
           </form>
         </article>

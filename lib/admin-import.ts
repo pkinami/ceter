@@ -5,29 +5,8 @@ import { prisma } from "@/lib/prisma";
 import { readFirstWorksheet, rowsToObjects, writeWorkbook } from "@/lib/xlsx";
 import { BUILT_IN_PARENT_CATEGORIES, BUILT_IN_PARENT_CATEGORY_SLUGS, builtInParentCategoryBySlug } from "@/lib/category-icons";
 import { ensureBuiltInParentCategories } from "@/lib/category-seeding";
-
-export const PRODUCT_IMPORT_COLUMNS = [
-  "name",
-  "slug",
-  "description",
-  "category",
-  "brand",
-  "mpn",
-  "sku",
-  "price_kes",
-  "cost_price_kes",
-  "supplier_name",
-  "supplier_lead_time_days",
-  "reorder_level",
-  "reorder_quantity",
-  "condition",
-  "stock_status",
-  "stock_quantity",
-  "images",
-  "specs",
-  "is_featured",
-  "is_published"
-] as const;
+import { PRODUCT_IMPORT_COLUMNS, PRODUCT_ITEM_TYPES, PRODUCT_UNITS, parseProductInteger, parseProductItemType, parseProductUnit } from "@/lib/admin/product-fields";
+export { PRODUCT_IMPORT_COLUMNS } from "@/lib/admin/product-fields";
 
 export const CATEGORY_IMPORT_COLUMNS = ["name", "slug", "parent_slug", "description", "icon", "sort_order"] as const;
 const PRODUCT_CONDITIONS: ProductCondition[] = ["new", "refurbished"];
@@ -113,16 +92,19 @@ function required(value: string, label: string, errors: string[]) {
 
 function parseInteger(value: string, label: string, errors: string[], fallback?: number) {
   if (!value.trim() && fallback !== undefined) return fallback;
-  if (!/^\d+$/.test(value.trim())) {
+  const parsed = parseProductInteger(value);
+  if (parsed === null) {
     errors.push(`${label} must be a whole number greater than or equal to 0.`);
     return 0;
   }
-  return Number(value);
+  return parsed;
 }
 
 function parseOptionalInteger(value: string, label: string, errors: string[]) {
   if (!value.trim()) return null;
-  return parseInteger(value, label, errors);
+  const parsed = parseProductInteger(value, true);
+  if (parsed === null) errors.push(`${label} must be a whole number greater than or equal to 0.`);
+  return parsed;
 }
 
 function parseBoolean(value: string, label: string, errors: string[]) {
@@ -148,6 +130,12 @@ function parseImages(value: string, errors: string[], remoteOnly = false) {
 
 function parseSpecs(value: string) {
   if (!value.trim()) return {};
+  try {
+    const parsed: unknown = JSON.parse(value);
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) return parsed as Record<string, string>;
+  } catch {
+    // Existing import files use the documented key: value syntax.
+  }
   return Object.fromEntries(
     value.split(";").map((part) => part.split(":")).filter((part) => part.length >= 2).map(([name, ...rest]) => [name.trim(), rest.join(":").trim()]).filter(([name]) => name)
   );
@@ -238,9 +226,15 @@ function validateProductRows(workbookRows: WorkbookRow[], lookup: Lookup): Previ
     const slug = values.slug.trim();
     const sku = values.sku.trim();
     const mpn = values.mpn.trim();
+    const itemType = parseProductItemType(values.item_type);
+    const unit = parseProductUnit(values.unit);
     required(values.name, "name", errors);
     required(slug, "slug", errors);
     required(values.description, "description", errors);
+    if (!values.item_type.trim()) errors.push("item_type is required.");
+    else if (!itemType) errors.push(`item_type must be one of: ${PRODUCT_ITEM_TYPES.join(", ")}.`);
+    if (!values.unit.trim()) errors.push("unit is required.");
+    else if (!unit) errors.push(`unit must be one of: ${PRODUCT_UNITS.join(", ")}.`);
 
     if (slug && !isSlug(slug)) errors.push("slug must be lowercase letters, numbers, and single hyphens.");
     if (seenSlugs.has(key(slug))) errors.push("slug is duplicated in this workbook.");
@@ -298,6 +292,8 @@ function validateProductRows(workbookRows: WorkbookRow[], lookup: Lookup): Previ
         brand_slug: brandSlug || null,
         mpn: mpn || null,
         sku: sku || null,
+        item_type: itemType,
+        unit,
         price_kes: priceKes,
         cost_price_kes: costPriceKes,
         supplier_name: values.supplier_name.trim() || null,
@@ -572,6 +568,8 @@ async function upsertProductBatch(
       ${product.description},
       ${product.mpn},
       ${product.sku},
+      ${product.item_type},
+      ${product.unit},
       ${product.category_id},
       ${product.brand_id},
       ${product.price_kes},
@@ -593,7 +591,7 @@ async function upsertProductBatch(
 
   const query = Prisma.sql`
     insert into public.products (
-      name, slug, description, mpn, sku, category_id, brand_id, price_kes, cost_price_kes,
+      name, slug, description, mpn, sku, item_type, unit, category_id, brand_id, price_kes, cost_price_kes,
       supplier_name, supplier_lead_time_days, reorder_level, reorder_quantity, is_published,
       condition, stock_status, stock_quantity, images, specs, is_featured, updated_at
     )
@@ -603,6 +601,8 @@ async function upsertProductBatch(
       description = excluded.description,
       mpn = excluded.mpn,
       sku = excluded.sku,
+      item_type = excluded.item_type,
+      unit = excluded.unit,
       category_id = excluded.category_id,
       brand_id = excluded.brand_id,
       price_kes = excluded.price_kes,
@@ -614,7 +614,6 @@ async function upsertProductBatch(
       is_published = excluded.is_published,
       condition = excluded.condition,
       stock_status = excluded.stock_status,
-      stock_quantity = excluded.stock_quantity,
       images = excluded.images,
       specs = excluded.specs,
       is_featured = excluded.is_featured,
@@ -826,6 +825,8 @@ function productData(data: PreviewRow["data"], images: string[], categoryId: str
     price_kes: Number(data.price_kes),
     mpn: data.mpn ? String(data.mpn) : null,
     sku: data.sku ? String(data.sku) : null,
+    item_type: String(data.item_type),
+    unit: String(data.unit),
     condition: data.condition as ProductCondition,
     stock_status: data.stock_status as StockStatus,
     stock_quantity: Number(data.stock_quantity),
@@ -864,6 +865,8 @@ export function productTemplateWorkbook(sample?: { category: string; brand?: str
         sample.brand ?? "",
         "LIVE-UAT-MPN-001",
         "LIVE-UAT-SKU-001",
+        "product",
+        "pcs",
         "25000",
         "18000",
         "",
@@ -899,6 +902,8 @@ export function productTemplateWorkbook(sample?: { category: string; brand?: str
         ["brand", "Optional", "Match an existing brand by slug or name."],
         ["mpn", "Optional", "Manufacturer part number or model. Keep this separate from slug and SKU."],
         ["sku", "Optional", "Internal stock keeping unit. Must be unique if your database has SKU uniqueness enabled."],
+        ["item_type", "Required", `Allowed values: ${PRODUCT_ITEM_TYPES.join(", ")}.`],
+        ["unit", "Required", `Allowed values: ${PRODUCT_UNITS.join(", ")}.`],
         ["price_kes", "Required", "Whole number in KSh, greater than or equal to 0."],
         ["cost_price_kes", "Optional", "Whole number internal cost in KSh, or blank."],
         ["supplier_name", "Optional", "Supplier name as plain text."],

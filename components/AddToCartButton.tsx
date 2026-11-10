@@ -30,7 +30,8 @@ export function AddToCartButton({
       toast.success("Added to cart", { description: product.name, duration: 3000, id: `add-to-cart-${product.id}` });
       setState("success");
       window.setTimeout(() => setState("idle"), 900);
-    } catch {
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not add this item to your cart. Please try again.");
       setState("idle");
     }
   }
@@ -40,6 +41,7 @@ export function AddToCartButton({
       type="button"
       onClick={click}
       disabled={state === "loading"}
+      aria-busy={state === "loading"}
       className={cn("inline-flex h-11 items-center justify-center gap-2 rounded-md bg-signal px-4 text-sm font-semibold text-white shadow-sm hover:bg-teal-700 disabled:cursor-not-allowed disabled:opacity-70", className)}
     >
       {state === "loading" ? <LoadingSpinner /> : state === "success" ? <Check className="h-4 w-4" /> : children}

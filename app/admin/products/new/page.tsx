@@ -12,7 +12,6 @@ export default async function NewProductPage({ searchParams }: { searchParams: P
         <div>
           <p>Inventory&nbsp;&nbsp;&gt;&nbsp;&nbsp;Products &amp; Services&nbsp;&nbsp;&gt;&nbsp;&nbsp;Add Item</p>
           <h1>Add Item</h1>
-          <span>Create a catalogue item with pricing, opening stock, reorder levels and storefront visibility.</span>
         </div>
         <a className="ceter-admin-secondary-button" href="/admin/products">Back</a>
       </div>

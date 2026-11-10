@@ -20,6 +20,7 @@ export function FormSubmitButton({
   className?: string;
 }) {
   const { pending } = useFormStatus();
+  const activeLabel = pendingText.trim() || "Processing...";
   const handleClick = (event: MouseEvent<HTMLButtonElement>) => {
     if (confirmMessage && !window.confirm(confirmMessage)) {
       event.preventDefault();
@@ -33,15 +34,11 @@ export function FormSubmitButton({
       {...props}
       onClick={handleClick}
       disabled={pending || disabled}
-      className={cn("inline-flex items-center justify-center gap-2 disabled:cursor-not-allowed disabled:opacity-70", className)}
-      aria-live="polite"
+      className={cn("relative inline-flex items-center justify-center gap-2 disabled:cursor-not-allowed disabled:opacity-70", className)}
+      aria-busy={pending}
     >
-      {pending ? (
-        <>
-          <LoadingSpinner />
-          {pendingText}
-        </>
-      ) : children}
+      <span className={pending ? "invisible inline-flex items-center gap-2" : "inline-flex items-center gap-2"}>{children}</span>
+      {pending ? <span className="absolute inset-0 inline-flex items-center justify-center gap-2" role="status"><LoadingSpinner label={activeLabel} />{activeLabel}</span> : null}
     </button>
   );
 }

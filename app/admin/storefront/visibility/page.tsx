@@ -16,7 +16,7 @@ export default async function StorefrontVisibilityPage() {
   const brokenCategory = products.filter((product) => !product.category_id || !product.category);
   return (
     <div className="ceter-admin-page">
-      <div className="ceter-admin-greeting"><div><p>Storefront &gt; Product Visibility &amp; SEO</p><h1>Product Visibility &amp; SEO</h1><span>Review publication readiness without fabricating SEO content during import.</span></div></div>
+      <div className="ceter-admin-greeting"><div><p>Storefront &gt; Product Visibility &amp; SEO</p><h1>Product Visibility &amp; SEO</h1></div></div>
       <section className="ceter-admin-stat-grid">
         <Stat label="Published" value={products.filter((product) => product.is_published).length} detail="Visible when mapped and available" />
         <Stat label="Draft" value={products.filter((product) => !product.is_published).length} detail="Hidden from storefront" />

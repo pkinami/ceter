@@ -19,19 +19,14 @@
               <td style="padding:30px 28px 10px;">
                 <h1 style="margin:0;color:#0b1f3a;font-size:24px;line-height:1.25;font-weight:800;">Verify your email address</h1>
                 <p style="margin:16px 0 0;color:#455468;font-size:15px;line-height:1.6;">
-                  Welcome to Ceter Technologies Limited. Confirm this email address to activate your customer account for orders, quotes, and saved account details.
+                  Welcome to Ceter Technologies Limited. Use the verification code below to activate your customer account for orders, quotes, and saved account details.
                 </p>
               </td>
             </tr>
             <tr>
               <td style="padding:18px 28px 30px;">
-                <a href="{{ .ConfirmationURL }}" style="display:inline-block;background:#14b8a6;color:#ffffff;text-decoration:none;border-radius:6px;padding:13px 20px;font-size:15px;font-weight:700;">Verify email</a>
-                <p style="margin:22px 0 0;color:#69778c;font-size:13px;line-height:1.6;">
-                  If the button does not work, copy and paste this link into your browser:
-                </p>
-                <p style="margin:8px 0 0;color:#0b1f3a;font-size:13px;line-height:1.6;word-break:break-all;">
-                  {{ .ConfirmationURL }}
-                </p>
+                <p style="margin:0;color:#69778c;font-size:13px;line-height:1.6;">Enter this six-digit verification code in Ceter. It expires shortly and should not be shared.</p>
+                <p style="margin:18px 0;color:#0b1f3a;font-size:28px;font-weight:800;letter-spacing:6px;">{{ .Token }}</p>
               </td>
             </tr>
             <tr>

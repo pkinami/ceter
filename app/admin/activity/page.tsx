@@ -28,7 +28,7 @@ export default async function ActivityPage({ searchParams }: { searchParams?: Pr
   return (
     <div className="ceter-admin-page">
       <div className="ceter-admin-greeting">
-        <div><p>Administration &gt; Activity Logs</p><h1>Activity Logs</h1><span>Redacted audit trail for admin mutations, import jobs, and authorization-sensitive operations.</span></div>
+        <div><p>Administration &gt; Activity Logs</p><h1>Activity Logs</h1></div>
       </div>
       <form className="ceter-admin-toolbar" action="/admin/activity">
         <label className="ceter-admin-table-search"><span className="sr-only">Search activity</span><input name="q" defaultValue={query} placeholder="Search action, target or correlation id" /></label>

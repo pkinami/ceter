@@ -19,7 +19,6 @@ export default async function EditProductPage({ params, searchParams }: { params
         <div>
           <p>Inventory&nbsp;&nbsp;&gt;&nbsp;&nbsp;Products &amp; Services&nbsp;&nbsp;&gt;&nbsp;&nbsp;Edit Item</p>
           <h1>Edit Item</h1>
-          <span>Changes persist to PostgreSQL, audit price and stock movement where applicable, and revalidate storefront catalogue routes.</span>
         </div>
         <a className="ceter-admin-secondary-button" href="/admin/products">Back</a>
       </div>

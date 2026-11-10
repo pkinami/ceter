@@ -3,10 +3,10 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
-import { useLayoutEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { toast } from "sonner";
 import {
   BarChart3,
-  Bell,
   Boxes,
   Building2,
   Calculator,
@@ -38,6 +38,8 @@ import {
   WalletCards,
   X
 } from "lucide-react";
+import { AdminNotificationBell } from "@/components/admin/AdminNotificationBell";
+import { AdminInstallHelp } from "@/components/admin/AdminInstallHelp";
 import type { LucideIcon } from "lucide-react";
 import { signOutAction } from "@/app/actions";
 import { AdminQuickActions } from "@/components/admin/AdminQuickActions";
@@ -99,11 +101,23 @@ export function CeterAdminShell({ children, session }: CeterAdminShellProps) {
   const [miniDrawer, setMiniDrawer] = useState(false);
   const [openModule, setOpenModule] = useState<string | null>(null);
   const query = searchParams.toString();
+  const announcedAction = useRef("");
   const visibleModules = adminModules
     .map((item) => ({ ...item, children: filterChildren(item.children, session.permissions) }))
     .filter((item) => canAccessHref(item.href, session.permissions) || Boolean(item.children?.length));
   const menuModules = visibleModules.filter((item) => !["help", "branches"].includes(item.module));
   const helpModule = visibleModules.find((item) => item.module === "help");
+
+  useEffect(() => {
+    const params = new URLSearchParams(query);
+    const success = params.get("success");
+    const error = params.get("error");
+    const key = `${pathname}?${query}`;
+    if ((!success && !error) || announcedAction.current === key) return;
+    announcedAction.current = key;
+    if (error) toast.error(error, { duration: 7000 });
+    else if (success) toast.success(success, { duration: 7000 });
+  }, [pathname, query]);
 
   useLayoutEffect(() => {
     const stored = window.localStorage.getItem("ceter-admin-mini-drawer");
@@ -155,10 +169,8 @@ export function CeterAdminShell({ children, session }: CeterAdminShellProps) {
           <strong className="ceter-admin-header-message">Good evening, {firstName(session.name ?? session.email ?? "Admin")} - Ceter records keep the business picture accurate.</strong>
         </div>
         <div className="ceter-admin-header-actions">
-          <Link className="ceter-admin-bell" href="/admin/settings?tab=activity" aria-label="Notifications and activity">
-            <Bell size={18} />
-            <span>0</span>
-          </Link>
+          <AdminInstallHelp />
+          <AdminNotificationBell />
           <Link href="/" className="ceter-admin-company">
             <span>{initials(session.name ?? session.email ?? "Admin")}</span>
             <strong>{session.name ?? "Ceter Admin"}</strong>
@@ -270,6 +282,7 @@ function canAccessHref(href: string | undefined, permissions: PermissionKey[]) {
   if (!href) return false;
   const path = href.split("?")[0];
   if (path === "/admin") return permissions.includes("dashboard.view");
+  if (path === "/admin/payments/mpesa-reconciliation") return permissions.includes("payments.mpesa.reconcile");
   if (path.startsWith("/admin/users")) return permissions.includes("users.view");
   if (path.startsWith("/admin/roles")) return permissions.includes("roles.view");
   if (path.startsWith("/admin/activity")) return permissions.includes("audit.view");
@@ -300,7 +313,7 @@ function canAccessHref(href: string | undefined, permissions: PermissionKey[]) {
   if (path.startsWith("/admin/settings/payment-methods")) return permissions.includes("settings.payments.manage");
   if (path.startsWith("/admin/settings/tax")) return permissions.includes("settings.tax.manage");
   if (path.startsWith("/admin/settings/sms")) return permissions.includes("settings.sms.manage");
-  if (path.startsWith("/admin/settings/integrations")) return permissions.includes("settings.integrations.manage");
+  if (path.startsWith("/admin/settings/integrations")) return ["settings.integrations.manage", "settings.etims.manage", "settings.mpesa.manage", "settings.sms.manage", "settings.signing.manage", "settings.notifications.manage"].some((permission) => permissions.includes(permission as PermissionKey));
   if (path.startsWith("/admin/settings/mpesa")) return permissions.includes("settings.mpesa.manage");
   if (path.startsWith("/admin/settings/etims")) return permissions.includes("settings.etims.manage");
   if (path.startsWith("/admin/settings/signing")) return permissions.includes("settings.signing.manage");

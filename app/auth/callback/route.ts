@@ -13,7 +13,7 @@ export async function GET(request: NextRequest) {
 
   if (!code) {
     redirectUrl.pathname = "/login";
-    redirectUrl.searchParams.set("error", "The verification link is missing its authentication code.");
+    redirectUrl.searchParams.set("error", "The sign-in link is missing its authentication code.");
     return NextResponse.redirect(redirectUrl);
   }
 
@@ -23,7 +23,7 @@ export async function GET(request: NextRequest) {
   if (error) {
     redirectUrl.pathname = "/login";
     redirectUrl.search = "";
-    redirectUrl.searchParams.set("error", "The verification link is invalid or has expired. Request a new signup email.");
+    redirectUrl.searchParams.set("error", "That sign-in link is invalid or has expired. Request a new password reset link.");
     return NextResponse.redirect(redirectUrl);
   }
 

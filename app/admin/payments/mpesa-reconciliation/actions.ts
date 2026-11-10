@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { completeInvoiceMpesaTransaction } from "@/lib/business/mpesa";
-import { requireAdminSession } from "@/lib/admin/auth";
+import { requirePermission } from "@/lib/admin/auth";
 import { prisma } from "@/lib/prisma";
 
 function text(value: FormDataEntryValue | null) {
@@ -16,7 +16,7 @@ function messageRedirect(key: "success" | "error", message: string): never {
 }
 
 export async function manualReconcileMpesaAction(formData: FormData) {
-  await requireAdminSession();
+  await requirePermission("payments.mpesa.reconcile");
   const id = text(formData.get("id"));
   const receiptReference = text(formData.get("receipt_reference"));
   if (!id || !receiptReference) messageRedirect("error", "Transaction and M-Pesa receipt code are required.");

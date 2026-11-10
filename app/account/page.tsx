@@ -7,7 +7,7 @@ import { productImageRenderUrls } from "@/lib/product-image-urls";
 import { prisma } from "@/lib/prisma";
 import { createClient } from "@/lib/supabase/server";
 import { formatKes } from "@/lib/utils";
-import { generatePortalStatementAction } from "./actions";
+import { acceptQuoteAction, cancelQuoteAction, generatePortalStatementAction, submitQuotePurchaseOrderAction } from "./actions";
 
 export const metadata = {
   title: "Business Portal",
@@ -41,6 +41,7 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
     orderBy: { created_at: "desc" },
     include: { order_items: { include: { product: true } } }
   });
+  const quoteRequests = await prisma.quoteRequest.findMany({ where: { owner_id: userData.user.id }, orderBy: { created_at: "desc" }, take: 50 });
   const orderList = customer?.orders.length ? customer.orders : orders;
   const invoices = customer?.invoices ?? [];
   const payments = customer?.payments ?? [];
@@ -89,7 +90,7 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
               {order.order_items.map((item) => (
                 <div key={item.id} className="grid grid-cols-[48px_minmax(0,1fr)_auto] items-center gap-3 rounded bg-mist px-3 py-2">
                   <ProductImageFrame src={productImageRenderUrls(Array.isArray(item.product?.images) ? item.product.images.filter((image): image is string => typeof image === "string") : [])[0]} alt="" sizes="48px" className="h-12 w-12" imageClassName="p-1" />
-                  <span className="min-w-0 break-words">{item.product?.name ?? "Product"} x {item.quantity}</span>
+                  <span className="min-w-0 break-words">{item.product?.name ?? item.service_label ?? "Product"} x {item.quantity}</span>
                   <strong className="text-right">{formatKes(item.price_at_purchase_kes * item.quantity)}</strong>
                 </div>
               ))}
@@ -100,7 +101,13 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
 
       <PortalSection title="My Quotations">
         <PortalTable headers={["Quote", "Date", "Amount", "Status", "Actions"]}>
-          {quotesWithLinks.map((quote) => <tr key={quote.id}><td>{quote.quote_number}</td><td>{quote.created_at.toLocaleDateString("en-KE")}</td><td>{formatKes(quote.total_kes)}</td><td><CustomerStatusBadge status={quote.status} context="quote" /></td><td><DocumentLink documents={quote.documents} /></td></tr>)}
+          {quotesWithLinks.map((quote) => <tr key={quote.id}><td>{quote.quote_number}</td><td>{quote.created_at.toLocaleDateString("en-KE")}</td><td>{formatKes(quote.total_kes)}</td><td><CustomerStatusBadge status={quote.status} context="quote" /></td><td><DocumentLink documents={quote.documents} /> {quote.status === "sent" || quote.status === "draft" ? <span className="ml-2 inline-flex gap-2"><form action={acceptQuoteAction}><input type="hidden" name="quote_id" value={quote.id} /><input className="w-28 rounded border px-2 py-1" name="lpo_number" required placeholder="LPO number" /><button className="font-bold text-signal">Accept</button></form><form action={cancelQuoteAction}><input type="hidden" name="quote_id" value={quote.id} /><button className="font-bold text-red-700">Cancel</button></form></span> : null}{quote.status === "accepted" && !quote.converted_order_id ? <form className="ml-2 inline" action={submitQuotePurchaseOrderAction}><input type="hidden" name="quote_id" value={quote.id} /><input type="hidden" name="lpo_number" value={quote.customer_lpo_number ?? ""} /><button className="font-bold text-signal">Submit purchase order</button></form> : null}</td></tr>)}
+        </PortalTable>
+      </PortalSection>
+
+      <PortalSection title="My Service Quote Requests">
+        <PortalTable headers={["Request", "Service", "Submitted", "Status"]}>
+          {quoteRequests.length ? quoteRequests.map((request) => <tr key={request.id}><td>{request.id.slice(0, 8)}</td><td>{request.service_needed}</td><td>{request.created_at.toLocaleDateString("en-KE")}</td><td><CustomerStatusBadge status={request.internal_status} context="quote" /></td></tr>) : <tr><td colSpan={4} className="px-4 py-5 text-slate-500">No service quote requests submitted from this account.</td></tr>}
         </PortalTable>
       </PortalSection>
 

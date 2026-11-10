@@ -32,7 +32,11 @@ Product template: `public/templates/ceter-products-import-template.xlsx`
 
 Required columns:
 
-`name`, `slug`, `description`, `category`, `brand`, `mpn`, `sku`, `price_kes`, `cost_price_kes`, `supplier_name`, `supplier_lead_time_days`, `reorder_level`, `reorder_quantity`, `condition`, `stock_status`, `stock_quantity`, `images`, `specs`, `is_featured`, `is_published`
+`name`, `slug`, `description`, `category`, `brand`, `mpn`, `sku`, `item_type`, `unit`, `price_kes`, `cost_price_kes`, `supplier_name`, `supplier_lead_time_days`, `reorder_level`, `reorder_quantity`, `condition`, `stock_status`, `stock_quantity`, `images`, `specs`, `is_featured`, `is_published`
+
+`item_type` and `unit` are required values. Allowed `item_type` values are `product` and `raw_material`; allowed `unit` values are `pcs`, `unit`, `box`, and `service`. Older workbooks without these headers are accepted for parsing, but each row fails validation with a row-specific missing-value error. Add both columns and complete them before importing.
+
+`stock_quantity` initializes newly created products. Import updates preserve existing stock quantities; use audited inventory adjustments or goods receipts to change stock.
 
 Category template: `public/templates/ceter-categories-import-template-v2.xlsx`
 

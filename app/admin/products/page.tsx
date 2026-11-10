@@ -32,7 +32,7 @@ export default async function ProductsPage() {
           : product.stock_status === "backorder"
             ? "Backorder"
             : "In Stock";
-      const type = inferItemType(product.category?.name, product.name);
+      const type = product.item_type === "raw_material" ? "Raw Material" : product.item_type === "product" ? "Product" : "Unclassified";
       return {
         id: product.id,
         kind: "product",
@@ -40,11 +40,18 @@ export default async function ProductsPage() {
         product: type,
         image,
         name: product.name,
+        slug: product.slug,
         description: product.description,
         stock: product.stock_quantity,
-        unit: "pcs",
+        unit: product.unit ?? "—",
         category: product.category?.name ?? "Uncategorised",
+        brand: product.brand?.name ?? "Unbranded",
         sku: product.sku ?? product.mpn ?? "-",
+        mpn: product.mpn ?? "",
+        supplier: product.supplier_name ?? "",
+        condition: product.condition,
+        publication: product.is_published ? "Published" : "Draft",
+        featured: product.is_featured,
         buyingPrice: canViewCost ? product.cost_price_kes ?? 0 : null,
         sellingPrice: product.price_kes,
         status: stockStatus,
@@ -72,8 +79,8 @@ export default async function ProductsPage() {
     }))
   ];
 
-  const productCount = products.filter((product) => inferItemType(product.category?.name, product.name) === "Product").length;
-  const rawMaterialCount = products.filter((product) => inferItemType(product.category?.name, product.name) === "Raw Material").length;
+  const productCount = products.filter((product) => product.item_type === "product").length;
+  const rawMaterialCount = products.filter((product) => product.item_type === "raw_material").length;
   const lowStock = products.filter((product) => product.stock_quantity > 0 && product.reorder_level > 0 && product.stock_quantity <= product.reorder_level).length;
   const outOfStock = products.filter((product) => product.stock_quantity <= 0 || product.stock_status === "out_of_stock").length;
 
@@ -99,9 +106,4 @@ export default async function ProductsPage() {
 
 function productImages(value: unknown) {
   return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string" && item.length > 0) : [];
-}
-
-function inferItemType(category?: string | null, name?: string | null): "Product" | "Raw Material" {
-  const text = `${category ?? ""} ${name ?? ""}`.toLowerCase();
-  return /raw|material|spare|part|component|consumable/.test(text) ? "Raw Material" : "Product";
 }

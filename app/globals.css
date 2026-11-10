@@ -2,6 +2,33 @@
 @tailwind components;
 @tailwind utilities;
 
+.ceter-route-progress {
+  position: fixed;
+  z-index: 1000;
+  inset: 0 0 auto;
+  height: 3px;
+  overflow: hidden;
+  background: rgba(20, 184, 166, .18);
+  pointer-events: none;
+}
+
+.ceter-route-progress > span:first-child {
+  display: block;
+  width: 35%;
+  height: 100%;
+  background: #14b8a6;
+  animation: ceter-route-progress 1.1s ease-in-out infinite;
+}
+
+@keyframes ceter-route-progress {
+  from { transform: translateX(-110%); }
+  to { transform: translateX(310%); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ceter-route-progress > span:first-child { animation-duration: 2.5s; }
+}
+
 :root {
   color-scheme: light;
   --font-archivo: "Poppins", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -560,6 +587,114 @@ select option:checked {
 .ceter-admin-header-actions {
   margin-left: auto;
   gap: 12px;
+}
+
+.ceter-admin-install-button {
+  display: inline-flex;
+  min-height: 40px;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  border: 1px solid var(--ceter-border);
+  border-radius: 12px;
+  background: #fff;
+  padding: 0 12px;
+  color: var(--ceter-charcoal);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.ceter-admin-install-button:hover,
+.ceter-admin-install-button:focus-visible {
+  border-color: rgba(20, 184, 166, .5);
+  color: var(--ceter-accent-dark);
+}
+
+.ceter-admin-install-backdrop {
+  position: fixed;
+  z-index: 150;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: rgba(8, 20, 36, .56);
+  padding: 20px;
+}
+
+.ceter-admin-install-card {
+  position: relative;
+  width: min(100%, 440px);
+  border: 1px solid var(--ceter-border);
+  border-radius: 20px;
+  background: #fff;
+  padding: 28px;
+  box-shadow: 0 24px 70px rgba(8, 20, 36, .24);
+}
+
+.ceter-admin-install-close {
+  position: absolute;
+  top: 12px;
+  right: 14px;
+  width: 36px;
+  height: 36px;
+  border: 0;
+  border-radius: 50%;
+  background: #f3f5f7;
+  color: var(--ceter-charcoal);
+  font-size: 25px;
+  cursor: pointer;
+}
+
+.ceter-admin-install-icon {
+  display: grid;
+  width: 46px;
+  height: 46px;
+  place-items: center;
+  border-radius: 14px;
+  background: rgba(20, 184, 166, .1);
+  color: var(--ceter-accent-dark);
+}
+
+.ceter-admin-install-card h2 {
+  margin: 16px 36px 8px 0;
+  color: var(--ceter-charcoal);
+  font-size: 20px;
+  line-height: 1.3;
+}
+
+.ceter-admin-install-card p {
+  color: var(--ceter-muted);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.ceter-admin-install-steps {
+  display: grid;
+  gap: 4px;
+  margin: 18px 0;
+  border-radius: 14px;
+  background: #f6f8fa;
+  padding: 8px 16px;
+}
+
+.ceter-admin-install-steps p { margin: 9px 0; }
+.ceter-admin-install-steps strong { color: var(--ceter-charcoal); }
+.ceter-admin-install-steps svg { vertical-align: -2px; }
+.ceter-admin-install-card .ceter-admin-install-note { font-size: 11px; }
+
+.ceter-admin-install-done {
+  width: 100%;
+  min-height: 44px;
+  margin-top: 8px;
+  border: 0;
+  border-radius: 12px;
+  background: var(--ceter-accent);
+  color: #fff;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
 }
 
 .ceter-admin-top-action,
@@ -1294,6 +1429,41 @@ select option:checked {
   font-size: 13px;
 }
 
+.ceter-admin-tabs {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  margin: 0 0 20px;
+  padding: 5px;
+  overflow-x: auto;
+  border: 1px solid var(--ceter-border, #e2e8f0);
+  border-radius: 12px;
+  background: var(--ceter-surface, #fff);
+  scrollbar-width: thin;
+}
+
+.ceter-admin-tabs a {
+  flex: 0 0 auto;
+  display: inline-flex;
+  min-height: 38px;
+  align-items: center;
+  justify-content: center;
+  padding: 0 13px;
+  border-radius: 8px;
+  color: var(--ceter-text-muted, #64748b);
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.ceter-admin-tabs a:hover,
+.ceter-admin-tabs a.active {
+  background: var(--ceter-accent, #0f766e);
+  color: #fff;
+}
+
 .ceter-admin-safe-mode {
   display: inline-flex;
   align-items: center;
@@ -1582,7 +1752,7 @@ select option:checked {
   place-items: center;
 }
 
-.ceter-admin-action-menu summary {
+.ceter-admin-action-menu-trigger {
   display: grid;
   width: 32px;
   height: 32px;
@@ -1593,20 +1763,16 @@ select option:checked {
   background: #fff;
   color: #334155;
   cursor: pointer;
-  list-style: none;
+  appearance: none;
 }
 
-.ceter-admin-action-menu summary::-webkit-details-marker {
-  display: none;
-}
-
-.ceter-admin-action-menu summary span {
+.ceter-admin-action-menu-trigger span {
   font-size: 22px;
   font-weight: 600;
   line-height: 1;
 }
 
-.ceter-admin-action-menu[open] summary {
+.ceter-admin-action-menu[data-open] .ceter-admin-action-menu-trigger {
   border-color: rgba(20, 184, 166, .38);
   color: #0f766e;
   box-shadow: 0 0 0 3px rgba(20, 184, 166, .10);
@@ -2179,7 +2345,7 @@ select option:checked {
   width: 100%;
   min-height: 42px;
   border: 1px solid rgba(100, 100, 100, .25);
-  border-radius: 8px;
+  border-radius: 10px;
   background: #fff;
   box-shadow: 0 1px 2px rgba(15, 42, 74, .04);
   color: #111827;
@@ -2233,6 +2399,13 @@ select option:checked {
   align-items: center;
   gap: 8px;
   padding: 0 10px;
+  transition: border-color .15s ease, box-shadow .15s ease, background .15s ease;
+}
+
+.ceter-combobox-control[data-open="true"] {
+  border-color: #14b8a6;
+  background: #f8fffe;
+  box-shadow: 0 0 0 3px rgba(20, 184, 166, .14);
 }
 
 .ceter-combobox svg,
@@ -2258,24 +2431,44 @@ select option:checked {
 
 .ceter-combobox-menu,
 .ceter-search-options {
-  position: absolute;
-  z-index: 40;
+  position: fixed;
+  z-index: 80;
   top: calc(100% + 5px);
   left: 0;
   right: 0;
-  max-height: 280px;
+  max-height: 320px;
   overflow: auto;
   border: 1px solid rgba(100, 100, 100, .18);
-  border-radius: 8px;
+  border-radius: 10px;
   background: #fff;
-  box-shadow: 0 18px 40px rgba(15, 23, 42, .16);
+  box-shadow: 0 18px 40px rgba(15, 23, 42, .20);
+}
+
+.ceter-combobox-menu {
+  overscroll-behavior: contain;
+  scrollbar-color: #0f766e #e2e8f0;
+  scrollbar-width: auto;
+}
+
+.ceter-combobox-menu::-webkit-scrollbar {
+  width: 12px;
+}
+
+.ceter-combobox-menu::-webkit-scrollbar-thumb {
+  border: 3px solid #fff;
+  border-radius: 999px;
+  background: #0f766e;
+}
+
+.ceter-combobox-menu::-webkit-scrollbar-track {
+  background: #e2e8f0;
 }
 
 .ceter-combobox-menu button,
 .ceter-search-options button {
   display: flex;
   width: 100%;
-  min-height: 42px;
+  min-height: 46px;
   align-items: center;
   justify-content: space-between;
   gap: 10px;
@@ -2283,7 +2476,7 @@ select option:checked {
   border: 0;
   border-bottom: 1px solid rgba(148, 163, 184, .18);
   background: #fff;
-  padding: 8px 11px;
+  padding: 9px 12px;
   color: #111827;
   text-align: left;
 }
@@ -2294,6 +2487,10 @@ select option:checked {
 .ceter-search-options button:hover {
   background: rgba(20, 184, 166, .08);
   color: #0f766e;
+}
+
+.ceter-combobox-menu button[aria-selected="true"] {
+  box-shadow: inset 3px 0 0 #14b8a6;
 }
 
 .ceter-combobox-menu button.create {
@@ -6096,6 +6293,33 @@ button,
   height: 18px;
 }
 
+/* Customer authentication */
+.ceter-auth-page { position: relative; display: grid; min-height: 100vh; place-items: center; overflow: hidden; padding: 32px 16px; background: #f7fbfb; }
+.ceter-auth-dots { position: absolute; inset: 0; opacity: .75; background-image: radial-gradient(#9edfd8 1.25px, transparent 1.25px); background-size: 21px 21px; mask-image: linear-gradient(120deg, #000 0 23%, transparent 47% 58%, #000 80%); }
+.ceter-auth-page::before, .ceter-auth-page::after { position: absolute; width: 260px; height: 260px; border-radius: 50%; content: ""; }.ceter-auth-page::before { top: -120px; left: -70px; background: #dff7f4; }.ceter-auth-page::after { right: -100px; bottom: -130px; background: #dff7f4; }
+.ceter-auth-card { position: relative; z-index: 1; width: min(100%, 460px); border: 1px solid #d8eeeb; border-radius: 18px; background: #fff; padding: 42px 44px 26px; box-shadow: 0 22px 60px rgba(20, 184, 166, .13); }.ceter-auth-logo { display: block; height: auto; margin: 0 auto 32px; }.ceter-auth-card h1 { margin: 0; color: #14b8a6; font-size: 28px; font-weight: 700; line-height: 1.2; text-align: center; }.ceter-auth-subtitle { margin: 10px 0 26px; color: #687d7b; font-size: 14px; line-height: 1.65; text-align: center; }.ceter-auth-kicker { margin: 0 0 12px; color: #14b8a6; font-size: 11px; font-weight: 700; letter-spacing: .12em; text-align: center; }
+.ceter-auth-form { display: grid; gap: 18px; }.ceter-auth-form label, .ceter-otp-label { display: grid; gap: 8px; color: #244a46; font-size: 13px; font-weight: 600; }.ceter-auth-form input, .ceter-auth-password input { width: 100%; height: 50px; border: 1px solid #d7e8e6; border-radius: 25px; background: #fbfdfd; padding: 0 19px; color: #183b37; font-size: 14px; outline: none; }.ceter-auth-form input:focus, .ceter-auth-password:focus-within { border-color: #14b8a6; box-shadow: 0 0 0 3px rgba(20, 184, 166, .12); }.ceter-auth-password { display: flex; align-items: center; border-radius: 25px; }.ceter-auth-password input { padding-right: 48px; }.ceter-auth-password button { width: 44px; height: 44px; margin-left: -48px; border: 0; background: transparent; color: #748d89; cursor: pointer; }
+.ceter-auth-primary { width: 100%; min-height: 50px; border: 0; border-radius: 999px; background: #14b8a6; color: #fff; font-size: 14px; font-weight: 700; cursor: pointer; box-shadow: 0 8px 18px rgba(20, 184, 166, .2); }.ceter-auth-primary:hover { background: #0f9486; }.ceter-auth-primary:disabled { cursor: not-allowed; opacity: .5; }.ceter-auth-right-link { margin: -8px 4px 0; text-align: right; font-size: 12px; }.ceter-auth-right-link a, .ceter-auth-signup a, .ceter-auth-resend button { color: #14b8a6; font-weight: 700; text-decoration: none; }.ceter-auth-signup { margin: 24px 0 26px; color: #647a77; font-size: 13px; text-align: center; }.ceter-auth-footer { display: flex; justify-content: center; gap: 22px; border-top: 1px solid #e5f0ef; padding-top: 19px; }.ceter-auth-footer a { color: #78918d; font-size: 11px; text-decoration: none; }.ceter-auth-message { margin: 0 0 18px; border-radius: 10px; padding: 10px 13px; font-size: 12px; line-height: 1.4; }.ceter-auth-message.error { background: #fff0ef; color: #b23935; }.ceter-auth-message.success { background: #e6f8f5; color: #0f766e; }
+.ceter-otp-card { text-align: center; }.ceter-otp-card .ceter-auth-subtitle { max-width: 330px; margin-right: auto; margin-left: auto; }.ceter-otp-card .ceter-auth-form { gap: 18px; text-align: left; }.ceter-otp-label { text-align: center; }.ceter-otp-inputs { display: grid; grid-template-columns: repeat(6, 1fr); gap: 9px; }.ceter-otp-inputs input { height: 48px; min-width: 0; border: 1px solid #dce6df; border-radius: 10px; background: #fbfdfc; padding: 0; color: #183528; font-size: 21px; font-weight: 700; text-align: center; outline: none; }.ceter-otp-inputs input:focus { border-color: #14b8a6; box-shadow: 0 0 0 3px rgba(20, 184, 166, .12); }.ceter-auth-resend { margin: 24px 0 26px; color: #6d7b73; font-size: 12px; }.ceter-auth-resend button { border: 0; background: transparent; padding: 0; cursor: pointer; }
+@media (max-width: 520px) { .ceter-auth-card { padding: 32px 24px 22px; }.ceter-auth-logo { margin-bottom: 25px; }.ceter-otp-inputs { gap: 6px; } }
+
+/* Shared admin on/off switch. */
+.toggle-switch { position: relative; display: inline-flex; width: auto; min-height: 24px; align-items: center; gap: 10px; margin: 10px; }
+.toggle-switch .toggle-input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+.toggle-switch .toggle-label { position: relative; display: block; width: 40px; height: 24px; flex: 0 0 40px; background-color: #64696d; border-radius: 34px; cursor: pointer; transition: background-color .3s; }
+.toggle-switch .toggle-label::before { position: absolute; top: 2px; left: 2px; width: 20px; height: 20px; border-radius: 50%; background-color: #fff; box-shadow: 0 2px 5px 0 rgba(0, 0, 0, .3); content: ""; transition: transform .3s; }
+.toggle-switch .toggle-input:checked + .toggle-label { background-color: #14b8a6; }
+.toggle-switch .toggle-input:checked + .toggle-label::before { transform: translateX(16px); }
+.toggle-switch.light .toggle-label { background-color: #BEBEBE; }
+.toggle-switch.light .toggle-input:checked + .toggle-label { background-color: #9B9B9B; }
+.toggle-switch.light .toggle-input:checked + .toggle-label::before { transform: translateX(6px); }
+.toggle-switch.dark .toggle-label { background-color: #4B4B4B; }
+.toggle-switch.dark .toggle-input:checked + .toggle-label { background-color: #717171; }
+.toggle-switch.dark .toggle-input:checked + .toggle-label::before { transform: translateX(16px); }
+.toggle-switch .toggle-input:focus-visible + .toggle-label { outline: 2px solid #14b8a6; outline-offset: 2px; }
+.toggle-switch-text { color: var(--ceter-text-body); font-size: 13px; font-weight: 500; }
+.ceter-admin-import-result { max-height: 320px; margin-top: 16px; overflow: auto; border: 1px solid #d8e6dd; border-radius: 10px; background: #f7fbf8; padding: 14px; color: #214435; }.ceter-admin-import-result pre { margin: 8px 0 0; white-space: pre-wrap; font-size: 12px; }.ceter-admin-form-error { margin: 16px 0 0; color: #b23935; font-size: 13px; font-weight: 600; }
+
 .ceter-admin-detail-list {
   display: grid;
   grid-template-columns: 120px minmax(0, 1fr);
@@ -6121,4 +6345,235 @@ button,
   color: var(--ceter-brand-strong);
 }
 
+/* Quotation detail layout */
+.ceter-quote-detail .ceter-admin-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+  margin-bottom: 18px;
+}
 
+.ceter-quote-detail .ceter-admin-stat-card {
+  display: grid;
+  min-width: 0;
+  align-content: start;
+  gap: 7px;
+  border: 1px solid var(--ceter-border);
+  border-radius: 12px;
+  background: #fff;
+  padding: 16px;
+}
+
+.ceter-quote-detail .ceter-admin-stat-card > span {
+  color: var(--ceter-text-muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.ceter-quote-detail .ceter-admin-stat-card strong {
+  min-width: 0;
+  color: var(--ceter-text-primary);
+  font-size: 20px;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+
+.ceter-quote-detail .ceter-admin-stat-card small {
+  color: var(--ceter-text-muted);
+  font-size: 12px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.ceter-quote-detail .ceter-admin-grid,
+.ceter-quote-detail .ceter-admin-panel {
+  min-width: 0;
+}
+
+.ceter-quote-detail .ceter-quote-detail-list {
+  grid-template-columns: minmax(90px, 0.7fr) minmax(0, 1.3fr);
+  gap: 12px 14px;
+  line-height: 1.5;
+}
+
+.ceter-quote-detail .ceter-quote-detail-list dt,
+.ceter-quote-detail .ceter-quote-detail-list dd {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.ceter-quote-detail .ceter-quote-documents {
+  margin: 0 18px 18px;
+  border-top: 1px solid var(--ceter-border);
+  padding-top: 14px;
+}
+
+.ceter-quote-detail .ceter-quote-documents h3 {
+  margin: 0 0 10px;
+  color: var(--ceter-text-muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.ceter-quote-detail .ceter-quote-documents ul {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ceter-quote-detail .ceter-quote-documents li,
+.ceter-quote-detail .ceter-quote-documents a {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.ceter-quote-detail .ceter-quote-documents a {
+  color: var(--ceter-brand-strong);
+}
+
+.ceter-quote-detail .ceter-quote-documents p {
+  margin: 0;
+  color: var(--ceter-text-muted);
+  font-size: 13px;
+}
+
+@media (max-width: 900px) {
+  .ceter-quote-detail .ceter-admin-stat-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 540px) {
+  .ceter-quote-detail .ceter-admin-stat-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .ceter-quote-detail .ceter-quote-detail-list {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 4px;
+    padding-bottom: 12px;
+  }
+
+  .ceter-quote-detail .ceter-quote-detail-list dd:not(:last-child) {
+    margin-bottom: 9px;
+  }
+}
+
+
+
+/* Invoice detail layout */
+.ceter-invoice-detail .ceter-admin-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+  margin-bottom: 18px;
+}
+
+.ceter-invoice-detail .ceter-admin-stat-card {
+  display: grid;
+  min-width: 0;
+  align-content: start;
+  gap: 7px;
+  border: 1px solid var(--ceter-border);
+  border-radius: 12px;
+  background: #fff;
+  padding: 16px;
+}
+
+.ceter-invoice-detail .ceter-admin-stat-card > span {
+  color: var(--ceter-text-muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.ceter-invoice-detail .ceter-admin-stat-card strong {
+  min-width: 0;
+  color: var(--ceter-text-primary);
+  font-size: 20px;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+
+.ceter-invoice-detail .ceter-admin-grid,
+.ceter-invoice-detail .ceter-admin-panel {
+  min-width: 0;
+}
+
+.ceter-invoice-detail .ceter-invoice-detail-list {
+  grid-template-columns: minmax(100px, 0.4fr) minmax(0, 1fr);
+  gap: 12px 16px;
+  line-height: 1.5;
+}
+
+.ceter-invoice-detail .ceter-invoice-detail-list dt,
+.ceter-invoice-detail .ceter-invoice-detail-list dd {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.ceter-invoice-detail .ceter-invoice-detail-list dd > span,
+.ceter-invoice-detail .ceter-invoice-detail-list ul {
+  display: grid;
+  gap: 8px;
+}
+
+.ceter-invoice-detail .ceter-invoice-detail-list ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ceter-invoice-detail .ceter-invoice-detail-list li,
+.ceter-invoice-detail .ceter-invoice-detail-list a {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.ceter-invoice-detail .ceter-invoice-detail-list dd a {
+  margin-right: 0;
+}
+
+@media (max-width: 900px) {
+  .ceter-invoice-detail .ceter-admin-stat-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 540px) {
+  .ceter-invoice-detail .ceter-admin-stat-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .ceter-invoice-detail .ceter-invoice-detail-list {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 4px;
+  }
+
+  .ceter-invoice-detail .ceter-invoice-detail-list dd:not(:last-child) {
+    margin-bottom: 9px;
+  }
+}
+.ceter-invoice-detail .ceter-invoice-detail-list dd > span > span {
+  display: block;
+  margin-top: 3px;
+  color: var(--ceter-text-muted);
+}
+
+.ceter-action-feedback {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin: 16px 0;
+  padding: 14px 16px;
+  border: 1px solid #b7dccb;
+  border-radius: 10px;
+  background: #f2faf6;
+  color: #174b38;
+}
+.ceter-action-feedback.error { border-color: #ecc5c2; background: #fff7f6; color: #852d2a; }
+.ceter-action-feedback > svg { flex: none; margin-top: 1px; }
+.ceter-action-feedback strong { display: block; font-size: 14px; }
+.ceter-action-feedback p { margin: 3px 0 0; font-size: 13px; line-height: 1.5; overflow-wrap: anywhere; }
+.ceter-action-feedback a { display: inline-block; margin-top: 7px; font-size: 13px; font-weight: 700; text-decoration: underline; text-underline-offset: 2px; }

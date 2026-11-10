@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import { BrandIcon } from "@/components/BrandIcon";
 import { useCart } from "@/components/CartProvider";
 import { ProductImageFrame } from "@/components/ProductImageFrame";
@@ -42,11 +43,17 @@ export function CheckoutForm({ defaultProfile, deliveryFees }: { defaultProfile:
   const [deliveryInstructions, setDeliveryInstructions] = useState(defaultProfile.delivery_instructions ?? "");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [outcomeUnknown, setOutcomeUnknown] = useState(false);
+  const [step, setStep] = useState<1 | 2 | 3>(1);
+  const submissionInProgress = useRef(false);
+  const checkoutKey = useRef(crypto.randomUUID());
   const subtotal = items.reduce((sum, item) => sum + item.product.price * item.quantity, 0);
   const deliveryFee = fulfillmentMethod === "delivery" ? deliveryFees.find((fee) => fee.value === deliveryRegion && fee.isEnabled)?.feeKes ?? 0 : 0;
   const totals = calculateOrderTotal({ subtotalKes: subtotal, deliveryFeeKes: deliveryFee });
 
   async function submit() {
+    if (submissionInProgress.current) return;
+    submissionInProgress.current = true;
     setError(null);
     setLoading(true);
     try {
@@ -55,31 +62,53 @@ export function CheckoutForm({ defaultProfile, deliveryFees }: { defaultProfile:
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           method,
+          checkoutKey: checkoutKey.current,
           fulfillmentMethod,
           phone,
-          delivery: fulfillmentMethod === "delivery" ? {
+          items: items.map(({ product, quantity }) => ({ productId: product.id, quantity })),
+          delivery: {
             name,
             phone,
             email,
             region: deliveryRegion,
             location: deliveryLocation,
             instructions: deliveryInstructions
-          } : null
+          }
         })
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error ?? "Checkout could not start.");
-      await clearCart();
+      try {
+        await clearCart();
+      } catch {
+        // The order response is authoritative; cart cleanup failing must not imply checkout failed.
+        toast.warning("Your order was placed, but the saved cart could not be cleared.");
+      }
       if (data.redirectUrl) {
         window.location.href = data.redirectUrl;
         return;
       }
       router.push(`/order-confirmation/${data.orderId}${data.paymentId ? `?paymentId=${data.paymentId}` : ""}`);
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Checkout could not start.");
+      if (caught instanceof TypeError || caught instanceof SyntaxError) {
+        setOutcomeUnknown(true);
+        setError("We couldn’t confirm whether your order was placed because the connection was interrupted. Contact us before trying again.");
+      } else {
+        setError(caught instanceof Error ? caught.message : "Checkout could not start.");
+      }
     } finally {
+      submissionInProgress.current = false;
       setLoading(false);
     }
+  }
+
+  function continueStep() {
+    if (step === 1 && (!name.trim() || !/^\S+@\S+\.\S+$/.test(email) || phone.trim().length < 9)) {
+      setError("Enter your name, a valid email address, and phone number to continue.");
+      return;
+    }
+    setError(null);
+    setStep((current) => (current + 1) as 1 | 2 | 3);
   }
 
   return (
@@ -87,7 +116,11 @@ export function CheckoutForm({ defaultProfile, deliveryFees }: { defaultProfile:
       <section className="rounded-lg border border-[#DDE8EE] bg-white p-5 shadow-[0_1px_2px_rgba(11,30,57,0.04)]">
         <h1 className="text-2xl font-black text-ink">Checkout</h1>
         <p className="mt-1 text-sm text-slate-500">Confirm delivery details and choose a payment method.</p>
-        {error ? <p className="mt-4 rounded-md bg-red-50 p-3 text-sm font-semibold text-red-700">{error}</p> : null}
+        <ol className="mt-4 grid grid-cols-3 gap-2 text-xs font-bold sm:text-sm" aria-label="Checkout progress">
+          {["Contact and Delivery", "Payment", "Review and Place Order"].map((label, index) => <li key={label} aria-current={step === index + 1 ? "step" : undefined} className={`rounded-md px-2 py-3 text-center ${step === index + 1 ? "bg-ink text-white" : step > index + 1 ? "bg-teal-50 text-teal-800" : "bg-slate-100 text-slate-600"}`}>{index + 1}. {label}</li>)}
+        </ol>
+        {error ? <div className="mt-4 rounded-md bg-red-50 p-3 text-sm font-semibold text-red-700" role="alert"><p>{error}</p></div> : null}
+        {step === 1 ? <>
         <div className="mt-5 grid gap-3 sm:grid-cols-2">
           <button
             type="button"
@@ -106,26 +139,25 @@ export function CheckoutForm({ defaultProfile, deliveryFees }: { defaultProfile:
             <span className="mt-1 block text-sm text-slate-600">No physical or business address is required.</span>
           </button>
         </div>
-        {fulfillmentMethod === "delivery" ? (
-          <div className="mt-5 grid gap-4 sm:grid-cols-2">
+        <div className="mt-5 grid gap-4 sm:grid-cols-2">
             <label className="block text-sm font-bold text-slate-700">
-              Delivery name
-              <input id="checkout-delivery-name" name="name" autoComplete="name" placeholder="Recipient full name" value={name} onChange={(event) => setName(event.target.value)} className="mt-2 h-11 w-full rounded-md border border-slate-300 px-3 text-sm focus:border-signal focus:outline-none" />
+              {fulfillmentMethod === "delivery" ? "Delivery name" : "Your name"}
+              <input id="checkout-delivery-name" name="name" autoComplete="name" placeholder="Full name" required value={name} onChange={(event) => setName(event.target.value)} className="mt-2 h-11 w-full rounded-md border border-slate-300 px-3 text-sm focus:border-signal focus:outline-none" />
             </label>
             <label className="block text-sm font-bold text-slate-700">
               Phone number
-              <input id="checkout-phone" name="phone" type="tel" autoComplete="tel" placeholder="Mobile number for delivery updates" value={phone} onChange={(event) => setPhone(event.target.value)} className="mt-2 h-11 w-full rounded-md border border-slate-300 px-3 text-sm focus:border-signal focus:outline-none" />
+              <input id="checkout-phone" name="phone" type="tel" autoComplete="tel" placeholder="Mobile number" required value={phone} onChange={(event) => setPhone(event.target.value)} className="mt-2 h-11 w-full rounded-md border border-slate-300 px-3 text-sm focus:border-signal focus:outline-none" />
             </label>
             <label className="block text-sm font-bold text-slate-700">
               Email address
-              <input id="checkout-email" name="email" type="email" autoComplete="email" placeholder="Email for order updates" value={email} onChange={(event) => setEmail(event.target.value)} className="mt-2 h-11 w-full rounded-md border border-slate-300 px-3 text-sm focus:border-signal focus:outline-none" />
+              <input id="checkout-email" name="email" type="email" autoComplete="email" placeholder="Email for order updates" required value={email} onChange={(event) => setEmail(event.target.value)} className="mt-2 h-11 w-full rounded-md border border-slate-300 px-3 text-sm focus:border-signal focus:outline-none" />
             </label>
-            <label className="block text-sm font-bold text-slate-700">
+            {fulfillmentMethod === "delivery" ? <label className="block text-sm font-bold text-slate-700">
               Delivery region
               <select id="checkout-delivery-region" name="delivery_region" autoComplete="address-level1" value={deliveryRegion} onChange={(event) => setDeliveryRegion(event.target.value as DeliveryRegion)} className="mt-2 h-11 w-full rounded-md border border-slate-300 bg-white px-3 text-sm focus:border-signal focus:outline-none">
                 {deliveryFees.map((region) => <option key={region.value} value={region.value} disabled={!region.isEnabled}>{region.label} - {region.isEnabled ? formatKes(region.feeKes) : "Unavailable"}</option>)}
               </select>
-            </label>
+            </label> : null}
             <label className="block text-sm font-bold text-slate-700 sm:col-span-2">
               Delivery address
               <input id="checkout-delivery-location" name="delivery_location" autoComplete="street-address" value={deliveryLocation} onChange={(event) => setDeliveryLocation(event.target.value)} placeholder="Street, building, estate, town, or pickup point" className="mt-2 h-11 w-full rounded-md border border-slate-300 px-3 text-sm focus:border-signal focus:outline-none" />
@@ -135,8 +167,9 @@ export function CheckoutForm({ defaultProfile, deliveryFees }: { defaultProfile:
               <textarea id="checkout-delivery-instructions" name="delivery_instructions" autoComplete="off" value={deliveryInstructions} onChange={(event) => setDeliveryInstructions(event.target.value)} placeholder="Gate code, floor, landmark, or preferred delivery time" rows={3} className="mt-2 w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-signal focus:outline-none" />
             </label>
           </div>
-        ) : null}
 
+        </> : null}
+        {step === 2 ? <>
         <h2 className="mt-7 text-lg font-black text-ink">Payment</h2>
         <div className="mt-3 grid gap-3 sm:grid-cols-3">
           <button
@@ -184,16 +217,26 @@ export function CheckoutForm({ defaultProfile, deliveryFees }: { defaultProfile:
             />
           </label>
         ) : null}
+        </> : null}
+        {step === 3 ? <>
+        <h2 className="mt-7 text-lg font-black text-ink">Review and place order</h2>
+        <p className="mt-2 text-sm text-slate-600">Check your delivery and payment selections in the order summary before placing your order.</p>
         <button
           type="button"
-          disabled={loading || !items.length}
+          disabled={loading || outcomeUnknown || !items.length}
+          aria-busy={loading}
           onClick={submit}
           className="mt-6 min-h-11 w-full rounded-md bg-signal px-5 text-sm font-bold text-white hover:bg-teal-700 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
         >
           {loading ? "Placing order..." : method === "mpesa" ? "Pay with M-Pesa" : method === "card" ? "Continue to card payment" : "Confirm Pay on Delivery order"}
         </button>
+        </> : null}
+        <div className="mt-6 flex gap-3">
+          {step > 1 ? <button type="button" disabled={loading} onClick={() => setStep((current) => (current - 1) as 1 | 2 | 3)} className="min-h-11 rounded-md border border-slate-300 px-5 text-sm font-bold text-ink disabled:opacity-60">Back</button> : null}
+          {step < 3 ? <button type="button" onClick={continueStep} className="min-h-11 rounded-md bg-signal px-5 text-sm font-bold text-white hover:bg-teal-700">Continue to {step === 1 ? "Payment" : "Review"}</button> : null}
+        </div>
       </section>
-      <aside className="h-fit rounded-lg border border-[#DDE8EE] bg-white p-5 shadow-[0_1px_2px_rgba(11,30,57,0.04)]">
+      <aside className="sticky top-4 h-fit rounded-lg border border-[#DDE8EE] bg-white p-5 shadow-[0_1px_2px_rgba(11,30,57,0.04)]">
         <h2 className="text-lg font-black text-ink">Order summary</h2>
         <div className="mt-3 flex flex-wrap items-center gap-2">
           <span className="inline-flex h-8 items-center rounded-md border border-line bg-white px-2"><BrandIcon name="mpesa" label="M-Pesa" size={42} className="h-5 w-auto" /></span>

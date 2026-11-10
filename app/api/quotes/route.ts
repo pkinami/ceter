@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { createClient } from "@/lib/supabase/server";
 
 function text(value: unknown) {
   return typeof value === "string" ? value.trim() : "";
@@ -40,6 +41,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "The selected product is no longer available." }, { status: 404 });
   }
 
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
   const quote = await prisma.quoteRequest.create({
     data: {
       name,
@@ -48,6 +51,7 @@ export async function POST(request: Request) {
       service_needed: service,
       message,
       status: "new",
+      owner_id: user?.id ?? null,
       lines: product
         ? {
             create: [{
@@ -61,6 +65,16 @@ export async function POST(request: Request) {
         : undefined
     },
     include: { lines: true }
+  });
+
+  await prisma.internalNotification.create({
+    data: {
+      notification_key: `quote-request:${quote.id}:submitted`,
+      title: "New service quote request",
+      body: `${quote.name} requested ${quote.service_needed}.`,
+      target_type: "QuoteRequest",
+      target_id: quote.id
+    }
   });
 
   return NextResponse.json({ quoteId: quote.id, lineIds: quote.lines.map((line) => line.id) }, { status: 201 });

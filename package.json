@@ -8,6 +8,7 @@
     "postinstall": "prisma generate",
     "start": "next start",
     "lint": "eslint .",
+    "test": "tsx --test lib/admin/product-fields.test.ts",
     "banners:sync": "node scripts/sync-responsive-banners.mjs",
     "setup:admin": "node scripts/setup-admin.mjs",
     "prisma:validate": "prisma validate",

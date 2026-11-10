@@ -1,7 +1,6 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { parseDeliveryRegion } from "@/lib/delivery";
@@ -9,17 +8,6 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
 const ADMIN_ROLES = new Set(["admin", "owner", "manager", "sales", "store"]);
-
-async function siteOrigin() {
-  const configured = process.env.NEXT_PUBLIC_SITE_URL ?? process.env.VERCEL_PROJECT_PRODUCTION_URL;
-  if (configured) return configured.startsWith("http") ? configured : `https://${configured}`;
-
-  const headerStore = await headers();
-  const host = headerStore.get("host");
-  if (!host) return "http://localhost:3000";
-  const proto = headerStore.get("x-forwarded-proto") ?? (host.startsWith("localhost") ? "http" : "https");
-  return `${proto}://${host}`;
-}
 
 function safeRedirectPath(value: FormDataEntryValue | null, fallback: string) {
   const next = String(value ?? fallback);
@@ -72,7 +60,6 @@ export async function signUpAction(formData: FormData) {
     email,
     password,
     options: {
-      emailRedirectTo: `${await siteOrigin()}/auth/callback?next=/account`,
       data: {
         full_name: fullName,
         phone
@@ -101,11 +88,27 @@ export async function signUpAction(formData: FormData) {
       await prisma.customer.create({ data: { profile_id: data.user.id, ...customerData } });
     }
   }
-  if (data.session) {
-    await supabase.auth.signOut();
-    redirect("/login?error=Email verification is not enforced in Supabase Auth yet. Configure email confirmation, then sign in after verifying your email.");
-  }
-  redirect("/login?error=Check your email to verify the account before signing in.");
+  redirect(`/verify-email?email=${encodeURIComponent(email)}`);
+}
+
+export async function resendEmailConfirmationAction(formData: FormData) {
+  const supabase = await createClient();
+  const email = String(formData.get("email") ?? "").trim().toLowerCase();
+  if (!email) redirect("/signup?error=Enter your email address to receive a verification code.");
+  const { error } = await supabase.auth.resend({ type: "signup", email });
+  if (error) redirect(`/verify-email?email=${encodeURIComponent(email)}&error=${encodeURIComponent(signupErrorMessage(error.message))}`);
+  redirect(`/verify-email?email=${encodeURIComponent(email)}&success=A new verification code has been sent.`);
+}
+
+export async function verifySignupOtpAction(formData: FormData) {
+  const supabase = await createClient();
+  const email = String(formData.get("email") ?? "").trim().toLowerCase();
+  const token = String(formData.get("token") ?? "").trim();
+  if (!email || !/^\d{6}$/.test(token)) redirect(`/verify-email?email=${encodeURIComponent(email)}&error=${encodeURIComponent("Enter the six-digit verification code.")}`);
+  const { error } = await supabase.auth.verifyOtp({ email, token, type: "signup" });
+  if (error) redirect(`/verify-email?email=${encodeURIComponent(email)}&error=${encodeURIComponent("That verification code is invalid or has expired. Request a new code and try again.")}`);
+  revalidatePath("/", "layout");
+  redirect("/account");
 }
 
 export async function signInAction(formData: FormData) {
@@ -118,6 +121,40 @@ export async function signInAction(formData: FormData) {
   if (error) redirect(`/login?error=${encodeURIComponent(authErrorMessage(error.message))}&next=${encodeURIComponent(safeNext)}`);
   revalidatePath("/", "layout");
   redirect(safeNext);
+}
+
+export async function forgotPasswordAction(formData: FormData) {
+  const supabase = await createClient();
+  const email = String(formData.get("email") ?? "").trim().toLowerCase();
+  if (!email) redirect("/forgot-password?error=Enter your email address.");
+  const { error } = await supabase.auth.resetPasswordForEmail(email);
+  if (error) redirect(`/forgot-password?error=${encodeURIComponent(authErrorMessage(error.message))}`);
+  redirect(`/reset-password?email=${encodeURIComponent(email)}&success=${encodeURIComponent("Check your email for the six-digit password-reset code.")}`);
+}
+
+export async function verifyRecoveryOtpAndUpdatePasswordAction(formData: FormData) {
+  const email = String(formData.get("email") ?? "").trim().toLowerCase();
+  const token = String(formData.get("token") ?? "").trim();
+  const password = String(formData.get("password") ?? "");
+  const resetUrl = `/reset-password?email=${encodeURIComponent(email)}`;
+  if (!email || !/^\d{6}$/.test(token)) redirect(`${resetUrl}&error=${encodeURIComponent("Enter the six-digit password-reset code.")}`);
+  if (password.length < 6) redirect(`${resetUrl}&error=${encodeURIComponent("Use a password with at least 6 characters.")}`);
+  const supabase = await createClient();
+  const { error: verifyError } = await supabase.auth.verifyOtp({ email, token, type: "recovery" });
+  if (verifyError) redirect(`${resetUrl}&error=${encodeURIComponent("That password-reset code is invalid or has expired. Request a new code and try again.")}`);
+  const { error } = await supabase.auth.updateUser({ password });
+  if (error) redirect(`${resetUrl}&error=${encodeURIComponent(authErrorMessage(error.message))}`);
+  await supabase.auth.signOut();
+  redirect("/login?success=Password updated. Sign in with your new password.");
+}
+
+export async function resendRecoveryOtpAction(formData: FormData) {
+  const supabase = await createClient();
+  const email = String(formData.get("email") ?? "").trim().toLowerCase();
+  if (!email) redirect("/forgot-password?error=Enter your email address to receive a password-reset code.");
+  const { error } = await supabase.auth.resetPasswordForEmail(email);
+  if (error) redirect(`/reset-password?email=${encodeURIComponent(email)}&error=${encodeURIComponent(authErrorMessage(error.message))}`);
+  redirect(`/reset-password?email=${encodeURIComponent(email)}&success=${encodeURIComponent("A new password-reset code has been sent.")}`);
 }
 
 export async function adminSignInAction(formData: FormData) {

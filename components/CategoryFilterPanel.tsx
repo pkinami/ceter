@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
@@ -17,6 +17,7 @@ export function CategoryFilterPanel({ categories, brands }: { categories: Catego
   const searchParams = useSearchParams();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [expandedCategoryPath, setExpandedCategoryPath] = useState<string[]>([]);
+  const [brandQuery, setBrandQuery] = useState("");
   const selectedBrand = searchParams.get("brand") ?? "";
   const selectedCategory = searchParams.get("category") ?? "";
   const selectedCondition = searchParams.get("condition") ?? "";
@@ -25,6 +26,7 @@ export function CategoryFilterPanel({ categories, brands }: { categories: Catego
 
   const activeFilterCount = Number(Boolean(selectedBrand)) + Number(Boolean(selectedCategory)) + Number(Boolean(selectedCondition)) + Number(Boolean(selectedStock)) + Number(price !== 450000);
   const categoryTree = buildCategoryTree(categories);
+  const visibleBrands = useMemo(() => brands.filter((brand) => brand.toLowerCase().includes(brandQuery.trim().toLowerCase())), [brands, brandQuery]);
 
   useEffect(() => {
     if (!drawerOpen) return;
@@ -44,7 +46,7 @@ export function CategoryFilterPanel({ categories, brands }: { categories: Catego
     const params = new URLSearchParams(searchParams.toString());
     if (value) params.set(key, value);
     else params.delete(key);
-    router.push(`${pathname}${params.toString() ? `?${params}` : ""}`);
+    router.replace(`${pathname}${params.toString() ? `?${params}` : ""}`, { scroll: false });
   }
 
   const content = (
@@ -81,14 +83,22 @@ export function CategoryFilterPanel({ categories, brands }: { categories: Catego
         </label>
         <fieldset>
           <legend className="text-sm font-bold text-slate-700">Brand</legend>
-          <div className="mt-2 grid grid-cols-1 gap-1">
-            {brands.map((brand) => (
+          <input type="search" value={brandQuery} onChange={(event) => setBrandQuery(event.target.value)} placeholder="Search brands" aria-label="Search brands" className="mt-2 h-11 w-full rounded-md border border-slate-300 px-3 text-sm" />
+          <div className="mt-2 grid max-h-48 grid-cols-1 gap-1 overflow-y-auto">
+            {visibleBrands.map((brand) => (
               <label key={brand} className={cn("flex cursor-pointer items-center gap-2 rounded px-2.5 py-1.5 text-sm text-slate-600 hover:bg-teal-50 hover:text-signal", selectedBrand === brand && "bg-teal-50 text-signal")}>
                 <input type="checkbox" checked={selectedBrand === brand} onChange={() => updateFilter("brand", selectedBrand === brand ? null : brand)} className="h-4 w-4 accent-teal-700" /> {brand}
               </label>
             ))}
           </div>
+          {!visibleBrands.length ? <p className="mt-2 text-xs text-slate-500">No matching brands.</p> : null}
         </fieldset>
+        <label className="flex min-h-11 items-center gap-2 text-sm font-semibold text-slate-700">
+          <input type="checkbox" checked={selectedStock === "in_stock"} onChange={() => updateFilter("stock", selectedStock === "in_stock" ? null : "in_stock")} className="h-4 w-4 accent-teal-700" /> In stock
+        </label>
+        <details>
+          <summary className="flex min-h-11 cursor-pointer items-center justify-between rounded-md bg-slate-50 px-3 text-sm font-bold text-ink">More Filters <ChevronDown className="h-4 w-4" /></summary>
+          <div className="mt-4 space-y-4">
         <label className="block text-sm font-bold text-slate-700">
           Price range
           <input type="range" autoComplete="off" min="10000" max="450000" step="5000" value={price} onChange={(event) => updateFilter("maxPrice", event.target.value === "450000" ? null : event.target.value)} className="mt-3 w-full accent-teal-700" />
@@ -100,13 +110,12 @@ export function CategoryFilterPanel({ categories, brands }: { categories: Catego
               <input type="checkbox" checked={selectedCondition === item} onChange={() => updateFilter("condition", selectedCondition === item ? null : item)} className="accent-teal-700" /> <span className="capitalize">{item}</span>
             </label>
           ))}
-          <label className="flex items-center gap-2 text-sm">
-            <input type="checkbox" checked={selectedStock === "in_stock"} onChange={() => updateFilter("stock", selectedStock === "in_stock" ? null : "in_stock")} className="accent-teal-700" /> In stock
-          </label>
         </div>
         <button type="button" onClick={() => router.push(pathname)} className="flex h-10 w-full items-center justify-center rounded-md border border-slate-300 bg-white text-sm font-bold text-ink hover:bg-slate-50">
           Clear filters
         </button>
+          </div>
+        </details>
       </div>
     </div>
   );

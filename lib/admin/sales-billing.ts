@@ -237,7 +237,7 @@ export async function createDeliveryFromOrder(input: { session: AdminSession; or
     if (!order) throw new Error("Order was not found.");
     const delivery = await tx.delivery.create({
       data: {
-        delivery_number: createBusinessNumber("DN"),
+        delivery_number: await createBusinessNumber(tx, "DN"),
         order_id: order.id,
         customer_id: order.customer_id,
         status: "scheduled",

@@ -5,6 +5,7 @@ import { formatKes } from "@/lib/utils";
 import { allocatePaymentAction, cancelOrderReservationAction, confirmOrderReservationAction, createDeliveryAction, fulfillOrderAction, reversePaymentAction } from "@/app/admin/sales/actions";
 import { generateCustomerStatementAction, upsertCustomerAction, upsertCustomerCategoryAction } from "@/app/admin/business/actions";
 import { AdminActionMenu } from "@/components/admin/AdminActionMenu";
+import { FormSubmitButton } from "@/components/FormSubmitButton";
 
 export async function CustomersPage() {
   await requirePermission("customers.view");
@@ -81,30 +82,26 @@ export async function CustomerCategoriesPage() {
 }
 
 export async function SalesPage() {
-  await requirePermission("sales.view");
+  const session = await requirePermission("sales.view");
   const orders = await prisma.order.findMany({ include: { customer: true, order_items: true, payments: true, deliveries: true }, orderBy: { created_at: "desc" }, take: 100 });
-  return <PageShell eyebrow="Sales" title="Sales Orders" subtitle="Storefront and admin order demand with separate payment, fulfilment, delivery and fiscalization statuses." action={<Link className="ceter-admin-primary-button" href="/admin/sales/new">Make sale</Link>}>
+  return <PageShell eyebrow="Sales" title="Sales Orders" subtitle="Storefront and admin orders, with payment, fulfilment and delivery progress in one place." action={<Link className="ceter-admin-primary-button" href="/admin/sales/new">Make sale</Link>}>
     <Kpis items={[["Orders", orders.length], ["Pending", orders.filter((o) => o.status === "pending").length], ["Reserved", orders.filter((o) => o.fulfilment_status === "reserved").length], ["Backorders", await prisma.salesBackorder.count({ where: { status: "open" } })]]} />
     <FilterBar action="/admin/sales" placeholder="Search order, customer, source or status..." />
-    <Table columns={["Order", "Source", "Customer", "Amount", "Payment", "Fulfilment", "Delivery", "eTIMS", "Actions"]} rows={orders.map((order) => [
-      order.order_number,
-      label(order.source),
+    <Table columns={["Order", "Customer", "Amount", "Status", "Actions"]} rows={orders.map((order) => [
+      <Link key="order" href={`/admin/sales/${order.id}`}>{order.order_number}</Link>,
       order.customer?.name ?? order.delivery_name ?? "Storefront customer",
       formatKes(order.total_kes),
-      <Badge key="p" value={order.payment_status} />,
-      <Badge key="f" value={order.fulfilment_status} />,
-      <Badge key="d" value={order.delivery_status} />,
-      <Badge key="e" value={order.fiscalization_status} />,
-      <OrderActions key="a" orderId={order.id} />
+      <div key="status" title={`Payment: ${label(order.payment_status)} · Fulfilment: ${label(order.fulfilment_status)} · Delivery: ${label(order.delivery_status)}`}><Badge value={order.status} /></div>,
+      <OrderActions key="a" orderId={order.id} orderStatus={order.status} fulfilmentStatus={order.fulfilment_status} deliveryStatus={order.delivery_status} permissions={session.permissions} />
     ])} empty="No sales orders found." />
   </PageShell>;
 }
 
 export async function SalesDetailPage({ id }: { id: string }) {
-  await requirePermission("sales.view");
+  const session = await requirePermission("sales.view");
   const order = await prisma.order.findUnique({ where: { id }, include: { customer: true, order_items: { include: { product: true } }, deliveries: true, sales_backorders: true, payments: true } });
   if (!order) return <Missing title="Order not found" />;
-  return <PageShell eyebrow="Sales / Detail" title={order.order_number} subtitle="Order, reservation, fulfilment, delivery and payment states remain independent." action={<OrderActions orderId={order.id} />}>
+  return <PageShell eyebrow="Sales / Detail" title={order.order_number} subtitle="Order, reservation, fulfilment, delivery and payment states remain independent." action={<OrderActions orderId={order.id} orderStatus={order.status} fulfilmentStatus={order.fulfilment_status} deliveryStatus={order.delivery_status} permissions={session.permissions} />}>
     <Kpis items={[["Amount", formatKes(order.total_kes)], ["Items", order.order_items.length], ["Backorders", order.sales_backorders.length], ["Deliveries", order.deliveries.length]]} />
     <Tabs tabs={["Overview", "Items", "Payments", "Delivery", "Fiscalization", "Documents", "Activity"]} />
     <Table columns={["Item", "Ordered", "Reserved", "Fulfilled", "Backordered"]} rows={order.order_items.map((line) => [line.product?.name ?? line.service_label ?? "Order line", line.quantity, Number(line.reserved_quantity), Number(line.fulfilled_quantity), Number(line.backordered_quantity)])} empty="No order items." />
@@ -203,8 +200,8 @@ export async function IntegrationSettingsPage({ kind }: { kind: "mpesa" | "etims
   return <SimpleRecords eyebrow="Settings" title={title} subtitle={subtitle} rows={kind === "signing" ? certs.map((cert) => [cert.environment, cert.provider, cert.subject, cert.issuer, cert.serial_number, date(cert.valid_to), cert.is_active ? "Active" : "Inactive"]) : [[kind.toUpperCase(), process.env.NODE_ENV === "production" ? "Production" : "Local", "Credentials redacted", "Live action disabled until configured"]]} columns={kind === "signing" ? ["Environment", "Provider", "Subject", "Issuer", "Serial", "Valid to", "Status"] : ["Integration", "Environment", "Credential display", "Status"]} />;
 }
 
-function PageShell({ eyebrow, title, subtitle, action, children }: { eyebrow: string; title: string; subtitle: string; action?: React.ReactNode; children: React.ReactNode }) {
-  return <div className="ceter-admin-page"><div className="ceter-admin-greeting"><div><p>{eyebrow}</p><h1>{title}</h1><span>{subtitle}</span></div>{action}</div>{children}</div>;
+function PageShell({ eyebrow, title, action, children }: { eyebrow: string; title: string; subtitle: string; action?: React.ReactNode; children: React.ReactNode }) {
+  return <div className="ceter-admin-page"><div className="ceter-admin-greeting"><div><p>{eyebrow}</p><h1>{title}</h1></div>{action}</div>{children}</div>;
 }
 
 function SimpleRecords({ eyebrow, title, subtitle, rows, columns, empty }: { eyebrow: string; title: string; subtitle?: string; rows: React.ReactNode[][]; columns: string[]; empty?: string }) {
@@ -255,20 +252,33 @@ function Badge({ value }: { value: string }) {
   return <span className={`ceter-admin-status ${tone}`}>{label(value)}</span>;
 }
 
-function OrderActions({ orderId }: { orderId: string }) {
-  return <AdminActionMenu label={`Actions for order ${orderId}`}><Link href={`/admin/sales/${orderId}`}>View Order</Link><WorkflowForm action={confirmOrderReservationAction} orderId={orderId} labelText="Confirm Sale" correlationPrefix="confirm" /><WorkflowForm action={fulfillOrderAction} orderId={orderId} labelText="Mark as Fulfilled" correlationPrefix="fulfil" /><WorkflowForm action={createDeliveryAction} orderId={orderId} labelText="Create Delivery" correlationPrefix="delivery" /><form action={cancelOrderReservationAction} className="ceter-admin-inline-form"><input type="hidden" name="order_id" value={orderId} /><input type="hidden" name="reason" value="Cancelled from sales admin" /><input type="hidden" name="correlation_id" value={`cancel-${orderId}`} /><button className="ceter-admin-secondary-button">Cancel Order</button></form></AdminActionMenu>;
+function OrderActions({ orderId, orderStatus, fulfilmentStatus, deliveryStatus, permissions }: { orderId: string; orderStatus: string; fulfilmentStatus: string; deliveryStatus: string; permissions: string[] }) {
+  const active = orderStatus !== "cancelled";
+  const canConfirm = permissions.includes("sales.confirm");
+  const canFulfil = permissions.includes("sales.fulfil");
+  const canCreateDelivery = permissions.includes("deliveries.create");
+  const canCancel = permissions.includes("sales.cancel");
+  const actions = <>{active && canConfirm && fulfilmentStatus === "pending" ? <WorkflowForm action={confirmOrderReservationAction} orderId={orderId} labelText="Confirm order" pendingText="Confirming order..." correlationPrefix="confirm" returnTo="/admin/sales" /> : null}{active && canFulfil && fulfilmentStatus === "reserved" ? <WorkflowForm action={fulfillOrderAction} orderId={orderId} labelText="Fulfil order" pendingText="Fulfilling order..." correlationPrefix="fulfil" returnTo="/admin/sales" /> : null}{active && canCreateDelivery && deliveryStatus === "pending" ? <WorkflowForm action={createDeliveryAction} orderId={orderId} labelText="Create delivery" pendingText="Generating delivery note..." correlationPrefix="delivery" returnTo="/admin/sales" /> : null}{active && canCancel ? <form action={cancelOrderReservationAction} className="ceter-admin-inline-form"><input type="hidden" name="order_id" value={orderId} /><input type="hidden" name="return_to" value="/admin/sales" /><input type="hidden" name="reason" value="Cancelled from sales admin" /><input type="hidden" name="correlation_id" value={`cancel-${orderId}`} /><FormSubmitButton className="ceter-admin-secondary-button" pendingText="Cancelling order...">Cancel order</FormSubmitButton></form> : null}</>;
+  const hasAction = active && (
+    (canConfirm && fulfilmentStatus === "pending") ||
+    (canFulfil && fulfilmentStatus === "reserved") ||
+    (canCreateDelivery && deliveryStatus === "pending") ||
+    canCancel
+  );
+  if (!hasAction) return null;
+  return <AdminActionMenu label={`Actions for order ${orderId}`}>{actions}</AdminActionMenu>;
 }
 
-function WorkflowForm({ action, orderId, labelText, correlationPrefix }: { action: (formData: FormData) => void | Promise<void>; orderId: string; labelText: string; correlationPrefix: string }) {
-  return <form action={action} className="ceter-admin-inline-form"><input type="hidden" name="order_id" value={orderId} /><input type="hidden" name="correlation_id" value={`${correlationPrefix}-${orderId}`} /><button className="ceter-admin-secondary-button">{labelText}</button></form>;
+function WorkflowForm({ action, orderId, labelText, pendingText, correlationPrefix, returnTo }: { action: (formData: FormData) => void | Promise<void>; orderId: string; labelText: string; pendingText: string; correlationPrefix: string; returnTo: string }) {
+  return <form action={action} className="ceter-admin-inline-form"><input type="hidden" name="order_id" value={orderId} /><input type="hidden" name="return_to" value={returnTo} /><input type="hidden" name="correlation_id" value={`${correlationPrefix}-${orderId}`} /><FormSubmitButton className="ceter-admin-secondary-button" pendingText={pendingText}>{labelText}</FormSubmitButton></form>;
 }
 
 function PaymentActions({ paymentId, invoices }: { paymentId: string; invoices: Array<{ id: string; invoice_number: string; balance_kes: number }> }) {
-  return <AdminActionMenu label={`Actions for payment ${paymentId}`}><form action={allocatePaymentAction} className="ceter-admin-inline-form"><input type="hidden" name="payment_id" value={paymentId} /><select name="invoice_id">{invoices.map((invoice) => <option key={invoice.id} value={invoice.id}>{invoice.invoice_number}</option>)}</select><input name="amount_kes" placeholder="KES" /><button className="ceter-admin-secondary-button">Allocate</button></form><form action={reversePaymentAction} className="ceter-admin-inline-form"><input type="hidden" name="payment_id" value={paymentId} /><input type="hidden" name="reason" value="Manual reversal from admin" /><button className="ceter-admin-secondary-button">Reverse</button></form></AdminActionMenu>;
+  return <AdminActionMenu label={`Actions for payment ${paymentId}`}><form action={allocatePaymentAction} className="ceter-admin-inline-form"><input type="hidden" name="payment_id" value={paymentId} /><select name="invoice_id">{invoices.map((invoice) => <option key={invoice.id} value={invoice.id}>{invoice.invoice_number}</option>)}</select><input name="amount_kes" placeholder="KES" /><FormSubmitButton className="ceter-admin-secondary-button" pendingText="Allocating...">Allocate</FormSubmitButton></form><form action={reversePaymentAction} className="ceter-admin-inline-form"><input type="hidden" name="payment_id" value={paymentId} /><input type="hidden" name="reason" value="Manual reversal from admin" /><FormSubmitButton className="ceter-admin-secondary-button" pendingText="Reversing payment...">Reverse</FormSubmitButton></form></AdminActionMenu>;
 }
 
 function Statement({ customerId }: { customerId: string }) {
-  return <form action={generateCustomerStatementAction} className="ceter-admin-inline-form"><input type="hidden" name="customer_id" value={customerId} /><button className="ceter-admin-secondary-button">Statement</button></form>;
+  return <form action={generateCustomerStatementAction} className="ceter-admin-inline-form"><input type="hidden" name="customer_id" value={customerId} /><FormSubmitButton className="ceter-admin-secondary-button" pendingText="Generating statement...">Statement</FormSubmitButton></form>;
 }
 
 function Tabs({ tabs }: { tabs: string[] }) {
